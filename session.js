@@ -19,8 +19,8 @@ const Session = (() => {
     function buildSEConfig(rso) {
         if (rso === 'disjoint') {
             return {
-                movementKeyMap: { 180: 'a', 0: 'd', 90: 'w', 270: 's' },
-                orientationKeyMap: { 180: 'j', 0: 'l', 90: 'i', 270: 'k' },
+                movementKeyMap: { 180: 'a', 0: 'd' },
+                orientationKeyMap: { 180: 'j', 0: 'l' },
                 size: 0.75,
             };
         }
@@ -85,11 +85,32 @@ const Session = (() => {
         await seEndBlock();
 
         // --- Extract RT and accuracy ---
-        const result = extractResponse(data, trial);
+        const result = extractResponse(data, trial, seConfig);
         return {
             ...trial.meta,
             ...result,
         };
+    }
+
+    /**
+     * Build lookup sets mapping keys to task number (1 or 2) for disjoint RSO.
+     * Returns null for identical RSO (falls back to temporal ordering).
+     */
+    function buildKeyTaskMap(seConfig, trial) {
+        // If both tasks share the same keys, we can't disambiguate by key
+        const movKeys = Object.values(seConfig.movementKeyMap || {});
+        const orKeys = Object.values(seConfig.orientationKeyMap || {});
+        const isDisjoint = movKeys.length > 0 && orKeys.length > 0 &&
+            !movKeys.some(k => orKeys.includes(k));
+
+        if (!isDisjoint) return null;
+
+        // Map task identity → key set
+        const task1 = trial.meta.task;
+        const task1Keys = task1 === 'mov' ? movKeys : orKeys;
+        const task2Keys = task1 === 'mov' ? orKeys : movKeys;
+
+        return { task1Keys, task2Keys };
     }
 
     /**
@@ -98,15 +119,19 @@ const Session = (() => {
      * SE keypress entries have: { eventType, key, time, isCorrect }
      *   - time: ms relative to block (i.e., trial) onset
      *   - isCorrect: true if key matched the active go signal
-     *   - No field distinguishes go1 vs go2. But go1 is checked first
-     *     (see trial.js keyDownHandler), so:
-     *       1st correct keypress → go1 response
-     *       2nd correct keypress → go2 response (dual-task only)
+     *   - No field distinguishes go1 vs go2.
+     *
+     * For disjoint RSO: we identify which task a keypress belongs to by
+     * checking which key set it falls in. This correctly handles response
+     * reversals (T2 answered before T1).
+     *
+     * For identical RSO: falls back to temporal ordering (1st correct → T1,
+     * 2nd correct → T2). This is inherently ambiguous for response reversals.
      *
      * Since sleep(iti) happens before block(), block-internal timestamps
      * start at 0 (after ITI). No ITI subtraction needed.
      */
-    function extractResponse(data, trial) {
+    function extractResponse(data, trial, seConfig) {
         const keyPresses = data.keyPresses || [];
         const isDualTask = trial.meta.paradigm === 'dual-task';
 
@@ -115,25 +140,52 @@ const Session = (() => {
         let accuracy1 = 'miss';
         let accuracy2 = isDualTask ? 'miss' : null;
         let hadError1 = false;
+        let hadError2 = false;
 
-        for (const kp of keyPresses) {
-            if (kp.isCorrect) {
-                if (rt1_raw === null) {
-                    // First correct keypress → go1
-                    rt1_raw = kp.time;
-                    accuracy1 = hadError1 ? 'corrected' : 'correct';
-                } else if (isDualTask && rt2_raw === null) {
-                    // Second correct keypress → go2
-                    rt2_raw = kp.time;
-                    accuracy2 = 'correct';
+        const keyMap = isDualTask ? buildKeyTaskMap(seConfig, trial) : null;
+
+        if (keyMap) {
+            // --- Disjoint RSO: identify task by key ---
+            for (const kp of keyPresses) {
+                const isT1Key = keyMap.task1Keys.includes(kp.key);
+                const isT2Key = keyMap.task2Keys.includes(kp.key);
+
+                if (isT1Key) {
+                    if (kp.isCorrect && rt1_raw === null) {
+                        rt1_raw = kp.time;
+                        accuracy1 = hadError1 ? 'corrected' : 'correct';
+                    } else if (!kp.isCorrect && rt1_raw === null) {
+                        hadError1 = true;
+                        accuracy1 = 'error';
+                    }
+                } else if (isT2Key) {
+                    if (kp.isCorrect && rt2_raw === null) {
+                        rt2_raw = kp.time;
+                        accuracy2 = hadError2 ? 'corrected' : 'correct';
+                    } else if (!kp.isCorrect && rt2_raw === null) {
+                        hadError2 = true;
+                        accuracy2 = 'error';
+                    }
                 }
-            } else {
-                // Error keypress
-                if (rt1_raw === null) {
-                    hadError1 = true;
-                    accuracy1 = 'error';
-                } else if (isDualTask && rt2_raw === null) {
-                    accuracy2 = 'error';
+            }
+        } else {
+            // --- Identical RSO: temporal ordering fallback ---
+            for (const kp of keyPresses) {
+                if (kp.isCorrect) {
+                    if (rt1_raw === null) {
+                        rt1_raw = kp.time;
+                        accuracy1 = hadError1 ? 'corrected' : 'correct';
+                    } else if (isDualTask && rt2_raw === null) {
+                        rt2_raw = kp.time;
+                        accuracy2 = 'correct';
+                    }
+                } else {
+                    if (rt1_raw === null) {
+                        hadError1 = true;
+                        accuracy1 = 'error';
+                    } else if (isDualTask && rt2_raw === null) {
+                        accuracy2 = 'error';
+                    }
                 }
             }
         }
@@ -151,6 +203,9 @@ const Session = (() => {
             rt2_raw,
             rt2,
             accuracy2,
+            responseOrder: (isDualTask && rt1_raw !== null && rt2_raw !== null)
+                ? (rt1_raw <= rt2_raw ? 'T1-first' : 'T2-first')
+                : null,
             rawKeyPresses: JSON.stringify(keyPresses),
         };
     }
@@ -252,7 +307,7 @@ const Session = (() => {
             'iti', 'soa',
             'primaryDirection', 'distractorDirection', 'ch2Direction',
             'rt1', 'accuracy1', 'rt2', 'accuracy2',
-            'rt1_raw', 'rt2_raw',
+            'responseOrder', 'rt1_raw', 'rt2_raw', 'rawKeyPresses',
         ];
 
         const header = columns.join(',');
@@ -260,7 +315,9 @@ const Session = (() => {
             columns.map(col => {
                 const val = row[col];
                 if (val === null || val === undefined) return '';
-                if (typeof val === 'string' && val.includes(',')) return `"${val}"`;
+                if (typeof val === 'string' && (val.includes(',') || val.includes('"'))) {
+                    return `"${val.replace(/"/g, '""')}"`;
+                }
                 return val;
             }).join(',')
         );

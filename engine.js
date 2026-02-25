@@ -146,14 +146,9 @@ function assignDirections(task, congruency, paradigm, rso) {
     if (paradigm === 'dual-task') {
         // Channel 1: random horizontal direction
         const ch1Dir = Math.random() < 0.5 ? 0 : 180;
-        // Channel 2: dimension depends on response set overlap
-        let ch2Dir;
-        if (rso === 'disjoint') {
-            ch2Dir = Math.random() < 0.5 ? 90 : 270;
-        } else {
-            // identical RSO: same dimension
-            ch2Dir = Math.random() < 0.5 ? 0 : 180;
-        }
+        // Channel 2: always horizontal. Disjointness is handled by
+        // separate key maps in session.js, not by direction dimension.
+        const ch2Dir = Math.random() < 0.5 ? 0 : 180;
         return {
             ch1_task: ch1Dir,
             ch1_distractor: 0,  // no within-channel distractors in dual-task
@@ -306,6 +301,31 @@ function buildTrialParams(spec) {
     if (params.coh_or_1 === 0) { params.start_or_1 = 0; params.dur_or_1 = 0; }
     if (params.coh_mov_2 === 0) { params.start_mov_2 = 0; params.dur_mov_2 = 0; }
     if (params.coh_or_2 === 0) { params.start_or_2 = 0; params.dur_or_2 = 0; }
+
+    // Recompute ch2 relative offsets AFTER zeroing.
+    //
+    // SE chains ch2 stimulus timing off ch1 counterparts:
+    //   mov2_absolute = start_mov_2 + mov1.end
+    //   or2_absolute  = start_or_2  + or1.end
+    //
+    // buildTimingParams computed offsets assuming ch1 counterparts have their
+    // full duration. But zeroing silenced pathways (coh=0 → dur=0) changes
+    // their end times to 0. We must recompute offsets using the actual
+    // post-zeroing ch1 end times so SE places ch2 stimuli correctly.
+    //
+    // Reference: viewer.js convertAbsoluteToSEParams lines 134-137.
+    if (spec.task2 !== null) {
+        const mov1End = params.start_mov_1 + params.dur_mov_1;
+        const or1End = params.start_or_1 + params.dur_or_1;
+        const desiredCh2Start = spec.csi + spec.soa;
+
+        if (params.dur_mov_2 > 0) {
+            params.start_mov_2 = desiredCh2Start - mov1End;
+        }
+        if (params.dur_or_2 > 0) {
+            params.start_or_2 = desiredCh2Start - or1End;
+        }
+    }
 
     return params;
 }

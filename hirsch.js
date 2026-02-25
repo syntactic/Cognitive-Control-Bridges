@@ -8,14 +8,16 @@
 // Extension beyond Hirsch: SOA sampled from [50, 100, 200, 400, 600, 1000]
 // instead of just {100, 600}.
 //
-// All blocks use identical response set overlap (keys: a = left, d = right).
+// Movement task: a = left, d = right.
+// Orientation task: j = left, l = right.
+// Disjoint response sets eliminate response-reversal ambiguity in PRP data.
 // Stimuli are univalent throughout (no congruency manipulation).
 
 const HIRSCH_DEFAULTS = {
     csi: 200,                // ms, cue-stimulus interval
-    stimulusDuration: 300,   // ms
+    stimulusDuration: 2500,  // ms, matches responseWindow so stimuli stay visible until response
     responseWindow: 2500,    // ms, go signal duration
-    rso: 'identical',
+    rso: 'disjoint',
     coherence: {
         ch1_task: 0.8,
         ch1_distractor: 0,   // univalent: distractor pathway silenced
@@ -104,21 +106,21 @@ const HIRSCH_SESSION = [
     {
         blockConfig: hirschPureMov,
         numTrials: 40,
-        instructions: 'Pure block: MOVEMENT task only.\n\nPress A for leftward motion, D for rightward motion.\n\nPress any key to begin.',
+        instructions: 'Pure block: MOVEMENT task only.\n\nLeft hand: A = leftward, D = rightward.\n\nPress any key to begin.',
     },
     {
         blockConfig: hirschPureOr,
         numTrials: 40,
-        instructions: 'Pure block: ORIENTATION task only.\n\nPress A for leftward tilt, D for rightward tilt.\n\nPress any key to begin.',
+        instructions: 'Pure block: ORIENTATION task only.\n\nRight hand: J = leftward, L = rightward.\n\nPress any key to begin.',
     },
     {
         blockConfig: hirschMixed,
         numTrials: 80,
-        instructions: 'Mixed block: The task switches randomly between trials.\n\nThe border style tells you which task to do:\n  Dotted = MOVEMENT\n  Dashed = ORIENTATION\n\nPress A for left, D for right.\n\nPress any key to begin.',
+        instructions: 'Mixed block: The task switches randomly between trials.\n\nThe border style tells you which task to do:\n  Dotted = MOVEMENT (left hand: A/D)\n  Dashed = ORIENTATION (right hand: J/L)\n\nPress any key to begin.',
     },
     {
         blockConfig: hirschPRP,
         numTrials: 120,
-        instructions: 'Dual-task (PRP) block: Two tasks per trial.\n\nRespond to the FIRST task, then the SECOND task.\nBoth use the same keys: A = left, D = right.\n\nThe delay between tasks will vary.\n\nPress any key to begin.',
+        instructions: 'Dual-task (PRP) block: Two tasks per trial.\n\nRespond to the FIRST task, then the SECOND task.\nMOVEMENT (left hand): A = left, D = right.\nORIENTATION (right hand): J = left, L = right.\n\nThe delay between tasks will vary.\n\nPress any key to begin.',
     },
 ];

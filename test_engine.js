@@ -129,10 +129,10 @@ for (let i = 0; i < 20; i++) {
     assert([0, 180].includes(d.ch2_task), 'dual-task identical RSO ch2 horizontal');
 }
 
-// Dual-task disjoint RSO: ch2 is vertical
+// Dual-task disjoint RSO: ch2 is horizontal (disjointness is in the key maps, not directions)
 for (let i = 0; i < 20; i++) {
     const d = assignDirections('mov', 'univalent', 'dual-task', 'disjoint');
-    assert([90, 270].includes(d.ch2_task), 'dual-task disjoint RSO ch2 vertical');
+    assert([0, 180].includes(d.ch2_task), 'dual-task disjoint RSO ch2 horizontal');
 }
 
 // ============================================================
@@ -210,8 +210,11 @@ assert(dualParams.task_2 === 'or', 'task_2 set');
 // Coherence routing: task2='or' so ch2_task→coh_or_2, ch2_distractor→coh_mov_2
 assert(dualParams.coh_or_2 === 0.6, 'ch2 task coherence routed to orientation');
 assert(dualParams.coh_mov_2 === 0, 'ch2 distractor coherence zero');
-// Active pathway (or2): offset = soa - dur_ch1 = 100 - 300 = -200 (negative is valid!)
-assert(dualParams.start_or_2 === -200, `ch2 or offset: got ${dualParams.start_or_2}`);
+// Active pathway (or2): or1 is silenced (coh=0 → dur=0 → or1.end=0).
+// SE computes: or2_absolute = start_or_2 + or1.end = start_or_2 + 0.
+// Desired absolute start = csi + soa = 200 + 100 = 300.
+// So start_or_2 must equal the desired absolute start (300).
+assert(dualParams.start_or_2 === 300, `ch2 or offset: got ${dualParams.start_or_2}`);
 assert(dualParams.dur_or_2 === 300, 'ch2 or duration preserved');
 // Silenced pathway (mov2): coh=0 → duration zeroed
 assert(dualParams.dur_mov_2 === 0, 'ch2 mov silenced: duration zeroed');
@@ -219,6 +222,66 @@ assert(dualParams.start_mov_2 === 0, 'ch2 mov silenced: start zeroed');
 // Channel 2 cue is absolute
 assert(dualParams.start_2 === 300, `ch2 cue absolute: got ${dualParams.start_2}`);
 assert(dualParams.start_go_2 === 300, `ch2 go absolute: got ${dualParams.start_go_2}`);
+
+// ============================================================
+section('buildTrialParams — dual-task with swapped tasks (T1=or, T2=mov)');
+
+const dualSwappedSpec = {
+    task1: 'or',
+    task2: 'mov',
+    csi: 200,
+    dur_ch1: 300,
+    dur_ch2: 300,
+    soa: 400,
+    responseWindow: 2000,
+    coherence: { ch1_task: 0.8, ch1_distractor: 0, ch2_task: 0.6, ch2_distractor: 0 },
+    dir: { ch1_task: 0, ch1_distractor: 0, ch2_task: 180, ch2_distractor: 0 },
+};
+const dualSwappedParams = buildTrialParams(dualSwappedSpec);
+
+// task1='or': or1 is active, mov1 is silenced (coh_mov_1=ch1_distractor=0)
+assert(dualSwappedParams.coh_or_1 === 0.8, 'swapped: or1 active');
+assert(dualSwappedParams.coh_mov_1 === 0, 'swapped: mov1 silenced');
+assert(dualSwappedParams.dur_mov_1 === 0, 'swapped: mov1 dur zeroed');
+// task2='mov': mov2 is active, or2 is silenced
+assert(dualSwappedParams.coh_mov_2 === 0.6, 'swapped: mov2 active');
+assert(dualSwappedParams.coh_or_2 === 0, 'swapped: or2 silenced');
+// mov1 is silenced (end=0). SE: mov2_abs = start_mov_2 + mov1.end = start_mov_2 + 0.
+// Desired absolute start = csi + soa = 200 + 400 = 600.
+assert(dualSwappedParams.start_mov_2 === 600, `swapped: mov2 offset: got ${dualSwappedParams.start_mov_2}`);
+assert(dualSwappedParams.dur_mov_2 === 300, 'swapped: mov2 dur preserved');
+// Verify SE would produce correct absolute timing
+const mov1EndSwapped = dualSwappedParams.start_mov_1 + dualSwappedParams.dur_mov_1; // 0
+assert(dualSwappedParams.start_mov_2 + mov1EndSwapped === 600,
+    'swapped: SE mov2 absolute start = 600');
+
+// ============================================================
+section('buildTrialParams — dual-task bivalent (ch1 counterpart active)');
+
+const dualBivalentSpec = {
+    task1: 'mov',
+    task2: 'or',
+    csi: 200,
+    dur_ch1: 300,
+    dur_ch2: 300,
+    soa: 100,
+    responseWindow: 2000,
+    // Bivalent: ch1 distractor is active (coh > 0)
+    coherence: { ch1_task: 0.8, ch1_distractor: 0.8, ch2_task: 0.6, ch2_distractor: 0 },
+    dir: { ch1_task: 180, ch1_distractor: 180, ch2_task: 0, ch2_distractor: 0 },
+};
+const dualBivalentParams = buildTrialParams(dualBivalentSpec);
+
+// or1 is active (ch1 distractor with coh=0.8). or1 starts at csi=200, dur=300, end=500.
+assert(dualBivalentParams.dur_or_1 === 300, 'bivalent dual: or1 dur preserved');
+assert(dualBivalentParams.coh_or_1 === 0.8, 'bivalent dual: or1 coh preserved');
+// SE: or2_abs = start_or_2 + or1.end = start_or_2 + 500.
+// Desired absolute start = csi + soa = 300.
+// So start_or_2 = 300 - 500 = -200 (negative is correct here!).
+assert(dualBivalentParams.start_or_2 === -200, `bivalent dual: or2 offset: got ${dualBivalentParams.start_or_2}`);
+const or1EndBiv = dualBivalentParams.start_or_1 + dualBivalentParams.dur_or_1; // 500
+assert(dualBivalentParams.start_or_2 + or1EndBiv === 300,
+    'bivalent dual: SE or2 absolute start = 300');
 
 // ============================================================
 section('generateBlockTrials — Hirsch PRP block');
@@ -252,12 +315,15 @@ for (const t of prpTrials) {
     if (t.seParams.task_1 === undefined) { allValid = false; break; }
     if (t.seParams.task_2 === undefined) { allValid = false; break; }
     if (t.meta.soa === null || t.meta.soa === undefined) { allValid = false; break; }
-    // Verify active ch2 pathway offset = soa - stimulusDuration
-    const expectedOffset = t.meta.soa - prpConfig.stimulusDuration;
-    // The active pathway depends on task2
+    // Verify SE would place the active ch2 stimulus at the correct absolute time.
+    // The ch1 counterpart is silenced (univalent), so ch1_end=0.
+    // SE: ch2_abs = start_X_2 + ch1_X.end = start_X_2 + 0 = start_X_2.
+    // Desired absolute start = csi + soa.
+    const desiredAbsStart = prpConfig.csi + t.meta.soa;
     const activeKey = t.meta.task2 === 'mov' ? 'start_mov_2' : 'start_or_2';
     const silencedKey = t.meta.task2 === 'mov' ? 'start_or_2' : 'start_mov_2';
-    if (t.seParams[activeKey] !== expectedOffset) { allValid = false; break; }
+    // For silenced ch1 counterpart, offset IS the desired absolute start
+    if (t.seParams[activeKey] !== desiredAbsStart) { allValid = false; break; }
     // Silenced pathway should be zeroed
     if (t.seParams[silencedKey] !== 0) { allValid = false; break; }
 }
