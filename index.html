@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Experiment Demos</title>
+    <link rel="stylesheet" href="demo.css">
+    <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
+    <link rel="manifest" href="/favicon/site.webmanifest" />
+</head>
+<body>
+    <div class="container">
+        <h1>Super Experiment Demos</h1>
+        
+        <div class="controls">
+            <div class="select-group">
+                <label for="experiment-select">Select Experiment:</label>
+                <select id="experiment-select">
+                    <option value="">-- Select an experiment --</option>
+                </select>
+            </div>
+            <button id="start-experiment" disabled>Start Experiment</button>
+        </div>
+        
+        <div class="content">
+            <div class="left-panel">
+                <h3>Experiment Canvas</h3>
+                <div id="canvas-container" tabindex="-1">
+                    <div class="placeholder">Select an experiment to begin</div>
+                </div>
+                
+                <h3>Experiment Information</h3>
+                <div id="info-panel">
+                    <div class="placeholder">Experiment details will appear here</div>
+                </div>
+            </div>
+            
+            <div class="right-panel">
+                <h3>Trial Timeline</h3>
+                <svg id="timeline-svg">
+                    <text x="50%" y="50%" text-anchor="middle" fill="#666" font-style="italic">
+                        Timeline will appear here
+                    </text>
+                </svg>
+                <div id="timeline-legend" class="timeline-legend" style="display: none;">
+                    <!-- Legend items will be populated by JavaScript -->
+                </div>
+                <div id="trial-status" class="trial-status" style="display: none;">
+                    <!-- Trial status will appear here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="node_modules/super-experiment/dist/bundle.js"></script><!-- the source of this repo is available inside the package/ folder -->
+    <script src="viewer.js"></script>
+</body>
+</html>
