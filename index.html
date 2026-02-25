@@ -3,60 +3,216 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Super Experiment Demos</title>
-    <link rel="stylesheet" href="demo.css">
-    <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96" />
-    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
-    <link rel="shortcut icon" href="/favicon/favicon.ico" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
-    <link rel="manifest" href="/favicon/site.webmanifest" />
+    <title>Bridge Experiment Demos</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        header {
+            padding: 20px;
+            text-align: center;
+        }
+        header h1 { font-size: 1.4em; font-weight: 500; color: #a0c4ff; }
+        header p { font-size: 0.85em; color: #888; margin-top: 4px; }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            padding: 0 20px 16px;
+        }
+        select, button {
+            font-size: 0.9em;
+            padding: 8px 16px;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background: #16213e;
+            color: #e0e0e0;
+            cursor: pointer;
+        }
+        button:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+        button:not(:disabled):hover {
+            background: #0f3460;
+        }
+        #stop-btn { background: #5c1a1a; border-color: #8b3a3a; display: none; }
+        #stop-btn:hover { background: #7a2a2a; }
+        #export-btn { background: #1a3c1a; border-color: #3a6b3a; }
+        #export-btn:hover:not(:disabled) { background: #2a5c2a; }
+        .checkbox-label {
+            font-size: 0.85em;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        #session-status {
+            font-size: 0.85em;
+            color: #888;
+            padding: 0 20px 8px;
+            min-height: 1.2em;
+        }
+
+        #canvas-container {
+            width: 600px;
+            height: 600px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: #0a0a1a;
+            position: relative;
+            outline: none;
+        }
+        #canvas-container:focus {
+            border-color: #4488ff;
+        }
+
+        .instructions-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(10, 10, 26, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            border-radius: 8px;
+        }
+        .instructions-content {
+            max-width: 80%;
+            text-align: center;
+            font-size: 1em;
+            line-height: 1.6;
+            color: #c0c0c0;
+        }
+
+        .info {
+            margin-top: 16px;
+            padding: 0 20px;
+            font-size: 0.8em;
+            color: #555;
+            max-width: 600px;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Super Experiment Demos</h1>
-        
-        <div class="controls">
-            <div class="select-group">
-                <label for="experiment-select">Select Experiment:</label>
-                <select id="experiment-select">
-                    <option value="">-- Select an experiment --</option>
-                </select>
-            </div>
-            <button id="start-experiment" disabled>Start Experiment</button>
-        </div>
-        
-        <div class="content">
-            <div class="left-panel">
-                <h3>Experiment Canvas</h3>
-                <div id="canvas-container" tabindex="-1">
-                    <div class="placeholder">Select an experiment to begin</div>
-                </div>
-                
-                <h3>Experiment Information</h3>
-                <div id="info-panel">
-                    <div class="placeholder">Experiment details will appear here</div>
-                </div>
-            </div>
-            
-            <div class="right-panel">
-                <h3>Trial Timeline</h3>
-                <svg id="timeline-svg">
-                    <text x="50%" y="50%" text-anchor="middle" fill="#666" font-style="italic">
-                        Timeline will appear here
-                    </text>
-                </svg>
-                <div id="timeline-legend" class="timeline-legend" style="display: none;">
-                    <!-- Legend items will be populated by JavaScript -->
-                </div>
-                <div id="trial-status" class="trial-status" style="display: none;">
-                    <!-- Trial status will appear here -->
-                </div>
-            </div>
+    <header>
+        <h1>Bridge Experiment Demos</h1>
+        <p>Parametric bridges between task switching and dual-task paradigms</p>
+    </header>
+
+    <div class="controls">
+        <select id="demo-select">
+            <option value="">-- Select a demo --</option>
+            <option value="hirsch">Hirsch Replication (PRP + Task Switching)</option>
+            <option value="hirsch_prp_only">Hirsch — PRP block only (quick test)</option>
+            <option value="hirsch_mixed_only">Hirsch — Mixed block only (quick test)</option>
+        </select>
+        <button id="start-btn" disabled>Start</button>
+        <button id="stop-btn">Stop</button>
+        <button id="export-btn" disabled>Export CSV</button>
+        <label class="checkbox-label">
+            <input type="checkbox" id="abridged-cb" checked>
+            Abridged (1/10 trials)
+        </label>
+    </div>
+
+    <div id="session-status"></div>
+
+    <div id="canvas-container" tabindex="-1">
+        <div class="instructions-overlay">
+            <div class="instructions-content">Select a demo and press Start</div>
         </div>
     </div>
 
-    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-    <script src="node_modules/super-experiment/dist/bundle.js"></script><!-- the source of this repo is available inside the package/ folder -->
-    <script src="viewer.js"></script>
+    <div class="info">
+        Click the canvas area to give it focus before starting.
+        Keys: A = left, D = right.
+    </div>
+
+    <!-- Dependencies -->
+    <script src="node_modules/super-experiment/dist/bundle.js"></script>
+    <script src="engine.js"></script>
+    <script src="hirsch.js"></script>
+    <script src="session.js"></script>
+
+    <script>
+        const selectEl = document.getElementById('demo-select');
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const exportBtn = document.getElementById('export-btn');
+        const abridgedCb = document.getElementById('abridged-cb');
+        const container = document.getElementById('canvas-container');
+
+        selectEl.addEventListener('change', () => {
+            startBtn.disabled = !selectEl.value;
+        });
+
+        function getSessionDef(id) {
+            let blocks;
+            switch (id) {
+                case 'hirsch':
+                    blocks = HIRSCH_SESSION;
+                    break;
+                case 'hirsch_prp_only':
+                    blocks = [HIRSCH_SESSION[3]]; // Just PRP block
+                    break;
+                case 'hirsch_mixed_only':
+                    blocks = [HIRSCH_SESSION[2]]; // Just mixed block
+                    break;
+                default:
+                    return null;
+            }
+
+            if (abridgedCb.checked) {
+                blocks = blocks.map(b => ({
+                    ...b,
+                    numTrials: Math.max(1, Math.round(b.numTrials / 10)),
+                }));
+            }
+
+            return blocks;
+        }
+
+        startBtn.addEventListener('click', async () => {
+            const sessionDef = getSessionDef(selectEl.value);
+            if (!sessionDef) return;
+
+            startBtn.style.display = 'none';
+            selectEl.disabled = true;
+            stopBtn.style.display = '';
+            exportBtn.disabled = true;
+            container.focus();
+
+            try {
+                await Session.runSession(sessionDef, container);
+            } catch (e) {
+                console.error('Session error:', e);
+                document.getElementById('session-status').textContent = `Error: ${e.message}`;
+            }
+
+            stopBtn.style.display = 'none';
+            startBtn.style.display = '';
+            selectEl.disabled = false;
+        });
+
+        stopBtn.addEventListener('click', () => {
+            Session.stopSession();
+        });
+
+        exportBtn.addEventListener('click', () => {
+            Session.exportCSV();
+        });
+    </script>
 </body>
 </html>

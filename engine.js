@@ -1,46 +1,213 @@
-function buildTrialParams({
-    task1, // mov or or
-    task2, // mov or or or null
-    stimulusDuration, // ms
-    csi, // ms
-    soa, // ms
-    coherence, // { primary: 0.8, distractor: 0.3 }
-    responseWindow, // ms, go signal duration after stimulus onset
-    dir_1, // required direction
-    dir_2, // required for dual-task/PRP
-})
-{
-    if (dir_1 == undefined) throw new Error("buildTrialParams: dir_1 is required")
-    params = {
-	task_1: task1,
-	start_1: 0,
-	dur_1: csi + stimulusDuration
+// engine.js — Parameter builder and trial sequence generator
+// Pure functions only. No DOM access, no SE package calls.
 
-    }
-    return params;
+// ============================================================
+// Utility
+// ============================================================
+
+function switchTask(task) {
+    return task === 'mov' ? 'or' : 'mov';
 }
+
+/**
+ * @param {{ type: string, value: number, params: number[] }} config
+ *   type: 'fixed' | 'uniform' | 'choice'
+ *   value: used for 'fixed' type, also serves as fallback
+ *   params: [min, max] for 'uniform', or [v1, v2, ...] for 'choice'
+ * @returns {number} sampled value in ms
+ */
+function sampleFromDistribution(config) {
+    if (config.type === 'fixed') {
+        return config.value;
+    }
+    if (config.type === 'uniform') {
+        if (!config.params || config.params.length < 2) {
+            console.warn('sampleFromDistribution: uniform requires params [min, max], falling back to value');
+            return config.value;
+        }
+        const min = Math.min(config.params[0], config.params[1]);
+        const max = Math.max(config.params[0], config.params[1]);
+        return min + Math.random() * (max - min);
+    }
+    if (config.type === 'choice') {
+        if (!config.params || config.params.length === 0) {
+            console.warn('sampleFromDistribution: choice requires non-empty params, falling back to value');
+            return config.value;
+        }
+        return config.params[Math.floor(Math.random() * config.params.length)];
+    }
+    throw new Error(`sampleFromDistribution: unknown type '${config.type}'`);
+}
+
+// ============================================================
+// Sequence generators
+// ============================================================
+
+/**
+ * Generates a sequence of task identities across trials.
+ *
+ * For single-task blocks: every trial gets the same task (switchRate = 0).
+ * For mixed/task-switching blocks: task varies according to sequenceType.
+ * For PRP blocks with T1-T2 switching: the returned sequence represents
+ * which task is T1 on each trial (T2 is the other task).
+ *
+ * @param {number} numTrials
+ * @param {string} sequenceType - 'Random' or 'AABB'
+ * @param {number} switchRate - percent (0–100), only used for 'Random'
+ * @param {string|null} startTask - 'mov', 'or', or null for random coin flip
+ * @returns {string[]} Array of 'mov'/'or' with length numTrials
+ */
+function generateTaskSequence(numTrials, sequenceType, switchRate, startTask = null) {
+    const firstTask = startTask ?? (Math.random() < 0.5 ? 'mov' : 'or');
+    const sequence = [firstTask];
+
+    if (sequenceType === 'Random') {
+        // Markov chain: on each trial, switch with probability switchRate/100.
+        // At switchRate = 50, this is equivalent to independent random assignment
+        // (i.e., the Hirsch et al. 2018 design where stimulus category is random).
+        for (let i = 1; i < numTrials; i++) {
+            const prev = sequence[i - 1];
+            sequence.push(Math.random() < (switchRate / 100) ? switchTask(prev) : prev);
+        }
+    } else if (sequenceType === 'AABB') {
+        // Alternating runs of 2: mov, mov, or, or, mov, mov, ...
+        for (let i = 1; i < numTrials; i++) {
+            // Switch every 2 trials
+            if (i % 2 === 0) {
+                sequence.push(switchTask(sequence[i - 1]));
+            } else {
+                sequence.push(sequence[i - 1]);
+            }
+        }
+    } else {
+        throw new Error(`Unknown sequenceType: ${sequenceType}`);
+    }
+
+    return sequence;
+}
+
+function classifyTransitions(taskSequence) {
+    return taskSequence.map((task, i) => {
+        if (i === 0) return 'First';
+        return task === taskSequence[i - 1] ? 'Repeat' : 'Switch';
+    });
+}
+
+/**
+ * Generates a shuffled sequence of congruency labels with exact proportions.
+ *
+ * @param {number} numTrials
+ * @param {string[]} conditions - e.g., ['congruent', 'incongruent']
+ * @param {number[]} proportions - e.g., [0.5, 0.5], must sum to 1
+ * @returns {string[]} Shuffled array of congruency labels, length = numTrials
+ */
+function generateCongruencySequence(numTrials, conditions, proportions) {
+    const sequence = [];
+    let assigned = 0;
+
+    for (let i = 0; i < conditions.length; i++) {
+        const count = (i === conditions.length - 1)
+            ? numTrials - assigned
+            : Math.round(numTrials * proportions[i]);
+        for (let j = 0; j < count; j++) {
+            sequence.push(conditions[i]);
+        }
+        assigned += count;
+    }
+
+    // Fisher-Yates shuffle
+    for (let i = sequence.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [sequence[i], sequence[j]] = [sequence[j], sequence[i]];
+    }
+
+    return sequence;
+}
+
+// ============================================================
+// Direction assignment
+// ============================================================
+
+/**
+ * Assigns the four direction values for a trial's spec.dir object.
+ *
+ * For single-task: primary direction is random horizontal [0, 180].
+ *   Distractor direction depends on congruency condition.
+ * For dual-task: channel 1 and 2 each get independent random directions.
+ *   Channel 2 dimension depends on response set overlap.
+ *
+ * @param {string} task - primary task ('mov' or 'or'), used for single-task routing
+ * @param {string} congruency - 'congruent'|'incongruent'|'neutral'|'univalent'
+ * @param {string} paradigm - 'single-task' or 'dual-task'
+ * @param {string} rso - 'identical' or 'disjoint'
+ * @returns {{ ch1_task: number, ch1_distractor: number, ch2_task: number, ch2_distractor: number }}
+ */
+function assignDirections(task, congruency, paradigm, rso) {
+    if (paradigm === 'dual-task') {
+        // Channel 1: random horizontal direction
+        const ch1Dir = Math.random() < 0.5 ? 0 : 180;
+        // Channel 2: dimension depends on response set overlap
+        let ch2Dir;
+        if (rso === 'disjoint') {
+            ch2Dir = Math.random() < 0.5 ? 90 : 270;
+        } else {
+            // identical RSO: same dimension
+            ch2Dir = Math.random() < 0.5 ? 0 : 180;
+        }
+        return {
+            ch1_task: ch1Dir,
+            ch1_distractor: 0,  // no within-channel distractors in dual-task
+            ch2_task: ch2Dir,
+            ch2_distractor: 0,
+        };
+    }
+
+    // Single-task
+    const primaryDir = Math.random() < 0.5 ? 0 : 180;
+    let distractorDir = 0;
+
+    if (congruency === 'congruent') {
+        distractorDir = primaryDir;
+    } else if (congruency === 'incongruent') {
+        distractorDir = primaryDir === 0 ? 180 : 0;
+    } else if (congruency === 'neutral') {
+        distractorDir = Math.random() < 0.5 ? 90 : 270;
+    }
+    // 'univalent': distractorDir stays 0, coherence silences the pathway
+
+    return {
+        ch1_task: primaryDir,
+        ch1_distractor: distractorDir,
+        ch2_task: 0,
+        ch2_distractor: 0,
+    };
+}
+
+// ============================================================
+// SE parameter builders
+// ============================================================
 
 function buildCoherenceParams(spec) {
     const coherenceParams = {};
     if (spec.task1 === 'mov') {
-	coherenceParams.coh_mov_1 = spec.coherence.ch1_task;
-	coherenceParams.coh_or_1 = spec.coherence.ch1_distractor;
+        coherenceParams.coh_mov_1 = spec.coherence.ch1_task;
+        coherenceParams.coh_or_1 = spec.coherence.ch1_distractor;
     } else if (spec.task1 === 'or') {
-	coherenceParams.coh_or_1 = spec.coherence.ch1_task;
-	coherenceParams.coh_mov_1 = spec.coherence.ch1_distractor;
+        coherenceParams.coh_or_1 = spec.coherence.ch1_task;
+        coherenceParams.coh_mov_1 = spec.coherence.ch1_distractor;
     }
 
     if (spec.task2 !== null) {
-	if (spec.task2 === 'mov') {
-	    coherenceParams.coh_mov_2 = spec.coherence.ch2_task;
-	    coherenceParams.coh_or_2 = spec.coherence.ch2_distractor;
-	} else if (spec.task2 === 'or') {
-	    coherenceParams.coh_or_2 = spec.coherence.ch2_task;
-	    coherenceParams.coh_mov_2 = spec.coherence.ch2_distractor;
-	}
+        if (spec.task2 === 'mov') {
+            coherenceParams.coh_mov_2 = spec.coherence.ch2_task;
+            coherenceParams.coh_or_2 = spec.coherence.ch2_distractor;
+        } else if (spec.task2 === 'or') {
+            coherenceParams.coh_or_2 = spec.coherence.ch2_task;
+            coherenceParams.coh_mov_2 = spec.coherence.ch2_distractor;
+        }
     } else {
-	coherenceParams.coh_mov_2 = 0;
-	coherenceParams.coh_or_2 = 0;
+        coherenceParams.coh_mov_2 = 0;
+        coherenceParams.coh_or_2 = 0;
     }
     return coherenceParams;
 }
@@ -48,24 +215,24 @@ function buildCoherenceParams(spec) {
 function buildDirectionParams(spec) {
     const directionParams = {};
     if (spec.task1 === 'mov') {
-	directionParams.dir_mov_1 = spec.dir_ch_1;
-	directionParams.dir_or_1 = spec.dir_distractor_1;
+        directionParams.dir_mov_1 = spec.dir.ch1_task;
+        directionParams.dir_or_1 = spec.dir.ch1_distractor;
     } else if (spec.task1 === 'or') {
-	directionParams.dir_or_1 = spec.dir_ch_1;
-	directionParams.dir_mov_1 = spec.dir_distractor_1;
+        directionParams.dir_or_1 = spec.dir.ch1_task;
+        directionParams.dir_mov_1 = spec.dir.ch1_distractor;
     }
 
     if (spec.task2 !== null) {
-	if (spec.task2 === 'mov') {
-	    directionParams.dir_mov_2 = spec.dir_ch_2;
-	    directionParams.dir_or_2 = spec.dir_distractor_2;
-	} else if (spec.task2 === 'or') {
-	    directionParams.dir_or_2 = spec.dir_ch_2;
-	    directionParams.dir_mov_2 = spec.dir_distractor_2;
-	}
+        if (spec.task2 === 'mov') {
+            directionParams.dir_mov_2 = spec.dir.ch2_task;
+            directionParams.dir_or_2 = spec.dir.ch2_distractor;
+        } else if (spec.task2 === 'or') {
+            directionParams.dir_or_2 = spec.dir.ch2_task;
+            directionParams.dir_mov_2 = spec.dir.ch2_distractor;
+        }
     } else {
-	directionParams.dir_mov_2 = 0;
-	directionParams.dir_or_2 = 0;
+        directionParams.dir_mov_2 = 0;
+        directionParams.dir_or_2 = 0;
     }
     return directionParams;
 }
@@ -79,8 +246,9 @@ function buildTimingParams(spec) {
     timingParams.start_go_1 = spec.csi;
     timingParams.dur_go_1 = spec.responseWindow;
 
-    // Channel 1 stimulus — both pathways get same timing,
-    // coherence determines which is actually active
+    // Channel 1 stimulus — both pathways get same timing here.
+    // buildTrialParams zeros out pathways with coh=0 after routing,
+    // since the SE package renders coh=0 as random noise, not invisible.
     timingParams.start_mov_1 = spec.csi;
     timingParams.dur_mov_1 = spec.dur_ch1;
     timingParams.start_or_1 = spec.csi;
@@ -88,7 +256,7 @@ function buildTimingParams(spec) {
 
     if (spec.task2 !== null) {
         // Channel 2 cue and go signal (absolute timing, assuming csi2 = 0)
-        timingParams.start_2 = spec.csi + spec.soa; // if we want non-zero csi for channel 2 we'd need a spec.csi2 and adjust start_2 and start_go_2
+        timingParams.start_2 = spec.csi + spec.soa;
         timingParams.dur_2 = spec.dur_ch2;
         timingParams.start_go_2 = spec.csi + spec.soa;
         timingParams.dur_go_2 = spec.responseWindow;
@@ -118,94 +286,143 @@ function buildTimingParams(spec) {
     return timingParams;
 }
 
-function switchTask(task) {
-    return task === 'mov' ? 'or' : 'mov';
+/**
+ * Assembles a complete SE parameter object from a spec.
+ * Returns a flat object ready to pass to block().
+ */
+function buildTrialParams(spec) {
+    const params = {
+        task_1: spec.task1,
+        task_2: spec.task2,
+        ...buildTimingParams(spec),
+        ...buildCoherenceParams(spec),
+        ...buildDirectionParams(spec),
+    };
+
+    // Zero out duration for pathways with coh=0.
+    // The SE package renders coh=0 as visible random noise, not invisible.
+    // Zeroing duration is the only way to truly silence a pathway.
+    if (params.coh_mov_1 === 0) { params.start_mov_1 = 0; params.dur_mov_1 = 0; }
+    if (params.coh_or_1 === 0) { params.start_or_1 = 0; params.dur_or_1 = 0; }
+    if (params.coh_mov_2 === 0) { params.start_mov_2 = 0; params.dur_mov_2 = 0; }
+    if (params.coh_or_2 === 0) { params.start_or_2 = 0; params.dur_or_2 = 0; }
+
+    return params;
 }
 
-/**
- * Generates a sequence of task identities across trials.
- * 
- * For single-task blocks: every trial gets the same task (switchRate = 0).
- * For mixed/task-switching blocks: task varies according to sequenceType.
- * Not used for PRP blocks (where task1/task2 are fixed per block).
- * 
- * @param {number} numTrials
- * @param {string} sequenceType - 'Random' or 'AABB'
- * @param {number} switchRate - percent (0–100), only used for 'Random'
- * @param {string|null} startTask - 'mov', 'or', or null for random coin flip
- * @returns {string[]} Array of 'mov'/'or' with length numTrials
- */
-function generateTaskSequence(numTrials, sequenceType, switchRate, startTask = null) {
-    const firstTask = startTask ?? (Math.random() < 0.5 ? 'mov' : 'or');
-    const sequence = [firstTask];
+// ============================================================
+// Block trial generation
+// ============================================================
 
-    if (sequenceType === 'Random') {
-        // Markov chain: on each trial, switch with probability switchRate/100.
-        // At switchRate = 50, this is equivalent to independent random assignment
-        // (i.e., the Hirsch et al. 2018 design where stimulus category is random).
-        for (let i = 1; i < numTrials; i++) {
-            const prev = sequence[i - 1];
-            sequence.push(Math.random() < (switchRate / 100) ? switchTask(prev) : prev);
-        }
-    } else if (sequenceType === 'AABB') {
-        // Alternating runs of 2: mov, mov, or, or, mov, mov, ...
-        for (let i = 1; i < numTrials; i++) {
-            const runPosition = i % 4;
-            // Switch at positions 2 and 0 in each 4-trial cycle
-            if (runPosition === 2) {
-                sequence.push(switchTask(sequence[i - 1]));
-            } else {
-                sequence.push(sequence[i - 1]);
-            }
-        }
+/**
+ * Generates a complete array of trial objects for one experimental block.
+ *
+ * @param {object} blockConfig - Block-level configuration (see plan for shape)
+ * @param {number} numTrials - Number of trials in this block
+ * @returns {{ seParams: object, meta: object }[]}
+ */
+function generateBlockTrials(blockConfig, numTrials) {
+    const isDualTask = blockConfig.paradigm === 'dual-task';
+
+    // --- Step 1: Generate task sequence ---
+    // For single-task/mixed: sequence determines which task per trial.
+    // For PRP with T1-T2 switching: sequence determines which task is T1
+    //   (T2 is always the other task).
+    // For PRP without switching (switchRate = 0): every trial has same T1/T2.
+    let taskSequence;
+    if (isDualTask) {
+        // PRP: generate a T1 sequence (T2 is derived as the other task)
+        taskSequence = generateTaskSequence(
+            numTrials,
+            blockConfig.sequenceType,
+            blockConfig.switchRate,
+            blockConfig.task1
+        );
     } else {
-        throw new Error(`Unknown sequenceType: ${sequenceType}`);
+        // Single-task or mixed task-switching
+        taskSequence = generateTaskSequence(
+            numTrials,
+            blockConfig.sequenceType,
+            blockConfig.switchRate,
+            blockConfig.startTask
+        );
     }
 
-    return sequence;
-}
+    // --- Step 2: Classify transitions ---
+    const transitions = classifyTransitions(taskSequence);
 
-/**
- * Generates a shuffled sequence of congruency labels with exact proportions.
- * 
- * @param {number} numTrials
- * @param {string[]} conditions - e.g., ['congruent', 'incongruent']
- * @param {number[]} proportions - e.g., [0.5, 0.5], must sum to 1
- * @returns {string[]} Shuffled array of congruency labels, length = numTrials
- */
-function generateCongruencySequence(numTrials, conditions, proportions) {
-    // Build array with exact counts per condition
-    const sequence = [];
-    let assigned = 0;
+    // --- Step 3: Generate congruency sequence ---
+    const congruencySequence = generateCongruencySequence(
+        numTrials,
+        blockConfig.congruency.conditions,
+        blockConfig.congruency.proportions
+    );
 
-    for (let i = 0; i < conditions.length; i++) {
-        // For the last condition, assign whatever remains to avoid
-        // rounding errors leaving us short or over
-        const count = (i === conditions.length - 1)
-            ? numTrials - assigned
-            : Math.round(numTrials * proportions[i]);
-        for (let j = 0; j < count; j++) {
-            sequence.push(conditions[i]);
+    // --- Step 4: Assemble trials ---
+    const trials = [];
+
+    for (let i = 0; i < numTrials; i++) {
+        // Determine task assignment for this trial
+        let task1, task2;
+        if (isDualTask) {
+            task1 = taskSequence[i];
+            task2 = switchTask(taskSequence[i]);
+        } else {
+            task1 = taskSequence[i];
+            task2 = null;
         }
-        assigned += count;
+
+        const congruency = congruencySequence[i];
+        const previousCongruency = i > 0 ? congruencySequence[i - 1] : null;
+
+        // Sample per-trial timing
+        const iti = sampleFromDistribution(blockConfig.iti);
+        const soa = isDualTask ? sampleFromDistribution(blockConfig.soa) : null;
+
+        // Assign directions
+        const dir = assignDirections(
+            task1,
+            congruency,
+            blockConfig.paradigm,
+            blockConfig.rso
+        );
+
+        // Build the full spec object
+        const spec = {
+            task1: task1,
+            task2: task2,
+            csi: blockConfig.csi,
+            dur_ch1: blockConfig.stimulusDuration,
+            dur_ch2: isDualTask ? blockConfig.stimulusDuration : 0,
+            soa: soa ?? 0,
+            responseWindow: blockConfig.responseWindow,
+            coherence: blockConfig.coherence,
+            dir: dir,
+        };
+
+        // Build SE params
+        const seParams = buildTrialParams(spec);
+
+        // Build metadata for analysis
+        const meta = {
+            trialNumber: i + 1,
+            blockId: blockConfig.blockId,
+            blockType: blockConfig.blockType,
+            paradigm: blockConfig.paradigm,
+            task: task1,
+            task2: task2,
+            transitionType: transitions[i],
+            congruency: congruency,
+            previousCongruency: previousCongruency,
+            iti: iti,
+            soa: soa,
+            primaryDirection: dir.ch1_task,
+            distractorDirection: congruency === 'univalent' ? null : dir.ch1_distractor,
+            ch2Direction: isDualTask ? dir.ch2_task : null,
+        };
+
+        trials.push({ seParams, meta });
     }
 
-    // Fisher-Yates shuffle
-    for (let i = sequence.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [sequence[i], sequence[j]] = [sequence[j], sequence[i]];
-    }
-
-    return sequence;
-}
-
-function classifyTransitions(taskSequence) {
-    return taskSequence.map((task, i) => {
-        if (i === 0) return 'First';
-        return task === taskSequence[i - 1] ? 'Repeat' : 'Switch';
-    });
-}
-
-function switchTask(task) {
-    return task === 'mov' ? 'or' : 'mov';
+    return trials;
 }
