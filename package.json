@@ -1,5 +1,5 @@
 {
   "dependencies": {
-    "super-experiment": "github:syntactic/super-experiment"
+    "super-experiment": "git+ssh://git@github.com:syntactic/super-experiment-tim.git#thesis-changes-2"
   }
 }
