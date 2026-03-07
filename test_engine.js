@@ -419,6 +419,274 @@ assert(mixedTrials.some(t => t.meta.transitionType === 'Switch'), 'mixed block: 
 assert(mixedTrials.some(t => t.meta.transitionType === 'Repeat'), 'mixed block: has repeats');
 
 // ============================================================
+section('buildSingleCanvasSpec');
+const singleCanvasUnivalent = buildSingleCanvasSpec('mov', 100, 1000, 1000, 0.8, 0, null, null);
+assert(singleCanvasUnivalent.task1 === 'mov', 'univalent: task1 is mov');
+assert(singleCanvasUnivalent.task2 === null, 'univalent: task2 is null');
+assert(singleCanvasUnivalent.soa === 0, 'univalent: soa is 0');
+assert(singleCanvasUnivalent.coherence.ch1_task === 0.8, 'univalent: ch1_task coherence is 0.8');
+assert(singleCanvasUnivalent.coherence.ch1_distractor === 0, 'univalent: ch1_distractor coherence defaults to 0');
+assert(singleCanvasUnivalent.coherence.ch2_task === 0, 'univalent: ch2_task coherence is 0');
+assert(singleCanvasUnivalent.coherence.ch2_distractor === 0, 'univalent: ch2_distractor coherence is 0');
+assert(singleCanvasUnivalent.dir.ch2_distractor === 0, 'univalent: ch2_distractor direction is 0');
+assert(singleCanvasUnivalent.dir.ch2_task === 0, 'univalent: ch2_task direction is 0');
+const singleCanvasBivalent = buildSingleCanvasSpec('mov', 100, 1000, 1000, 0.8, 0, 0.5, 180);
+assert(singleCanvasBivalent.coherence.ch1_distractor === 0.5, 'bivalent: ch1_distractor coherence is 0.5');
+assert(singleCanvasBivalent.dir.ch1_distractor === 180, 'bivalent: ch1_distractor direction is 180');
+// 3. Feed it into buildTrialParams: This is the real integration test. Build a spec with your function, pass it to buildTrialParams(), and verify the output has the right SE parameter names and values. This tests that your spec is actually compatible with the downstream pipeline.
+const bivalentTrialParams = buildTrialParams(singleCanvasBivalent);
+assert(bivalentTrialParams.task_1 === 'mov', 'bivalent: task 1 is movement');
+assert(bivalentTrialParams.start_mov_1 === 100, 'bivalent: movement starts at 100ms');
+assert(bivalentTrialParams.dur_mov_1 === 1000, 'bivalent: movement lasts for 1000ms');
+assert(bivalentTrialParams.coh_mov_1 === 0.8, 'bivalent: movement coherence is 0.8');
+assert(bivalentTrialParams.start_or_1 === 100, 'bivalent: orientation distractor starts at 100ms');
+assert(bivalentTrialParams.dur_or_1 === 1000, 'bivalent: orientation distractor lasts for 1000ms');
+assert(bivalentTrialParams.coh_or_1 === 0.5, 'bivalent: orientation coherence is 0.5');
+assert(bivalentTrialParams.task_2 === null, 'bivalent: no second task');
+assert(bivalentTrialParams.start_mov_2 === 0, 'bivalent: movement 2 doesn\'t start');
+assert(bivalentTrialParams.dur_mov_2 === 0, 'bivalent: movement 2 doesn\'t last');
+assert(bivalentTrialParams.coh_mov_2 === 0, 'bivalent: movement 2 coherence is 0');
+
+// ===
+section('applySOAOffset');
+const shiftedSingleCanvasBivalent = applySOAOffset(bivalentTrialParams, 150);
+assert(shiftedSingleCanvasBivalent.start_mov_1 === 250, 'correctly shifted movement stimulus');
+assert(bivalentTrialParams.start_mov_1 === 100, 'original movement unshifted');
+assert(shiftedSingleCanvasBivalent.dur_mov_1 === 1000, 'preserved movement duration');
+assert(shiftedSingleCanvasBivalent.coh_mov_1 === 0.8, 'preserved movement coherence');
+assert(shiftedSingleCanvasBivalent.start_or_1 === 250, 'correctled shifted orientation stimulus');
+assert(bivalentTrialParams.start_or_1 === 100, 'original orientation unshifted');
+assert(shiftedSingleCanvasBivalent.dur_or_1 === 1000, 'preserved orientation duration');
+assert(shiftedSingleCanvasBivalent.coh_or_1 === 0.5, 'preserved orientation coherence');
+assert(shiftedSingleCanvasBivalent.start_go_1 === 250, 'shifted go start');
+assert(shiftedSingleCanvasBivalent.dur_1 === 1250, 'shifted cue duration: 1100 + 150');
+
+// Silenced pathways should not be shifted
+const univalentTrialParams = buildTrialParams(singleCanvasUnivalent);
+// singleCanvasUnivalent has task='mov', so or1 is silenced (coh=0 → dur_or_1=0)
+assert(univalentTrialParams.dur_or_1 === 0, 'silenced: or1 duration is 0 before shift');
+const shiftedUnivalent = applySOAOffset(univalentTrialParams, 200);
+assert(shiftedUnivalent.start_or_1 === univalentTrialParams.start_or_1,
+    'silenced: or1 start not shifted when dur_or_1 is 0');
+assert(shiftedUnivalent.start_mov_1 === univalentTrialParams.start_mov_1 + 200,
+    'silenced: active mov1 still shifted');
+assert(shiftedUnivalent.start_go_1 === univalentTrialParams.start_go_1 + 200,
+    'silenced: go signal still shifted');
+
+// Zero offset returns a copy, not the same reference
+const zeroOffsetCopy = applySOAOffset(bivalentTrialParams, 0);
+assert(zeroOffsetCopy !== bivalentTrialParams, 'zero offset: returns new object, not same reference');
+assert(zeroOffsetCopy.start_mov_1 === bivalentTrialParams.start_mov_1,
+    'zero offset: values are identical');
+assert(zeroOffsetCopy.start_go_1 === bivalentTrialParams.start_go_1,
+    'zero offset: go signal unchanged');
+assert(zeroOffsetCopy.dur_1 === bivalentTrialParams.dur_1,
+    'zero offset: cue duration unchanged');
+
+// Original not mutated after all shifts above
+assert(bivalentTrialParams.start_mov_1 === 100, 'original still unmodified after multiple shifts');
+assert(bivalentTrialParams.start_go_1 === 100, 'original go signal still unmodified');
+
+// ============================================================
+section('classifyDualCanvasTransitions');
+
+const dualTrans = classifyDualCanvasTransitions(
+    ['mov', 'mov', 'or', 'mov'],
+    ['mov', 'or',  'or', 'or']
+);
+assert(dualTrans.length === 4, 'dual transitions: correct length');
+assert(dualTrans[0] === 'Repeat', 'dual transitions: same tasks → Repeat');
+assert(dualTrans[1] === 'Switch', 'dual transitions: different tasks → Switch');
+assert(dualTrans[2] === 'Repeat', 'dual transitions: both or → Repeat');
+assert(dualTrans[3] === 'Switch', 'dual transitions: mov vs or → Switch');
+
+// ============================================================
+section('generateDualCanvasBlockTrials — t2Rule switch');
+
+const dualCanvasSwitchConfig = {
+    blockId: 'test_dual_switch',
+    blockType: 'prp',
+    paradigm: 'dual-canvas',
+    sequenceType: 'Random',
+    switchRate: 50,
+    startTask: null,
+    rso: 'disjoint',
+    t2Rule: 'switch',
+    csi: 200,
+    stimulusDuration: 300,
+    responseWindow: 2000,
+    coherence: { ch1_task: 0.8, ch1_distractor: 0, ch2_task: 0.6, ch2_distractor: 0 },
+    congruency: { conditions: ['univalent'], proportions: [1.0] },
+    iti: { type: 'fixed', value: 500, params: [] },
+    soa: { type: 'choice', value: 100, params: [100, 600] },
+};
+
+const switchTrials = generateDualCanvasBlockTrials(dualCanvasSwitchConfig, 24);
+assert(switchTrials.length === 24, 'switch: 24 trials generated');
+
+// Every trial should have opposite tasks on left and right
+for (const t of switchTrials) {
+    assert(t.meta.task !== t.meta.task2,
+        `switch: T1=${t.meta.task} differs from T2=${t.meta.task2}`);
+    assert(t.meta.task2 === switchTask(t.meta.task),
+        'switch: T2 is switchTask(T1)');
+    assert(t.meta.transitionType === 'Switch',
+        'switch: all transitions are Switch when tasks always differ');
+}
+
+// Return shape: leftSeParams, rightSeParams, meta
+const firstSwitch = switchTrials[0];
+assert(firstSwitch.leftSeParams !== undefined, 'switch: has leftSeParams');
+assert(firstSwitch.rightSeParams !== undefined, 'switch: has rightSeParams');
+assert(firstSwitch.meta !== undefined, 'switch: has meta');
+assert(firstSwitch.leftSeParams.task_1 !== undefined, 'switch: leftSeParams has task_1');
+assert(firstSwitch.rightSeParams.task_1 !== undefined, 'switch: rightSeParams has task_1');
+
+// Both canvases should be channel-1-only (task_2 null, ch2 zeroed)
+assert(firstSwitch.leftSeParams.task_2 === null, 'switch: left canvas task_2 is null');
+assert(firstSwitch.rightSeParams.task_2 === null, 'switch: right canvas task_2 is null');
+assert(firstSwitch.leftSeParams.dur_mov_2 === 0, 'switch: left canvas ch2 mov silenced');
+assert(firstSwitch.leftSeParams.dur_or_2 === 0, 'switch: left canvas ch2 or silenced');
+
+// ============================================================
+section('generateDualCanvasBlockTrials — t2Rule same');
+
+const dualCanvasSameConfig = {
+    ...dualCanvasSwitchConfig,
+    blockId: 'test_dual_same',
+    t2Rule: 'same',
+};
+
+const sameTrials = generateDualCanvasBlockTrials(dualCanvasSameConfig, 24);
+assert(sameTrials.length === 24, 'same: 24 trials generated');
+
+// Every trial should have identical tasks on both canvases
+for (const t of sameTrials) {
+    assert(t.meta.task === t.meta.task2,
+        `same: T1=${t.meta.task} matches T2=${t.meta.task2}`);
+    assert(t.meta.transitionType === 'Repeat',
+        'same: all transitions are Repeat when tasks always match');
+}
+
+// ============================================================
+section('generateDualCanvasBlockTrials — t2Rule independent');
+
+const dualCanvasIndependentConfig = {
+    ...dualCanvasSwitchConfig,
+    blockId: 'test_dual_independent',
+    t2Rule: 'independent',
+};
+
+const indTrials = generateDualCanvasBlockTrials(dualCanvasIndependentConfig, 60);
+assert(indTrials.length === 60, 'independent: 60 trials generated');
+
+// With independent sequences over 60 trials, expect both same and different pairings
+const hasRepeatPairing = indTrials.some(t => t.meta.task === t.meta.task2);
+const hasSwitchPairing = indTrials.some(t => t.meta.task !== t.meta.task2);
+assert(hasRepeatPairing, 'independent: has some same-task pairings');
+assert(hasSwitchPairing, 'independent: has some different-task pairings');
+
+// ============================================================
+section('generateDualCanvasBlockTrials — SOA offset on right canvas');
+
+// Use fixed SOA to make assertions deterministic
+const dualCanvasFixedSOAConfig = {
+    ...dualCanvasSwitchConfig,
+    blockId: 'test_dual_soa',
+    soa: { type: 'fixed', value: 400, params: [] },
+};
+
+const soaTrials = generateDualCanvasBlockTrials(dualCanvasFixedSOAConfig, 5);
+for (const t of soaTrials) {
+    // Left canvas: go signal at csi (200)
+    assert(t.leftSeParams.start_go_1 === 200,
+        `SOA: left go signal at csi=200, got ${t.leftSeParams.start_go_1}`);
+    // Right canvas: go signal shifted by SOA (200 + 400 = 600)
+    assert(t.rightSeParams.start_go_1 === 600,
+        `SOA: right go signal at csi+soa=600, got ${t.rightSeParams.start_go_1}`);
+    // Right canvas: cue duration extended by SOA
+    assert(t.rightSeParams.dur_1 === dualCanvasFixedSOAConfig.csi + dualCanvasFixedSOAConfig.stimulusDuration + 400,
+        `SOA: right cue duration extended by SOA`);
+    // Meta records the SOA
+    assert(t.meta.soa === 400, 'SOA: meta records soa=400');
+}
+
+// ============================================================
+section('generateDualCanvasBlockTrials — crossCanvasCongruency');
+
+// Check that crossCanvasCongruency is correctly computed from directions
+for (const t of soaTrials) {
+    const sameDir = t.meta.direction_1 === t.meta.direction_2;
+    const expected = sameDir ? 'congruent' : 'incongruent';
+    assert(t.meta.crossCanvasCongruency === expected,
+        `congruency: directions ${t.meta.direction_1}/${t.meta.direction_2} → ${expected}`);
+}
+
+// ============================================================
+section('generateDualCanvasBlockTrials — previousCrossCanvasCongruency');
+
+assert(soaTrials[0].meta.previousCrossCanvasCongruency === null,
+    'previousCongruency: null on first trial');
+for (let i = 1; i < soaTrials.length; i++) {
+    assert(soaTrials[i].meta.previousCrossCanvasCongruency === soaTrials[i-1].meta.crossCanvasCongruency,
+        `previousCongruency: trial ${i+1} matches trial ${i}'s crossCanvasCongruency`);
+}
+
+// ============================================================
+section('generateDualCanvasBlockTrials — coherence fallback');
+
+// Default: both canvases use ch1_task (0.8) when leftCoherence/rightCoherence not set
+const cohTrial = soaTrials[0];
+assert(cohTrial.leftSeParams.coh_mov_1 === 0.8 || cohTrial.leftSeParams.coh_or_1 === 0.8,
+    'coherence fallback: left canvas uses ch1_task=0.8');
+assert(cohTrial.rightSeParams.coh_mov_1 === 0.8 || cohTrial.rightSeParams.coh_or_1 === 0.8,
+    'coherence fallback: right canvas uses ch1_task=0.8');
+
+// Override: leftCoherence/rightCoherence take precedence
+const dualCanvasCustomCohConfig = {
+    ...dualCanvasSwitchConfig,
+    blockId: 'test_dual_coh',
+    leftCoherence: 0.9,
+    rightCoherence: 0.5,
+    soa: { type: 'fixed', value: 100, params: [] },
+};
+
+const cohTrials = generateDualCanvasBlockTrials(dualCanvasCustomCohConfig, 10);
+for (const t of cohTrials) {
+    // Left canvas active pathway should have 0.9 coherence
+    const leftActiveCoh = t.meta.task === 'mov' ? t.leftSeParams.coh_mov_1 : t.leftSeParams.coh_or_1;
+    assert(leftActiveCoh === 0.9, `custom coherence: left=${leftActiveCoh}, expected 0.9`);
+    // Right canvas active pathway should have 0.5 coherence
+    const rightActiveCoh = t.meta.task2 === 'mov' ? t.rightSeParams.coh_mov_1 : t.rightSeParams.coh_or_1;
+    assert(rightActiveCoh === 0.5, `custom coherence: right=${rightActiveCoh}, expected 0.5`);
+}
+
+// ============================================================
+section('generateDualCanvasBlockTrials — throws on non-disjoint RSO');
+
+let threwOnIdentical = false;
+try {
+    generateDualCanvasBlockTrials({ ...dualCanvasSwitchConfig, rso: 'identical' }, 10);
+} catch (e) {
+    threwOnIdentical = true;
+}
+assert(threwOnIdentical, 'throws when rso is not disjoint');
+
+// ============================================================
+section('generateDualCanvasBlockTrials — no NaN or undefined in SE params');
+
+for (const t of switchTrials) {
+    for (const [k, v] of Object.entries(t.leftSeParams)) {
+        assert(v !== undefined && (typeof v !== 'number' || !isNaN(v)),
+            `leftSeParams.${k} not NaN/undefined`);
+    }
+    for (const [k, v] of Object.entries(t.rightSeParams)) {
+        assert(v !== undefined && (typeof v !== 'number' || !isNaN(v)),
+            `rightSeParams.${k} not NaN/undefined`);
+    }
+}
+
+// ============================================================
 // Summary
 console.log(`\n============================`);
 console.log(`PASSED: ${passed}`);

@@ -93,6 +93,14 @@ function classifyTransitions(taskSequence) {
     });
 }
 
+function classifyDualCanvasTransitions(t1TaskSequence, t2TaskSequence) {
+    let transitions = [];
+    for (let i = 0; i < t1TaskSequence.length; i++) {
+	transitions.push(t1TaskSequence[i] === t2TaskSequence[i] ? 'Repeat' : 'Switch');
+    }
+    return transitions;
+}
+
 /**
  * Generates a shuffled sequence of congruency labels with exact proportions.
  *
@@ -444,5 +452,150 @@ function generateBlockTrials(blockConfig, numTrials) {
         trials.push({ seParams, meta });
     }
 
+    return trials;
+}
+
+function buildSingleCanvasSpec(task, csi, stimulusDuration, responseWindow,
+			       coherence, direction,
+			       distractorCoherence, distractorDirection) {
+    const spec = {
+	task1: task,
+	task2: null,
+	csi: csi,
+	dur_ch1: stimulusDuration,
+	dur_ch2: 0,
+	soa: 0,
+	responseWindow: responseWindow,
+	coherence: {ch1_task: coherence, ch1_distractor: distractorCoherence ?? 0, ch2_task: 0, ch2_distractor: 0},
+	dir: {ch1_task: direction, ch1_distractor: distractorDirection ?? 0, ch2_task: 0, ch2_distractor: 0}
+    };
+
+    return spec;
+}
+
+
+function applySOAOffset(params, offset) {
+    const shifted = { ...params };
+    if (offset === 0) {
+	return shifted;
+    }
+
+    if (params.dur_mov_1 > 0) {
+	shifted.start_mov_1 += offset;
+    }
+    if (params.dur_or_1 > 0) {
+	shifted.start_or_1 += offset;
+    }
+    shifted.start_go_1 += offset;
+    shifted.dur_1 += offset;
+
+    return shifted;
+}
+
+
+// TODO: Dual-canvas within-canvas congruency support
+//
+// Currently, dual-canvas trials are always univalent (one task per canvas, no
+// distractors). To support within-canvas congruency (e.g., movement task with
+// orientation distractor on the same canvas):
+//
+// 1. Add congruency config to blockConfig (per-canvas or shared):
+//    leftCongruency: { conditions: ['congruent','incongruent'], proportions: [0.5,0.5] }
+//
+// 2. Call generateCongruencySequence for each canvas independently.
+//
+// 3. Use the congruency label to control distractorDirection in
+//    buildSingleCanvasSpec (similar to how assignDirections handles it for
+//    single-canvas trials).
+//
+// 4. This enables three independent congruency dimensions in the data:
+//    - Within left canvas:  task vs distractor direction
+//    - Within right canvas: task vs distractor direction
+//    - Cross canvas:        left task vs right task direction (already tracked
+//      as crossCanvasCongruency)
+//
+// These three dimensions allow a 2x2x2 congruency analysis and three-way
+// interactions with SOA — a novel design not possible with single-canvas PRP.
+//
+// NOTE: Future extension — dual-PRP (two-channel trials on each canvas)
+//
+// The current dual-canvas design uses one task per canvas (channel 1 only).
+// A more extreme design could run a full PRP trial on each canvas
+// simultaneously — four tasks total, two per canvas. This would require:
+//
+// - Per-canvas coherence objects instead of scalar leftCoherence/rightCoherence
+// - Per-canvas SOA (left canvas SOA vs right canvas SOA)
+// - buildSingleCanvasSpec replaced with full two-channel spec per canvas
+// - Four response keys per canvas (currently only two per hand)
+//
+// This is architecturally possible (each canvas is an independent SE instance)
+// but would require a different response mapping scheme since participants
+// only have two fingers per hand in the current setup.
+
+function generateDualCanvasBlockTrials(blockConfig, numTrials) {
+    if (blockConfig.rso !== 'disjoint') {
+        throw new Error(`Dual Canvas Config requires disjoint RSO, got: ${blockConfig.rso}`);
+    }
+    let t1TaskSequence, t2TaskSequence;
+    t1TaskSequence = generateTaskSequence(
+	numTrials,
+	blockConfig.sequenceType,
+	blockConfig.switchRate,
+	blockConfig.startTask
+    );
+    if (blockConfig.t2Rule === 'same') {
+	t2TaskSequence = [ ...t1TaskSequence ];
+    }
+    else if (blockConfig.t2Rule === 'switch') {
+	t2TaskSequence = t1TaskSequence.map(t => switchTask(t));
+    }
+    else if (blockConfig.t2Rule === 'independent') {
+	t2TaskSequence = generateTaskSequence(
+	    numTrials,
+	    blockConfig.sequenceType,
+	    blockConfig.switchRate,
+	    null
+	);
+    }
+
+    const transitions = classifyDualCanvasTransitions(t1TaskSequence, t2TaskSequence);
+    const trials = [];
+    for (let i = 0; i < numTrials; i++) {
+        // Sample per-trial timing
+        const iti = sampleFromDistribution(blockConfig.iti);
+        const soa = sampleFromDistribution(blockConfig.soa);
+	const leftCoherence = blockConfig.leftCoherence ?? blockConfig.coherence.ch1_task;
+	const rightCoherence = blockConfig.rightCoherence ?? blockConfig.coherence.ch1_task;
+
+	const direction_1 = Math.random() < 0.5 ? 0 : 180;
+	const direction_2 = Math.random() < 0.5 ? 0 : 180;
+	const crossCanvasCongruency = direction_1 === direction_2 ? 'congruent' : 'incongruent';
+        const previousCrossCanvasCongruency = i > 0 ? trials[i-1].meta.crossCanvasCongruency : null;
+	const left_spec = buildSingleCanvasSpec(t1TaskSequence[i], blockConfig.csi, blockConfig.stimulusDuration,
+	    blockConfig.responseWindow, leftCoherence, direction_1);
+	const right_spec = buildSingleCanvasSpec(t2TaskSequence[i], blockConfig.csi, blockConfig.stimulusDuration,
+	    blockConfig.responseWindow, rightCoherence, direction_2);
+
+	const leftCanvasTrialParams = buildTrialParams(left_spec);
+	const rightCanvasTrialParams = buildTrialParams(right_spec);
+	const shiftedRightCanvasTrialParams = applySOAOffset(rightCanvasTrialParams, soa);
+        // Build metadata for analysis
+        const meta = {
+            trialNumber: i + 1,
+            blockId: blockConfig.blockId,
+            blockType: blockConfig.blockType,
+            paradigm: blockConfig.paradigm,
+            task: t1TaskSequence[i],
+            task2: t2TaskSequence[i],
+            transitionType: transitions[i],
+            crossCanvasCongruency: crossCanvasCongruency,
+            previousCrossCanvasCongruency: previousCrossCanvasCongruency,
+            iti: iti,
+            soa: soa,
+            direction_1: direction_1,
+	    direction_2: direction_2,
+        };
+	trials.push({ leftSeParams: leftCanvasTrialParams, rightSeParams: shiftedRightCanvasTrialParams, meta });
+    }
     return trials;
 }
