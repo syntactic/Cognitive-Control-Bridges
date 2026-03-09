@@ -76,7 +76,10 @@
         #canvas-container:focus {
             border-color: #4488ff;
         }
-
+	#canvas-container.dual-canvas-mode {
+	    width: 1220px;
+	    height: 600px;
+	}
         .instructions-overlay {
             position: absolute;
             inset: 0;
@@ -114,9 +117,11 @@
     <div class="controls">
         <select id="demo-select">
             <option value="">-- Select a demo --</option>
-            <option value="hirsch">Hirsch Replication (PRP + Task Switching)</option>
-            <option value="hirsch_prp_only">Hirsch — PRP block only (quick test)</option>
-            <option value="hirsch_mixed_only">Hirsch — Mixed block only (quick test)</option>
+            <option value="hirsch">Single-Canvas Demo (Pure + Mixed + PRP)</option>
+            <option value="hirsch_prp_only">Single-Canvas PRP only (quick test)</option>
+            <option value="hirsch_mixed_only">Single-Canvas Mixed only (quick test)</option>
+	    <option value="hirsch_dual_canvas">Hirsch - Dual Canvas</option>
+	    <option value="hirsch_dual_canvas_same">Hirsch - Dual Canvas Same Task</option>
         </select>
         <button id="start-btn" disabled>Start</button>
         <button id="stop-btn">Stop</button>
@@ -159,6 +164,7 @@
         });
 
         function getSessionDef(id) {
+	    const isDualCanvas = id.includes('dual_canvas');
             let blocks;
             switch (id) {
                 case 'hirsch':
@@ -170,9 +176,22 @@
                 case 'hirsch_mixed_only':
                     blocks = [HIRSCH_SESSION[2]]; // Just mixed block
                     break;
+		case 'hirsch_dual_canvas':
+		    blocks = HIRSCH_DUAL_CANVAS_SESSION;
+		    break;
+		case 'hirsch_dual_canvas_same':
+		    blocks = HIRSCH_DUAL_CANVAS_SAME_SESSION;
+		    break;
                 default:
                     return null;
             }
+	    if (isDualCanvas) {
+		const infoDiv = document.querySelector('.info');
+		infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Left task controls: A = left, D = right<br>Right task controls: J = left, L = right'
+	    } else {
+		const infoDiv = document.querySelector('.info');
+		infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Keys: A = left, D = right.';
+	    }
 
             if (abridgedCb.checked) {
                 blocks = blocks.map(b => ({

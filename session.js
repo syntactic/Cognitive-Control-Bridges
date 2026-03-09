@@ -32,6 +32,61 @@ const Session = (() => {
         };
     }
 
+    function computeDualCanvasSize() {
+        const containerWidth = canvasContainer.clientWidth;
+        const gap = 20;
+        const targetPx = (containerWidth - gap) / 2;
+        const minViewport = Math.min(window.innerWidth, window.innerHeight);
+        return targetPx / minViewport;
+    }
+
+    function buildDualCanvasSEConfigs(leftTask, rightTask) {
+	let leftConfig = {} , rightConfig = {};
+	const leftHandHorizontalMapping = { 180: 'a', 0: 'd'};
+	const rightHandHorizontalMapping = { 180: 'j', 0: 'l'};
+	const dummyMapping = { 180: '!', 0: '!'};
+	const dualCanvasSize = computeDualCanvasSize();
+	if (leftTask === 'mov') {
+	    leftConfig = {'movementKeyMap': { ...leftHandHorizontalMapping }, 'orientationKeyMap': dummyMapping, size: dualCanvasSize };
+	} else {
+	    leftConfig = {'orientationKeyMap': { ...leftHandHorizontalMapping }, 'movementKeyMap': dummyMapping, size: dualCanvasSize };
+	}
+	if (rightTask === 'mov') {
+	    rightConfig = {'movementKeyMap': { ...rightHandHorizontalMapping }, 'orientationKeyMap': dummyMapping, size: dualCanvasSize };
+	} else {
+	    rightConfig = {'orientationKeyMap': { ...rightHandHorizontalMapping }, 'movementKeyMap': dummyMapping, size: dualCanvasSize };
+	}
+	return { leftConfig, rightConfig };
+    }
+
+    function setupDualCanvasDOM() {
+	canvasContainer.innerHTML = '';
+	const t1 = document.createElement('div');
+	const t1_label = document.createElement('div');
+	t1_label.textContent = 'T1 (respond with left hand)';
+	t1_label.style.cssText = 'color: #888; font-size: 0.8em; margin-bottom: 4px;';
+	const t1_canvas = document.createElement('div');
+	t1.appendChild(t1_label);
+	t1.appendChild(t1_canvas);
+
+	const t2 = document.createElement('div');
+	const t2_label = document.createElement('div');
+	t2_label.textContent = 'T2 (respond with right hand)';
+	t2_label.style.cssText = 'color: #888; font-size: 0.8em; margin-bottom: 4px;';
+	const t2_canvas = document.createElement('div');
+	t2.appendChild(t2_label);
+	t2.appendChild(t2_canvas);
+
+	const wrapper = document.createElement('div');
+	wrapper.style.cssText = 'display: flex; gap: 20px; justify-content: center; align-items: center';
+	wrapper.appendChild(t1);
+	wrapper.appendChild(t2);
+	canvasContainer.appendChild(wrapper);
+
+	return {leftParent: t1_canvas, rightParent: t2_canvas};
+    }
+
+
     function sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
@@ -90,6 +145,23 @@ const Session = (() => {
             ...trial.meta,
             ...result,
         };
+    }
+
+    async function runDualCanvasTrial(trial, leftConfig, rightConfig, prevResponseTime) {
+        await sleep(trial.meta.iti);
+	const { leftParent, rightParent } = setupDualCanvasDOM();
+
+	const leftPromise = seBlock([trial.leftSeParams], 0, leftConfig, false, true, 'canvasLeft', leftParent);
+	const rightPromise = seBlock([trial.rightSeParams], 0, rightConfig, false, true, 'canvasRight', rightParent);
+	const [leftData, rightData] = await Promise.all([leftPromise, rightPromise]);
+
+	await seEndBlock('canvasLeft');
+	await seEndBlock('canvasRight');
+	const result = extractDualCanvasResponse(leftData, rightData, trial);
+	return {
+	    ...trial.meta,
+	    ...result,
+	};
     }
 
     /**
@@ -210,13 +282,64 @@ const Session = (() => {
         };
     }
 
+
+    function extractDualCanvasResponse(leftData, rightData, trial) {
+	let leftResponse, rightResponse;
+	let accuracy1 = 'miss', accuracy2 = 'miss';
+	for (let i = 0; i < leftData.keyPresses.length; i++) {
+	    if (leftData.keyPresses[i].isCorrect) {
+		leftResponse = leftData.keyPresses[i];
+		accuracy1 = (i === 0) ? 'correct' : 'corrected';
+		break;
+	    }
+	}
+	if (accuracy1 === 'miss' && leftData.keyPresses.length > 0) {
+	    accuracy1 = 'error';
+	}
+
+	for (let i = 0; i < rightData.keyPresses.length; i++) {
+	    if (rightData.keyPresses[i].isCorrect) {
+		rightResponse = rightData.keyPresses[i];
+		accuracy2 = (i === 0) ? 'correct' : 'corrected';
+		break;
+	    }
+	}
+	if (accuracy2 === 'miss' && rightData.keyPresses.length > 0) {
+	    accuracy2 = 'error';
+	}
+
+	let rt1_raw = null, rt2_raw = null, rt1 = null, rt2 = null;
+	if (leftResponse != null) {
+	    rt1_raw = leftResponse.time;
+	    rt1 = rt1_raw - trial.leftSeParams.start_go_1;
+	}
+	if (rightResponse != null) {
+	    rt2_raw = rightResponse.time;
+	    rt2 = rt2_raw - trial.rightSeParams.start_go_1;
+	}
+	let responseOrder = null;
+	if (rt1_raw !== null && rt2_raw !== null) {
+	    responseOrder = (rt2_raw - rt1_raw > 0) ? 'T1-first' : 'T2-first';
+	}
+	return { rt1, rt1_raw, accuracy1, rt2, rt2_raw, accuracy2, responseOrder, rawKeyPresses: JSON.stringify({ left : leftData.keyPresses, right : rightData.keyPresses} ) }
+    }
+
     /**
      * Run a complete block of trials.
      */
     async function runBlock(blockDef, blockOrder) {
         const { blockConfig, numTrials, instructions } = blockDef;
-        const trials = generateBlockTrials(blockConfig, numTrials);
-        const seConfig = buildSEConfig(blockConfig.rso);
+	let trials;
+	let seConfig;
+	const canvasType = blockConfig.paradigm ?? 'single-canvas';
+	if (canvasType === 'dual-canvas') {
+	    trials = generateDualCanvasBlockTrials(blockConfig, numTrials);
+	    canvasContainer.classList.toggle('dual-canvas-mode', true);
+	} else {
+	    trials = generateBlockTrials(blockConfig, numTrials);
+	    seConfig = buildSEConfig(blockConfig.rso);
+	    canvasContainer.classList.toggle('dual-canvas-mode', false);
+	}
 
         // Show instructions
         if (instructions) {
@@ -224,18 +347,22 @@ const Session = (() => {
         }
 
         let prevResponseTime = null;
-
+	let trialData;
         for (let i = 0; i < trials.length; i++) {
             if (!isRunning) break;
-
-            const trialData = await runTrial(trials[i], seConfig, prevResponseTime);
+            // Update status display
+            updateStatus(blockConfig.blockId, i + 1, trials.length, blockOrder);
+	    if (canvasType === 'dual-canvas') {
+		const { leftConfig, rightConfig } = buildDualCanvasSEConfigs(trials[i].meta.task, trials[i].meta.task2);
+		trialData = await runDualCanvasTrial(trials[i], leftConfig, rightConfig, prevResponseTime);
+	    } else {
+		trialData = await runTrial(trials[i], seConfig, prevResponseTime);
+	    }
             trialData.blockOrder = blockOrder;
             prevResponseTime = performance.now();
 
             allTrialData.push(trialData);
 
-            // Update status display
-            updateStatus(blockConfig.blockId, i + 1, trials.length, blockOrder);
         }
     }
 
@@ -300,15 +427,18 @@ const Session = (() => {
         }
 
         // Column order
-        const columns = [
-            'blockOrder', 'blockId', 'blockType', 'paradigm',
-            'trialNumber', 'task', 'task2', 'transitionType',
-            'congruency', 'previousCongruency',
-            'iti', 'soa',
-            'primaryDirection', 'distractorDirection', 'ch2Direction',
-            'rt1', 'accuracy1', 'rt2', 'accuracy2',
-            'responseOrder', 'rt1_raw', 'rt2_raw', 'rawKeyPresses',
-        ];
+	const columns = [
+	    'blockOrder', 'blockId', 'blockType', 'paradigm',
+	    'trialNumber', 'task', 'task2', 'transitionType',
+	    'congruency', 'previousCongruency',
+	    'crossCanvasCongruency', 'previousCrossCanvasCongruency',
+	    'iti', 'soa',
+	    'primaryDirection', 'distractorDirection', 'ch2Direction',
+	    'direction_1', 'direction_2',
+	    'rt1', 'accuracy1', 'rt2', 'accuracy2',
+	    'responseOrder', 'rt1_raw', 'rt2_raw', 'rawKeyPresses',
+	];
+
 
         const header = columns.join(',');
         const rows = allTrialData.map(row =>
