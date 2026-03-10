@@ -117,13 +117,23 @@
     <div class="controls">
         <select id="demo-select">
             <option value="">-- Select a demo --</option>
-            <option value="hirsch">Single-Canvas Demo (Pure + Mixed + PRP)</option>
-            <option value="hirsch_prp_only">Single-Canvas PRP only (quick test)</option>
-            <option value="hirsch_mixed_only">Single-Canvas Mixed only (quick test)</option>
-	    <option value="hirsch_dual_canvas">Hirsch - Dual Canvas</option>
-	    <option value="hirsch_dual_canvas_same">Hirsch - Dual Canvas Same Task</option>
-	    <option value="hirsch_alternating_mixed">Hirsch - Task Switching</option>
-	    <option value='hirsch_faithful_session'>Hirsch Replication</option>
+            <optgroup label="Generic Demos">
+                <option value="demo_session">Single-Canvas (Pure + Mixed + PRP)</option>
+                <option value="demo_prp_only">Single-Canvas PRP only</option>
+                <option value="demo_mixed_only">Single-Canvas Mixed only</option>
+                <option value="demo_dual_same">Dual-Canvas Same Task</option>
+            </optgroup>
+            <optgroup label="Hirsch Replication">
+                <option value="hirsch_faithful">Full Replication</option>
+                <option value="hirsch_part1">Part 1: Task Switching</option>
+                <option value="hirsch_part2">Part 2: Dual-Canvas PRP</option>
+            </optgroup>
+            <optgroup label="Hirsch Quick Tests">
+                <option value="hirsch_alt_pure">Alternating Pure</option>
+                <option value="hirsch_alt_mixed">Alternating Mixed</option>
+                <option value="hirsch_prp_baseline">PRP Baseline (Asterisk)</option>
+                <option value="hirsch_prp">PRP Dual-Canvas</option>
+            </optgroup>
         </select>
         <button id="start-btn" disabled>Start</button>
         <button id="stop-btn">Stop</button>
@@ -150,7 +160,8 @@
     <!-- Dependencies -->
     <script src="node_modules/super-experiment/dist/bundle.js"></script>
     <script src="engine.js"></script>
-    <script src="hirsch.js"></script>
+    <script src="demo_block_configs.js"></script>
+    <script src="hirsch_block_configs.js"></script>
     <script src="session.js"></script>
 
     <script>
@@ -166,40 +177,55 @@
         });
 
         function getSessionDef(id) {
-	    const isDualCanvas = id.includes('dual_canvas') || id.includes('alternating') || id.includes('faithful');
             let blocks;
             switch (id) {
-                case 'hirsch':
-                    blocks = HIRSCH_SESSION;
+                // Generic demos
+                case 'demo_session':
+                    blocks = DEMO_SESSION;
                     break;
-                case 'hirsch_prp_only':
-                    blocks = [HIRSCH_SESSION[3]]; // Just PRP block
+                case 'demo_prp_only':
+                    blocks = [DEMO_SESSION[3]];
                     break;
-                case 'hirsch_mixed_only':
-                    blocks = [HIRSCH_SESSION[2]]; // Just mixed block
+                case 'demo_mixed_only':
+                    blocks = [DEMO_SESSION[2]];
                     break;
-		case 'hirsch_dual_canvas':
-		    blocks = HIRSCH_DUAL_CANVAS_SESSION;
-		    break;
-		case 'hirsch_dual_canvas_same':
-		    blocks = HIRSCH_DUAL_CANVAS_SAME_SESSION;
-		    break;
-		case 'hirsch_alternating_mixed':
-		    blocks = HIRSCH_TASK_SWITCHING_SESSION;
-		    break;
-		case 'hirsch_faithful_session':
-		    blocks = HIRSCH_FAITHFUL_SESSION;
-		    break;
+                case 'demo_dual_same':
+                    blocks = DEMO_DUAL_CANVAS_SAME_SESSION;
+                    break;
+                // Hirsch replication
+                case 'hirsch_faithful':
+                    blocks = HIRSCH_FAITHFUL_SESSION;
+                    break;
+                case 'hirsch_part1':
+                    blocks = HIRSCH_TASK_SWITCHING_SESSION;
+                    break;
+                case 'hirsch_part2':
+                    blocks = HIRSCH_DUAL_CANVAS_SESSION;
+                    break;
+                // Hirsch quick tests
+                case 'hirsch_alt_pure':
+                    blocks = HIRSCH_ALT_PURE_DEMO;
+                    break;
+                case 'hirsch_alt_mixed':
+                    blocks = HIRSCH_ALT_MIXED_DEMO;
+                    break;
+                case 'hirsch_prp_baseline':
+                    blocks = HIRSCH_PRP_BASELINE_DEMO;
+                    break;
+                case 'hirsch_prp':
+                    blocks = HIRSCH_PRP_DEMO;
+                    break;
                 default:
                     return null;
             }
-	    if (isDualCanvas) {
-		const infoDiv = document.querySelector('.info');
-		infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Left task controls: A = left, D = right<br>Right task controls: J = left, L = right'
-	    } else {
-		const infoDiv = document.querySelector('.info');
-		infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Keys: A = left, D = right.';
-	    }
+
+            const isDualCanvas = id !== 'demo_session' && id !== 'demo_prp_only' && id !== 'demo_mixed_only';
+            const infoDiv = document.querySelector('.info');
+            if (isDualCanvas) {
+                infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Left task controls: A = left, D = right<br>Right task controls: J = left, L = right';
+            } else {
+                infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Keys: A = left, D = right.';
+            }
 
             if (abridgedCb.checked) {
                 blocks = blocks.map(b => ({
