@@ -122,6 +122,8 @@
             <option value="hirsch_mixed_only">Single-Canvas Mixed only (quick test)</option>
 	    <option value="hirsch_dual_canvas">Hirsch - Dual Canvas</option>
 	    <option value="hirsch_dual_canvas_same">Hirsch - Dual Canvas Same Task</option>
+	    <option value="hirsch_alternating_mixed">Hirsch - Task Switching</option>
+	    <option value='hirsch_faithful_session'>Hirsch Replication</option>
         </select>
         <button id="start-btn" disabled>Start</button>
         <button id="stop-btn">Stop</button>
@@ -164,7 +166,7 @@
         });
 
         function getSessionDef(id) {
-	    const isDualCanvas = id.includes('dual_canvas');
+	    const isDualCanvas = id.includes('dual_canvas') || id.includes('alternating') || id.includes('faithful');
             let blocks;
             switch (id) {
                 case 'hirsch':
@@ -181,6 +183,12 @@
 		    break;
 		case 'hirsch_dual_canvas_same':
 		    blocks = HIRSCH_DUAL_CANVAS_SAME_SESSION;
+		    break;
+		case 'hirsch_alternating_mixed':
+		    blocks = HIRSCH_TASK_SWITCHING_SESSION;
+		    break;
+		case 'hirsch_faithful_session':
+		    blocks = HIRSCH_FAITHFUL_SESSION;
 		    break;
                 default:
                     return null;

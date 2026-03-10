@@ -21,14 +21,14 @@ const Session = (() => {
             return {
                 movementKeyMap: { 180: 'a', 0: 'd' },
                 orientationKeyMap: { 180: 'j', 0: 'l' },
-                size: 0.75,
+                size: 0.75
             };
         }
         // identical RSO (default, Hirsch)
         return {
             movementKeyMap: { 180: 'a', 0: 'd' },
             orientationKeyMap: { 180: 'a', 0: 'd' },
-            size: 0.75,
+            size: 0.75
         };
     }
 
@@ -59,26 +59,46 @@ const Session = (() => {
 	return { leftConfig, rightConfig };
     }
 
-    function setupDualCanvasDOM() {
+    function buildAlternatingSEConfig(task, side, earlyResolve) {
+	const dummyMapping = { 180: '!', 0: '!'};
+	const dualCanvasSize = computeDualCanvasSize();
+	let horizontalMapping;
+	if (side === 'left') {
+	    horizontalMapping = { 180: 'a', 0: 'd' };
+	} else {
+	    horizontalMapping = { 180: 'j', 0: 'l' };
+	}
+	let seConfig;
+	if (task === 'mov') {
+	    seConfig = { movementKeyMap: { ...horizontalMapping }, orientationKeyMap: { ...dummyMapping }, size: dualCanvasSize, earlyResolve: earlyResolve };
+	} else {
+	    seConfig = { movementKeyMap: { ...dummyMapping }, orientationKeyMap: { ...horizontalMapping }, size: dualCanvasSize, earlyResolve: earlyResolve };
+	}
+	return seConfig;
+    }
+
+    function setupDualCanvasDOM(leftLabel='T1 (respond with left hand)', rightLabel='T2 (respond with right hand)') {
 	canvasContainer.innerHTML = '';
 	const t1 = document.createElement('div');
 	const t1_label = document.createElement('div');
-	t1_label.textContent = 'T1 (respond with left hand)';
+	t1_label.textContent = leftLabel;
 	t1_label.style.cssText = 'color: #888; font-size: 0.8em; margin-bottom: 4px;';
 	const t1_canvas = document.createElement('div');
+	t1_canvas.style.cssText = 'min-width: 580px; min-height: 580px;';
 	t1.appendChild(t1_label);
 	t1.appendChild(t1_canvas);
 
 	const t2 = document.createElement('div');
 	const t2_label = document.createElement('div');
-	t2_label.textContent = 'T2 (respond with right hand)';
+	t2_label.textContent = rightLabel;
 	t2_label.style.cssText = 'color: #888; font-size: 0.8em; margin-bottom: 4px;';
 	const t2_canvas = document.createElement('div');
+	t2_canvas.style.cssText = 'min-width: 580px; min-height: 580px;';
 	t2.appendChild(t2_label);
 	t2.appendChild(t2_canvas);
 
 	const wrapper = document.createElement('div');
-	wrapper.style.cssText = 'display: flex; gap: 20px; justify-content: center; align-items: center';
+	wrapper.style.cssText = 'display: flex; gap: 20px; justify-content: center; align-items: flex-start';
 	wrapper.appendChild(t1);
 	wrapper.appendChild(t2);
 	canvasContainer.appendChild(wrapper);
@@ -145,6 +165,42 @@ const Session = (() => {
             ...trial.meta,
             ...result,
         };
+    }
+
+    async function runAlternatingTrial(trial, config, leftParent, rightParent) {
+	await sleep(trial.meta.iti);
+	const side = trial.meta.side;
+	let data;
+	if (side === 'left') {
+	    data = await seBlock([trial.seParams], 0, config, false, true, 'canvasLeft', leftParent);
+	    await seEndBlock('canvasLeft');
+	} else {
+	    data = await seBlock([trial.seParams], 0, config, false, true, 'canvasRight', rightParent);
+	    await seEndBlock('canvasRight');
+	}
+	const result = extractAlternatingResponse(data, trial);
+	return {
+	    ...trial.meta,
+	    ...result
+	};
+    }
+
+    async function runBaselinePRPTrial(trial, rightConfig, leftParent, rightParent) {
+	await sleep(trial.meta.iti);
+	const placeholder = document.createElement('div');
+	placeholder.style.cssText = 'width:100%; min-height:580px; display:flex; align-items:center; justify-content:center; font-size:6em; color:#888; background:#000;';
+	placeholder.textContent = '*';
+	leftParent.appendChild(placeholder);
+	await sleep(trial.meta.soa);
+
+	const data = await seBlock([trial.seParams], 0, rightConfig, false, true, 'canvasRight', rightParent);
+	await seEndBlock('canvasRight');
+	leftParent.innerHTML = '';
+	const result = extractAlternatingResponse(data, trial);
+	return {
+	    ...trial.meta,
+	    ...result
+	};
     }
 
     async function runDualCanvasTrial(trial, leftConfig, rightConfig, prevResponseTime) {
@@ -282,6 +338,27 @@ const Session = (() => {
         };
     }
 
+    function extractAlternatingResponse(data, trial) {
+	let response;
+	let accuracy1 = 'miss';
+	for (let i = 0; i < data.keyPresses.length; i++) {
+	    if (data.keyPresses[i].isCorrect) {
+		response = data.keyPresses[i];
+		accuracy1 = (i === 0) ? 'correct' : 'corrected';
+		break;
+	    }
+	}
+	if (accuracy1 === 'miss' && data.keyPresses.length > 0) {
+	    accuracy1 = 'error';
+	}
+	let rt1_raw = null, rt1 = null;
+	if (response != null) {
+	    rt1_raw = response.time;
+	    rt1 = rt1_raw - trial.seParams.start_go_1;
+	}
+	return { rt1, rt1_raw, accuracy1, rt2: null, rt2_raw: null, accuracy2: null, rawKeyPresses: JSON.stringify(data.keyPresses) };
+    }
+
 
     function extractDualCanvasResponse(leftData, rightData, trial) {
 	let leftResponse, rightResponse;
@@ -332,9 +409,18 @@ const Session = (() => {
 	let trials;
 	let seConfig;
 	const canvasType = blockConfig.paradigm ?? 'single-canvas';
+	let leftParent, rightParent;
 	if (canvasType === 'dual-canvas') {
 	    trials = generateDualCanvasBlockTrials(blockConfig, numTrials);
 	    canvasContainer.classList.toggle('dual-canvas-mode', true);
+	} else if (canvasType === 'alternating') {
+	    trials = generateAlternatingBlockTrials(blockConfig, numTrials);
+	    canvasContainer.classList.toggle('dual-canvas-mode', true);
+	    ({ leftParent, rightParent } = setupDualCanvasDOM());
+	} else if (canvasType === 'prp-baseline') {
+	    trials = generateBaselinePRPTrials(blockConfig, numTrials);
+	    canvasContainer.classList.toggle('dual-canvas-mode', true);
+	    ({ leftParent, rightParent } = setupDualCanvasDOM('S1 (no response needed)', 'Respond with right hand: J/L'));
 	} else {
 	    trials = generateBlockTrials(blockConfig, numTrials);
 	    seConfig = buildSEConfig(blockConfig.rso);
@@ -355,6 +441,12 @@ const Session = (() => {
 	    if (canvasType === 'dual-canvas') {
 		const { leftConfig, rightConfig } = buildDualCanvasSEConfigs(trials[i].meta.task, trials[i].meta.task2);
 		trialData = await runDualCanvasTrial(trials[i], leftConfig, rightConfig, prevResponseTime);
+	    } else if (canvasType === 'alternating') {
+		const config = buildAlternatingSEConfig(trials[i].meta.task, trials[i].meta.side, trials[i].meta.earlyResolve);
+		trialData = await runAlternatingTrial(trials[i], config, leftParent, rightParent);
+	    } else if (canvasType === 'prp-baseline') {
+		const config = buildAlternatingSEConfig(trials[i].meta.task, trials[i].meta.side, trials[i].meta.earlyResolve);
+		trialData = await runBaselinePRPTrial(trials[i], config, leftParent, rightParent)
 	    } else {
 		trialData = await runTrial(trials[i], seConfig, prevResponseTime);
 	    }
@@ -432,7 +524,7 @@ const Session = (() => {
 	    'trialNumber', 'task', 'task2', 'transitionType',
 	    'congruency', 'previousCongruency',
 	    'crossCanvasCongruency', 'previousCrossCanvasCongruency',
-	    'iti', 'soa',
+	    'iti', 'soa', 'side', 'earlyResolve', 'direction',
 	    'primaryDirection', 'distractorDirection', 'ch2Direction',
 	    'direction_1', 'direction_2',
 	    'rt1', 'accuracy1', 'rt2', 'accuracy2',

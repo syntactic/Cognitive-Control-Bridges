@@ -38,6 +38,19 @@ const HIRSCH_DUAL_DEFAULTS = {
 	rso: 'disjoint'
 };
 
+const HIRSCH_ALTERNATING_DEFAULTS = {
+    ...HIRSCH_DEFAULTS,
+    paradigm: 'alternating',
+    earlyResolve: true,
+    iti : { type: 'choice', params: [100, 600], value: 600 },
+    coherence: {
+	ch1_task: 0.8,
+	ch1_distractor: 0,
+	ch2_task: 0,
+	ch2_distractor: 0
+    }
+};
+
 // --- Pure blocks (one per task) ---
 
 const hirschPureMov = {
@@ -106,6 +119,29 @@ const singleCanvasPRP = {
     iti: { type: 'uniform', value: 500, params: [400, 600] },
     soa: { type: 'choice', value: 100, params: [50, 100, 200, 400, 600, 1000] },
 };
+
+const hirschDualCanvasPRPPureMov = {
+    ...HIRSCH_DUAL_DEFAULTS,
+    blockId: 'hirsch_dual_canvas_pure_mov',
+    blockType: 'prp-baseline',
+    paradigm: 'prp-baseline',
+    sequenceType: 'Random',
+    switchRate: 0,
+    startTask: 'mov',
+    earlyResolve: true
+}
+
+const hirschDualCanvasPRPPureOr = {
+    ...HIRSCH_DUAL_DEFAULTS,
+    blockId: 'hirsch_dual_canvas_pure_or',
+    blockType: 'prp-baseline',
+    paradigm: 'prp-baseline',
+    sequenceType: 'Random',
+    switchRate: 0,
+    startTask: 'or',
+    earlyResolve: true
+}
+
 const hirschDualCanvasPRP = {
     ...HIRSCH_DUAL_DEFAULTS,
     blockId: 'hirsch_dual_canvas',
@@ -124,6 +160,33 @@ const hirschDualCanvasSame = {
     sequenceType: 'Random',
     switchRate: 50,
     startTask: null
+};
+
+const hirschAlternatingMixed = {
+    ...HIRSCH_ALTERNATING_DEFAULTS,
+    blockId : 'hirsch_alternating_mixed',
+    blockType: 'mixed',
+    sequenceType: 'Random',
+    switchRate: 50,
+    startTask: null
+};
+
+const hirschAlternatingPureMov = {
+    ...HIRSCH_ALTERNATING_DEFAULTS,
+    blockId : 'hirsch_alternating_pure_mov',
+    blockType: 'pure',
+    sequenceType: 'Random',
+    switchRate: 0,
+    startTask: 'mov'
+};
+
+const hirschAlternatingPureOr = {
+    ...HIRSCH_ALTERNATING_DEFAULTS,
+    blockId : 'hirsch_alternating_pure_or',
+    blockType: 'pure',
+    sequenceType: 'Random',
+    switchRate: 0,
+    startTask: 'or'
 };
 
 // --- Session definition ---
@@ -152,17 +215,51 @@ const HIRSCH_SESSION = [
     },
 ];
 
+const HIRSCH_TASK_SWITCHING_SESSION = [
+    {
+	blockConfig: hirschAlternatingPureMov,
+	numTrials: 40,
+	instructions: 'Pure block of only movement tasks, two canvases.\n\n'
+	    + 'Press any key to begin.'
+    },
+    {
+	blockConfig: hirschAlternatingPureOr,
+	numTrials: 40,
+	instructions: 'Pure block of only orientation tasks, two canvases.\n\n'
+	    + 'Press any key to begin.'
+    },
+    {
+	blockConfig: hirschAlternatingMixed,
+	numTrials: 120,
+	instructions: 'Mixed task switching block: Two canvases, one task each.\n\n'
+	    + 'The tasks might be different types (movement vs orientation) or they might be the same.\n\n'
+	    + 'Press any key to begin.',
+    },
+    {
+	blockConfig: hirschAlternatingPureMov,
+	numTrials: 40,
+	instructions: 'Pure block of only movement tasks, two canvases.\n\n'
+	    + 'Press any key to begin.'
+    },
+    {
+	blockConfig: hirschAlternatingPureOr,
+	numTrials: 40,
+	instructions: 'Pure block of only orientation tasks, two canvases.\n\n'
+	    + 'Press any key to begin.'
+    }
+];
+
 
 const HIRSCH_DUAL_CANVAS_SESSION = [
     {
-        blockConfig: hirschPureMov,
+        blockConfig: hirschDualCanvasPRPPureMov,
         numTrials: 40,
-        instructions: 'Pure block: MOVEMENT task only.\n\nLeft hand: A = left, D = right.\n\nPress any key to begin.',
+        instructions: 'Pure block: MOVEMENT task only on right side.\n\nRight hand: J = left, L = right.\n\nPress any key to begin.',
     },
     {
-        blockConfig: hirschPureOr,
+        blockConfig: hirschDualCanvasPRPPureOr,
         numTrials: 40,
-        instructions: 'Pure block: ORIENTATION task only.\n\nRight hand: J = left, L = right.\n\nPress any key to begin.',
+        instructions: 'Pure block: ORIENTATION task only on right side.\n\nRight hand: J = left, L = right.\n\nPress any key to begin.',
     },
     {
         blockConfig: hirschDualCanvasPRP,
@@ -193,4 +290,52 @@ const HIRSCH_DUAL_CANVAS_SAME_SESSION = [
             + 'Both canvases will show the same task type on each trial.\n\n'
             + 'Press any key to begin.',
     },
+];
+
+const HIRSCH_FAITHFUL_SESSION = [
+    // --- Part 1: Task Switching ---
+    // Pure blocks, practice movement block, pure movement baseline, practice orientation block, pure orientation baseline
+    { blockConfig: hirschAlternatingPureMov, numTrials: 6,
+	instructions: 'Practice pure block: MOVEMENT only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
+    { blockConfig: hirschAlternatingPureMov, numTrials: 41,
+	instructions: 'Pure block: MOVEMENT only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
+    { blockConfig: hirschAlternatingPureOr, numTrials: 6,
+	instructions: 'Practice pure block: ORIENTATION only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
+    { blockConfig: hirschAlternatingPureOr, numTrials: 41,
+	instructions: 'Pure block: ORIENTATION only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
+    // Experimental blocks (4 blocks of 81 trials each in Hirsch)
+    { blockConfig: hirschAlternatingMixed, numTrials: 12,
+	instructions: 'Practice mixed block: Respond with the matching hand.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
+    { blockConfig: hirschAlternatingMixed, numTrials: 81,
+      instructions: 'Mixed block 1 of 4:\n\nRespond with the matching hand.\nA/D for left, J/L for right.\n\nPress any key.' },
+    { blockConfig: hirschAlternatingMixed, numTrials: 81, instructions: 'Mixed block 2 of 4.\n\nPress any key.' },
+    { blockConfig: hirschAlternatingMixed, numTrials: 81, instructions: 'Mixed block 3 of 4.\n\nPress any key.' },
+    { blockConfig: hirschAlternatingMixed, numTrials: 81, instructions: 'Mixed block 4 of 4.\n\nPress any key.' },
+    // Post-experimental pure blocks
+    { blockConfig: hirschAlternatingPureMov, numTrials: 41, instructions: 'Pure block: MOVEMENT only.\n\nPress any key.' },
+    { blockConfig: hirschAlternatingPureOr, numTrials: 41, instructions: 'Pure block: ORIENTATION only.\n\nPress any key.' },
+
+    // --- Part 2: Dual-Task PRP ---
+    // Pure baseline blocks
+    { blockConfig: hirschDualCanvasPRPPureMov, numTrials: 6,
+	instructions: 'Practice PRP pure block: MOVEMENT only.\nRight hand: J/L.\n\nPress any key.' },
+    { blockConfig: hirschDualCanvasPRPPureMov, numTrials: 41,
+      instructions: 'PRP pure block: MOVEMENT only.\nRight hand: J/L.\n\nPress any key.' },
+    { blockConfig: hirschDualCanvasPRPPureOr, numTrials: 6,
+	instructions: 'Practice PRP pure block: ORIENTATION only.\nRight hand: J/L.\n\nPress any key.' },
+    { blockConfig: hirschDualCanvasPRPPureOr, numTrials: 41,
+      instructions: 'PRP pure block: ORIENTATION only.\nRight hand: J/L.\n\nPress any key.' },
+    // Experimental PRP blocks (4 blocks of 81 trials)
+    { blockConfig: hirschDualCanvasPRP, numTrials: 12,
+      instructions: 'Practice PRP block: Respond LEFT first (A/D), then RIGHT (J/L).\n\nPress any key.' },
+    { blockConfig: hirschDualCanvasPRP, numTrials: 81,
+      instructions: 'PRP block 1 of 4: Respond LEFT first (A/D), then RIGHT (J/L).\n\nPress any key.' },
+    { blockConfig: hirschDualCanvasPRP, numTrials: 81, instructions: 'PRP block 2 of 4.\n\nPress any key.' },
+    { blockConfig: hirschDualCanvasPRP, numTrials: 81, instructions: 'PRP block 3 of 4.\n\nPress any key.' },
+    { blockConfig: hirschDualCanvasPRP, numTrials: 81, instructions: 'PRP block 4 of 4.\n\nPress any key.' },
+    // Post-experimental pure blocks
+    { blockConfig: hirschDualCanvasPRPPureMov, numTrials: 41,
+      instructions: 'PRP pure block: MOVEMENT only.\nRight hand: J/L.\n\nPress any key.' },
+    { blockConfig: hirschDualCanvasPRPPureOr, numTrials: 41,
+      instructions: 'PRP pure block: ORIENTATION only.\nRight hand: J/L.\n\nPress any key.' },
 ];

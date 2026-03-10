@@ -329,6 +329,190 @@ assert(result9.rt2 === 0, 'rt2 is 0');
 assert(result9.responseOrder !== null, 'responseOrder computed even at time 0');
 
 // ============================================================
+// buildAlternatingSEConfig tests
+// ============================================================
+
+// Note: the real buildAlternatingSEConfig in session.js computes size dynamically
+// via computeDualCanvasSize() (requires DOM). This test copy uses a fixed placeholder.
+function buildAlternatingSEConfig(task, side, earlyResolve) {
+    const dummyMapping = { 180: '!', 0: '!'};
+    let horizontalMapping;
+    if (side === 'left') {
+        horizontalMapping = { 180: 'a', 0: 'd' };
+    } else {
+        horizontalMapping = { 180: 'j', 0: 'l' };
+    }
+    let seConfig;
+    if (task === 'mov') {
+        seConfig = { movementKeyMap: { ...horizontalMapping }, orientationKeyMap: { ...dummyMapping }, size: TEST_SIZE, earlyResolve: earlyResolve };
+    } else {
+        seConfig = { movementKeyMap: { ...dummyMapping }, orientationKeyMap: { ...horizontalMapping }, size: TEST_SIZE, earlyResolve: earlyResolve };
+    }
+    return seConfig;
+}
+
+function extractAlternatingResponse(data, trial) {
+    let response;
+    let accuracy1 = 'miss';
+    for (let i = 0; i < data.keyPresses.length; i++) {
+        if (data.keyPresses[i].isCorrect) {
+            response = data.keyPresses[i];
+            accuracy1 = (i === 0) ? 'correct' : 'corrected';
+            break;
+        }
+    }
+    if (accuracy1 === 'miss' && data.keyPresses.length > 0) {
+        accuracy1 = 'error';
+    }
+    let rt1_raw = null, rt1 = null;
+    if (response != null) {
+        rt1_raw = response.time;
+        rt1 = rt1_raw - trial.seParams.start_go_1;
+    }
+    return { rt1, rt1_raw, accuracy1, rt2: null, rt2_raw: null, accuracy2: null, rawKeyPresses: JSON.stringify(data.keyPresses) };
+}
+
+// ============================================================
+
+section('buildAlternatingSEConfig — left side, mov task');
+
+const altLC1 = buildAlternatingSEConfig('mov', 'left', true);
+assert(altLC1.movementKeyMap[180] === 'a', 'left mov: 180 -> a');
+assert(altLC1.movementKeyMap[0] === 'd', 'left mov: 0 -> d');
+assert(altLC1.orientationKeyMap[180] === '!', 'left or: dummy');
+assert(altLC1.orientationKeyMap[0] === '!', 'left or: dummy');
+assert(altLC1.earlyResolve === true, 'earlyResolve is true');
+
+// ============================================================
+
+section('buildAlternatingSEConfig — left side, or task');
+
+const altLC2 = buildAlternatingSEConfig('or', 'left', true);
+assert(altLC2.orientationKeyMap[180] === 'a', 'left or: 180 -> a');
+assert(altLC2.orientationKeyMap[0] === 'd', 'left or: 0 -> d');
+assert(altLC2.movementKeyMap[180] === '!', 'left mov: dummy');
+assert(altLC2.movementKeyMap[0] === '!', 'left mov: dummy');
+
+// ============================================================
+
+section('buildAlternatingSEConfig — right side, mov task');
+
+const altRC1 = buildAlternatingSEConfig('mov', 'right', false);
+assert(altRC1.movementKeyMap[180] === 'j', 'right mov: 180 -> j');
+assert(altRC1.movementKeyMap[0] === 'l', 'right mov: 0 -> l');
+assert(altRC1.orientationKeyMap[180] === '!', 'right or: dummy');
+assert(altRC1.earlyResolve === false, 'earlyResolve is false');
+
+// ============================================================
+
+section('buildAlternatingSEConfig — right side, or task');
+
+const altRC2 = buildAlternatingSEConfig('or', 'right', true);
+assert(altRC2.orientationKeyMap[180] === 'j', 'right or: 180 -> j');
+assert(altRC2.orientationKeyMap[0] === 'l', 'right or: 0 -> l');
+assert(altRC2.movementKeyMap[180] === '!', 'right mov: dummy');
+
+// ============================================================
+
+section('buildAlternatingSEConfig — disjoint keys across sides');
+
+const allAltConfigs = [
+    [buildAlternatingSEConfig('mov', 'left', true), buildAlternatingSEConfig('mov', 'right', true)],
+    [buildAlternatingSEConfig('or', 'left', true), buildAlternatingSEConfig('or', 'right', true)],
+    [buildAlternatingSEConfig('mov', 'left', true), buildAlternatingSEConfig('or', 'right', true)],
+    [buildAlternatingSEConfig('or', 'left', true), buildAlternatingSEConfig('mov', 'right', true)],
+];
+
+for (const [leftCfg, rightCfg] of allAltConfigs) {
+    const leftKeys = new Set([
+        ...Object.values(leftCfg.movementKeyMap),
+        ...Object.values(leftCfg.orientationKeyMap),
+    ].filter(k => k !== '!'));
+    const rightKeys = new Set([
+        ...Object.values(rightCfg.movementKeyMap),
+        ...Object.values(rightCfg.orientationKeyMap),
+    ].filter(k => k !== '!'));
+    const overlap = [...leftKeys].filter(k => rightKeys.has(k));
+    assert(overlap.length === 0,
+        `no real key overlap: left={${[...leftKeys]}} right={${[...rightKeys]}}`);
+}
+
+// ============================================================
+// extractAlternatingResponse tests
+// ============================================================
+
+const altTrial = {
+    seParams: { start_go_1: 200 },
+};
+
+section('extractAlternatingResponse — correct on first press');
+
+const altRes1 = extractAlternatingResponse(
+    { keyPresses: [{ key: 'a', time: 500, isCorrect: true }] },
+    altTrial
+);
+assert(altRes1.accuracy1 === 'correct', 'correct on first press');
+assert(altRes1.rt1_raw === 500, 'rt1_raw = 500');
+assert(altRes1.rt1 === 300, 'rt1 = 500 - 200 = 300');
+assert(altRes1.rt2 === null, 'rt2 is null (single task)');
+assert(altRes1.accuracy2 === null, 'accuracy2 is null');
+assert(altRes1.rt2_raw === null, 'rt2_raw is null');
+
+// ============================================================
+
+section('extractAlternatingResponse — corrected response');
+
+const altRes2 = extractAlternatingResponse(
+    { keyPresses: [
+        { key: 'd', time: 400, isCorrect: false },
+        { key: 'a', time: 550, isCorrect: true },
+    ]},
+    altTrial
+);
+assert(altRes2.accuracy1 === 'corrected', 'corrected after error');
+assert(altRes2.rt1_raw === 550, 'rt1_raw from correct press');
+assert(altRes2.rt1 === 350, 'rt1 = 550 - 200 = 350');
+
+// ============================================================
+
+section('extractAlternatingResponse — error (no correct response)');
+
+const altRes3 = extractAlternatingResponse(
+    { keyPresses: [
+        { key: 'd', time: 400, isCorrect: false },
+        { key: 'd', time: 600, isCorrect: false },
+    ]},
+    altTrial
+);
+assert(altRes3.accuracy1 === 'error', 'error (only wrong keys)');
+assert(altRes3.rt1_raw === null, 'no rt1_raw on error');
+assert(altRes3.rt1 === null, 'no rt1 on error');
+
+// ============================================================
+
+section('extractAlternatingResponse — miss (no keypresses)');
+
+const altRes4 = extractAlternatingResponse(
+    { keyPresses: [] },
+    altTrial
+);
+assert(altRes4.accuracy1 === 'miss', 'miss (no keypresses)');
+assert(altRes4.rt1_raw === null, 'no rt1_raw on miss');
+assert(altRes4.rt1 === null, 'no rt1 on miss');
+
+// ============================================================
+
+section('extractAlternatingResponse — rawKeyPresses format');
+
+const altRes5 = extractAlternatingResponse(
+    { keyPresses: [{ key: 'a', time: 500, isCorrect: true }, { key: 'd', time: 700, isCorrect: false }] },
+    altTrial
+);
+const altParsed = JSON.parse(altRes5.rawKeyPresses);
+assert(Array.isArray(altParsed), 'rawKeyPresses is a JSON array');
+assert(altParsed.length === 2, 'rawKeyPresses has 2 entries');
+
+// ============================================================
 // Summary
 // ============================================================
 

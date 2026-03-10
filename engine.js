@@ -599,3 +599,77 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
     }
     return trials;
 }
+
+function generateAlternatingBlockTrials(blockConfig, numTrials) {
+    let taskSequence = generateTaskSequence(
+	numTrials,
+	blockConfig.sequenceType,
+	blockConfig.switchRate,
+	blockConfig.startTask
+    );
+    const transitions = classifyTransitions(taskSequence);
+
+    const trials = [];
+    for (let i = 0; i < numTrials; i++) {
+	const iti = sampleFromDistribution(blockConfig.iti);
+	const coherence = blockConfig.coherence.ch1_task;
+	const direction = Math.random() < 0.5 ? 0 : 180;
+	const spec = buildSingleCanvasSpec(taskSequence[i], blockConfig.csi, blockConfig.stimulusDuration, blockConfig.responseWindow, coherence, direction);
+	const canvasTrialParams = buildTrialParams(spec);
+
+	const meta = {
+	    trialNumber: i + 1,
+	    side: (i % 2 === 0) ? 'left' : 'right',
+	    blockId: blockConfig.blockId,
+	    blockType: blockConfig.blockType,
+	    paradigm: blockConfig.paradigm,
+	    earlyResolve: blockConfig.earlyResolve ?? false,
+	    task: taskSequence[i],
+	    task2: null,
+	    transitionType: transitions[i],
+	    iti: iti,
+	    direction: direction,
+	    congruency: 'univalent'
+	};
+	trials.push({ seParams: canvasTrialParams, meta });
+    }
+    return trials;
+}
+
+ function generateBaselinePRPTrials(blockConfig, numTrials) {
+    let taskSequence = generateTaskSequence(
+	numTrials,
+	blockConfig.sequenceType,
+	blockConfig.switchRate,
+	blockConfig.startTask
+    );
+    const transitions = classifyTransitions(taskSequence);
+
+    const trials = [];
+    for (let i = 0; i < numTrials; i++) {
+	const soa = sampleFromDistribution(blockConfig.soa);
+	const iti = sampleFromDistribution(blockConfig.iti);
+	const coherence = blockConfig.coherence.ch1_task;
+	const direction = Math.random() < 0.5 ? 0 : 180;
+	const spec = buildSingleCanvasSpec(taskSequence[i], blockConfig.csi, blockConfig.stimulusDuration, blockConfig.responseWindow, coherence, direction);
+	const canvasTrialParams = buildTrialParams(spec);
+
+	const meta = {
+	    trialNumber: i + 1,
+	    side: 'right',
+	    blockId: blockConfig.blockId,
+	    blockType: blockConfig.blockType,
+	    paradigm: blockConfig.paradigm,
+	    earlyResolve: blockConfig.earlyResolve ?? false,
+	    task: taskSequence[i],
+	    task2: null,
+	    transitionType: transitions[i],
+	    iti: iti,
+	    soa: soa,
+	    direction: direction,
+	    congruency: 'univalent'
+	};
+	trials.push({ seParams: canvasTrialParams, meta });
+    }
+    return trials;
+ }
