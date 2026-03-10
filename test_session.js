@@ -513,6 +513,416 @@ assert(Array.isArray(altParsed), 'rawKeyPresses is a JSON array');
 assert(altParsed.length === 2, 'rawKeyPresses has 2 entries');
 
 // ============================================================
+// EXPANDED COVERAGE
+// ============================================================
+
+// ============================================================
+// buildSEConfig tests
+// ============================================================
+
+// Local copy of buildSEConfig (pure function, no DOM dependency)
+function buildSEConfig(rso) {
+    if (rso === 'disjoint') {
+        return {
+            movementKeyMap: { 180: 'a', 0: 'd' },
+            orientationKeyMap: { 180: 'j', 0: 'l' },
+            size: 0.75
+        };
+    }
+    return {
+        movementKeyMap: { 180: 'a', 0: 'd' },
+        orientationKeyMap: { 180: 'a', 0: 'd' },
+        size: 0.75
+    };
+}
+
+section('buildSEConfig — disjoint RSO');
+
+const disjointConfig = buildSEConfig('disjoint');
+assert(disjointConfig.movementKeyMap[180] === 'a', 'disjoint: mov 180 -> a');
+assert(disjointConfig.movementKeyMap[0] === 'd', 'disjoint: mov 0 -> d');
+assert(disjointConfig.orientationKeyMap[180] === 'j', 'disjoint: or 180 -> j');
+assert(disjointConfig.orientationKeyMap[0] === 'l', 'disjoint: or 0 -> l');
+assert(disjointConfig.size === 0.75, 'disjoint: size 0.75');
+// Verify keys are actually disjoint
+const dMovKeys = Object.values(disjointConfig.movementKeyMap);
+const dOrKeys = Object.values(disjointConfig.orientationKeyMap);
+const dOverlap = dMovKeys.filter(k => dOrKeys.includes(k));
+assert(dOverlap.length === 0, 'disjoint: no key overlap');
+
+// ============================================================
+
+section('buildSEConfig — identical RSO');
+
+const identicalConfig = buildSEConfig('identical');
+assert(identicalConfig.movementKeyMap[180] === 'a', 'identical: mov 180 -> a');
+assert(identicalConfig.movementKeyMap[0] === 'd', 'identical: mov 0 -> d');
+assert(identicalConfig.orientationKeyMap[180] === 'a', 'identical: or 180 -> a');
+assert(identicalConfig.orientationKeyMap[0] === 'd', 'identical: or 0 -> d');
+// Verify keys ARE the same (identical RSO)
+const iMovKeys = Object.values(identicalConfig.movementKeyMap);
+const iOrKeys = Object.values(identicalConfig.orientationKeyMap);
+assert(iMovKeys.every((k, i) => k === iOrKeys[i]), 'identical: mov and or keys match');
+
+// ============================================================
+// buildKeyTaskMap tests
+// ============================================================
+
+// Local copy of buildKeyTaskMap
+function buildKeyTaskMap(seConfig, trial) {
+    const movKeys = Object.values(seConfig.movementKeyMap || {});
+    const orKeys = Object.values(seConfig.orientationKeyMap || {});
+    const isDisjoint = movKeys.length > 0 && orKeys.length > 0 &&
+        !movKeys.some(k => orKeys.includes(k));
+    if (!isDisjoint) return null;
+    const task1 = trial.meta.task;
+    const task1Keys = task1 === 'mov' ? movKeys : orKeys;
+    const task2Keys = task1 === 'mov' ? orKeys : movKeys;
+    return { task1Keys, task2Keys };
+}
+
+section('buildKeyTaskMap — disjoint RSO returns key sets');
+
+const disjointSEConfig = buildSEConfig('disjoint');
+const movTrial = { meta: { task: 'mov' } };
+const keyMap1 = buildKeyTaskMap(disjointSEConfig, movTrial);
+assert(keyMap1 !== null, 'disjoint: returns non-null');
+assert(keyMap1.task1Keys.includes('a'), 'disjoint mov trial: T1 keys include a');
+assert(keyMap1.task1Keys.includes('d'), 'disjoint mov trial: T1 keys include d');
+assert(keyMap1.task2Keys.includes('j'), 'disjoint mov trial: T2 keys include j');
+assert(keyMap1.task2Keys.includes('l'), 'disjoint mov trial: T2 keys include l');
+
+const orTrial = { meta: { task: 'or' } };
+const keyMap2 = buildKeyTaskMap(disjointSEConfig, orTrial);
+assert(keyMap2.task1Keys.includes('j'), 'disjoint or trial: T1 keys include j');
+assert(keyMap2.task1Keys.includes('l'), 'disjoint or trial: T1 keys include l');
+assert(keyMap2.task2Keys.includes('a'), 'disjoint or trial: T2 keys include a');
+assert(keyMap2.task2Keys.includes('d'), 'disjoint or trial: T2 keys include d');
+
+// ============================================================
+
+section('buildKeyTaskMap — identical RSO returns null');
+
+const identicalSEConfig = buildSEConfig('identical');
+const keyMap3 = buildKeyTaskMap(identicalSEConfig, movTrial);
+assert(keyMap3 === null, 'identical RSO: returns null');
+
+// ============================================================
+// extractResponse tests (the single-canvas response extractor)
+// ============================================================
+
+// Local copy of extractResponse
+function extractResponse(data, trial, seConfig) {
+    const keyPresses = data.keyPresses || [];
+    const isDualTask = trial.meta.paradigm === 'dual-task';
+    let rt1_raw = null, rt2_raw = null;
+    let accuracy1 = 'miss', accuracy2 = isDualTask ? 'miss' : null;
+    let hadError1 = false, hadError2 = false;
+    const keyMap = isDualTask ? buildKeyTaskMap(seConfig, trial) : null;
+    if (keyMap) {
+        for (const kp of keyPresses) {
+            const isT1Key = keyMap.task1Keys.includes(kp.key);
+            const isT2Key = keyMap.task2Keys.includes(kp.key);
+            if (isT1Key) {
+                if (kp.isCorrect && rt1_raw === null) {
+                    rt1_raw = kp.time;
+                    accuracy1 = hadError1 ? 'corrected' : 'correct';
+                } else if (!kp.isCorrect && rt1_raw === null) {
+                    hadError1 = true;
+                    accuracy1 = 'error';
+                }
+            } else if (isT2Key) {
+                if (kp.isCorrect && rt2_raw === null) {
+                    rt2_raw = kp.time;
+                    accuracy2 = hadError2 ? 'corrected' : 'correct';
+                } else if (!kp.isCorrect && rt2_raw === null) {
+                    hadError2 = true;
+                    accuracy2 = 'error';
+                }
+            }
+        }
+    } else {
+        for (const kp of keyPresses) {
+            if (kp.isCorrect) {
+                if (rt1_raw === null) {
+                    rt1_raw = kp.time;
+                    accuracy1 = hadError1 ? 'corrected' : 'correct';
+                } else if (isDualTask && rt2_raw === null) {
+                    rt2_raw = kp.time;
+                    accuracy2 = 'correct';
+                }
+            } else {
+                if (rt1_raw === null) {
+                    hadError1 = true;
+                    accuracy1 = 'error';
+                } else if (isDualTask && rt2_raw === null) {
+                    accuracy2 = 'error';
+                }
+            }
+        }
+    }
+    const rt1 = rt1_raw !== null ? rt1_raw - trial.seParams.start_go_1 : null;
+    const rt2 = (isDualTask && rt2_raw !== null) ? rt2_raw - trial.seParams.start_go_2 : null;
+    return {
+        rt1_raw, rt1, accuracy1, rt2_raw, rt2, accuracy2,
+        responseOrder: (isDualTask && rt1_raw !== null && rt2_raw !== null)
+            ? (rt1_raw <= rt2_raw ? 'T1-first' : 'T2-first') : null,
+        rawKeyPresses: JSON.stringify(keyPresses),
+    };
+}
+
+// --- Single-task extractResponse tests ---
+
+section('extractResponse — single-task correct');
+
+const stTrial = {
+    seParams: { start_go_1: 200, start_go_2: 0 },
+    meta: { paradigm: 'single-task', task: 'mov' },
+};
+const stRes1 = extractResponse(
+    { keyPresses: [{ key: 'a', time: 500, isCorrect: true }] },
+    stTrial, identicalSEConfig
+);
+assert(stRes1.accuracy1 === 'correct', 'single-task: correct');
+assert(stRes1.rt1_raw === 500, 'single-task: rt1_raw = 500');
+assert(stRes1.rt1 === 300, 'single-task: rt1 = 300');
+assert(stRes1.accuracy2 === null, 'single-task: accuracy2 null');
+assert(stRes1.rt2 === null, 'single-task: rt2 null');
+assert(stRes1.responseOrder === null, 'single-task: no responseOrder');
+
+// ============================================================
+
+section('extractResponse — single-task corrected');
+
+const stRes2 = extractResponse(
+    { keyPresses: [
+        { key: 'd', time: 400, isCorrect: false },
+        { key: 'a', time: 600, isCorrect: true },
+    ]},
+    stTrial, identicalSEConfig
+);
+assert(stRes2.accuracy1 === 'corrected', 'single-task corrected');
+assert(stRes2.rt1_raw === 600, 'single-task corrected: rt1_raw from correct press');
+
+// ============================================================
+
+section('extractResponse — single-task error');
+
+const stRes3 = extractResponse(
+    { keyPresses: [{ key: 'd', time: 400, isCorrect: false }] },
+    stTrial, identicalSEConfig
+);
+assert(stRes3.accuracy1 === 'error', 'single-task error');
+assert(stRes3.rt1_raw === null, 'single-task error: no rt1_raw');
+
+// ============================================================
+
+section('extractResponse — single-task miss');
+
+const stRes4 = extractResponse(
+    { keyPresses: [] },
+    stTrial, identicalSEConfig
+);
+assert(stRes4.accuracy1 === 'miss', 'single-task miss');
+assert(stRes4.rt1_raw === null, 'single-task miss: no rt1_raw');
+
+// --- Disjoint RSO dual-task extractResponse tests ---
+
+section('extractResponse — disjoint RSO dual-task: normal order');
+
+const dtTrial = {
+    seParams: { start_go_1: 200, start_go_2: 400 },
+    meta: { paradigm: 'dual-task', task: 'mov', task2: 'or' },
+};
+const dtRes1 = extractResponse(
+    { keyPresses: [
+        { key: 'a', time: 500, isCorrect: true },
+        { key: 'j', time: 800, isCorrect: true },
+    ]},
+    dtTrial, disjointSEConfig
+);
+assert(dtRes1.accuracy1 === 'correct', 'disjoint dual: T1 correct');
+assert(dtRes1.accuracy2 === 'correct', 'disjoint dual: T2 correct');
+assert(dtRes1.rt1 === 300, 'disjoint dual: rt1 = 500 - 200');
+assert(dtRes1.rt2 === 400, 'disjoint dual: rt2 = 800 - 400');
+assert(dtRes1.responseOrder === 'T1-first', 'disjoint dual: T1 first');
+
+// ============================================================
+
+section('extractResponse — disjoint RSO dual-task: response reversal (T2 before T1)');
+
+const dtRes2 = extractResponse(
+    { keyPresses: [
+        { key: 'j', time: 500, isCorrect: true },  // T2 key answered first
+        { key: 'a', time: 800, isCorrect: true },  // T1 key answered second
+    ]},
+    dtTrial, disjointSEConfig
+);
+assert(dtRes2.accuracy1 === 'correct', 'reversal: T1 correct (by key, not order)');
+assert(dtRes2.accuracy2 === 'correct', 'reversal: T2 correct (by key, not order)');
+assert(dtRes2.rt1_raw === 800, 'reversal: rt1_raw = 800 (T1 key answered later)');
+assert(dtRes2.rt2_raw === 500, 'reversal: rt2_raw = 500 (T2 key answered earlier)');
+assert(dtRes2.responseOrder === 'T2-first', 'reversal: T2 first');
+
+// ============================================================
+
+section('extractResponse — disjoint RSO dual-task: T1 error then T2 correct');
+
+const dtRes3 = extractResponse(
+    { keyPresses: [
+        { key: 'd', time: 300, isCorrect: false },  // T1 error
+        { key: 'j', time: 600, isCorrect: true },   // T2 correct
+        { key: 'a', time: 900, isCorrect: true },   // T1 corrected
+    ]},
+    dtTrial, disjointSEConfig
+);
+assert(dtRes3.accuracy1 === 'corrected', 'disjoint: T1 corrected');
+assert(dtRes3.accuracy2 === 'correct', 'disjoint: T2 correct');
+assert(dtRes3.rt1_raw === 900, 'disjoint: T1 rt from corrected press');
+assert(dtRes3.rt2_raw === 600, 'disjoint: T2 rt from first correct');
+
+// ============================================================
+
+section('extractResponse — disjoint RSO dual-task: T2 error then correct');
+
+const dtRes4 = extractResponse(
+    { keyPresses: [
+        { key: 'a', time: 400, isCorrect: true },   // T1 correct
+        { key: 'l', time: 600, isCorrect: false },  // T2 error
+        { key: 'j', time: 800, isCorrect: true },   // T2 corrected
+    ]},
+    dtTrial, disjointSEConfig
+);
+assert(dtRes4.accuracy1 === 'correct', 'disjoint T2 error: T1 correct');
+assert(dtRes4.accuracy2 === 'corrected', 'disjoint T2 error: T2 corrected');
+assert(dtRes4.rt2_raw === 800, 'disjoint T2 error: T2 rt from corrected press');
+
+// ============================================================
+
+section('extractResponse — disjoint RSO dual-task: both miss');
+
+const dtRes5 = extractResponse(
+    { keyPresses: [] },
+    dtTrial, disjointSEConfig
+);
+assert(dtRes5.accuracy1 === 'miss', 'disjoint both miss: T1 miss');
+assert(dtRes5.accuracy2 === 'miss', 'disjoint both miss: T2 miss');
+assert(dtRes5.responseOrder === null, 'disjoint both miss: no responseOrder');
+
+// --- Identical RSO dual-task extractResponse tests (temporal ordering fallback) ---
+
+section('extractResponse — identical RSO dual-task: temporal ordering');
+
+const dtIdenticalTrial = {
+    seParams: { start_go_1: 200, start_go_2: 400 },
+    meta: { paradigm: 'dual-task', task: 'mov', task2: 'or' },
+};
+const dtIdRes1 = extractResponse(
+    { keyPresses: [
+        { key: 'a', time: 500, isCorrect: true },  // 1st correct → T1
+        { key: 'd', time: 800, isCorrect: true },  // 2nd correct → T2
+    ]},
+    dtIdenticalTrial, identicalSEConfig
+);
+assert(dtIdRes1.accuracy1 === 'correct', 'identical RSO: T1 correct (1st correct press)');
+assert(dtIdRes1.accuracy2 === 'correct', 'identical RSO: T2 correct (2nd correct press)');
+assert(dtIdRes1.rt1 === 300, 'identical RSO: rt1 = 500 - 200');
+assert(dtIdRes1.rt2 === 400, 'identical RSO: rt2 = 800 - 400');
+assert(dtIdRes1.responseOrder === 'T1-first', 'identical RSO: T1 first');
+
+// ============================================================
+
+section('extractResponse — identical RSO dual-task: error before T1');
+
+const dtIdRes2 = extractResponse(
+    { keyPresses: [
+        { key: 'a', time: 300, isCorrect: false },  // error → hadError1
+        { key: 'd', time: 500, isCorrect: true },   // 1st correct → T1 corrected
+        { key: 'a', time: 800, isCorrect: true },   // 2nd correct → T2
+    ]},
+    dtIdenticalTrial, identicalSEConfig
+);
+assert(dtIdRes2.accuracy1 === 'corrected', 'identical RSO error: T1 corrected');
+assert(dtIdRes2.accuracy2 === 'correct', 'identical RSO error: T2 correct');
+assert(dtIdRes2.rt1_raw === 500, 'identical RSO error: T1 rt from corrected press');
+assert(dtIdRes2.rt2_raw === 800, 'identical RSO error: T2 rt');
+
+// ============================================================
+
+section('extractResponse — identical RSO dual-task: error between T1 and T2');
+
+const dtIdRes3 = extractResponse(
+    { keyPresses: [
+        { key: 'a', time: 400, isCorrect: true },   // 1st correct → T1
+        { key: 'd', time: 600, isCorrect: false },  // error → hadError2
+        { key: 'a', time: 800, isCorrect: true },   // 2nd correct → T2
+    ]},
+    dtIdenticalTrial, identicalSEConfig
+);
+assert(dtIdRes3.accuracy1 === 'correct', 'identical error between: T1 correct');
+// Note: in the identical RSO path, errors between T1 and T2 set accuracy2 to 'error'
+// but a subsequent correct press sets rt2 and accuracy2 to 'correct' (no 'corrected' tracking)
+assert(dtIdRes3.accuracy2 === 'correct', 'identical error between: T2 correct (no corrected tracking in identical RSO)');
+assert(dtIdRes3.rt2_raw === 800, 'identical error between: T2 rt');
+
+// ============================================================
+
+section('extractResponse — identical RSO dual-task: all errors, no correct');
+
+const dtIdRes4 = extractResponse(
+    { keyPresses: [
+        { key: 'd', time: 300, isCorrect: false },
+        { key: 'a', time: 500, isCorrect: false },
+    ]},
+    dtIdenticalTrial, identicalSEConfig
+);
+assert(dtIdRes4.accuracy1 === 'error', 'identical all errors: accuracy1 error');
+// Errors stay in T1 bucket because rt1_raw is never set — T2 stays 'miss'
+assert(dtIdRes4.accuracy2 === 'miss', 'identical all errors: accuracy2 stays miss (errors dont spill)');
+assert(dtIdRes4.rt1 === null, 'identical all errors: rt1 null');
+assert(dtIdRes4.rt2 === null, 'identical all errors: rt2 null');
+
+// ============================================================
+
+section('extractAlternatingResponse — response at time 0');
+
+const altTrialZero = {
+    seParams: { start_go_1: 0 },
+};
+const altResZero = extractAlternatingResponse(
+    { keyPresses: [{ key: 'a', time: 0, isCorrect: true }] },
+    altTrialZero
+);
+assert(altResZero.rt1_raw === 0, 'time 0: rt1_raw is 0 (not null)');
+assert(altResZero.rt1 === 0, 'time 0: rt1 is 0');
+assert(altResZero.accuracy1 === 'correct', 'time 0: correct');
+
+// ============================================================
+
+section('extractResponse — empty keyPresses object (undefined)');
+
+const stResUndef = extractResponse(
+    {},
+    stTrial, identicalSEConfig
+);
+assert(stResUndef.accuracy1 === 'miss', 'undefined keyPresses: miss');
+assert(stResUndef.rt1 === null, 'undefined keyPresses: rt1 null');
+
+// ============================================================
+
+section('extractResponse — single-task ignores extra correct presses');
+
+const stResExtra = extractResponse(
+    { keyPresses: [
+        { key: 'a', time: 400, isCorrect: true },
+        { key: 'd', time: 600, isCorrect: true },
+    ]},
+    stTrial, identicalSEConfig
+);
+assert(stResExtra.rt1_raw === 400, 'extra presses: rt1 from first correct');
+assert(stResExtra.accuracy2 === null, 'extra presses: accuracy2 still null (single-task)');
+
+// ============================================================
 // Summary
 // ============================================================
 

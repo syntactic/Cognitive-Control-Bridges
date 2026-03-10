@@ -968,6 +968,295 @@ for (const t of blTrials) {
 }
 
 // ============================================================
+// EXPANDED COVERAGE
+// ============================================================
+
+// ============================================================
+section('sampleFromDistribution — uniform fallback on missing params');
+
+const uniformNoParams = sampleFromDistribution({ type: 'uniform', value: 42 });
+assert(uniformNoParams === 42, 'uniform with no params falls back to value');
+
+const uniformShortParams = sampleFromDistribution({ type: 'uniform', value: 99, params: [5] });
+assert(uniformShortParams === 99, 'uniform with 1 param falls back to value');
+
+// ============================================================
+section('sampleFromDistribution — choice fallback on empty params');
+
+const choiceEmpty = sampleFromDistribution({ type: 'choice', value: 77, params: [] });
+assert(choiceEmpty === 77, 'choice with empty params falls back to value');
+
+const choiceNoParams = sampleFromDistribution({ type: 'choice', value: 33 });
+assert(choiceNoParams === 33, 'choice with undefined params falls back to value');
+
+// ============================================================
+section('sampleFromDistribution — uniform with reversed params (max < min)');
+
+for (let i = 0; i < 50; i++) {
+    const v = sampleFromDistribution({ type: 'uniform', value: 0, params: [800, 200] });
+    assert(v >= 200 && v <= 800, `uniform reversed params in range: got ${v}`);
+}
+
+// ============================================================
+section('sampleFromDistribution — choice with single element');
+
+for (let i = 0; i < 10; i++) {
+    const v = sampleFromDistribution({ type: 'choice', value: 0, params: [42] });
+    assert(v === 42, `choice single element: got ${v}`);
+}
+
+// ============================================================
+section('generateCongruencySequence — three conditions with uneven split');
+
+const threeCong = generateCongruencySequence(10, ['a', 'b', 'c'], [0.33, 0.33, 0.34]);
+assert(threeCong.length === 10, 'three conditions: correct length');
+const aCount = threeCong.filter(c => c === 'a').length;
+const bCount = threeCong.filter(c => c === 'b').length;
+const cCount = threeCong.filter(c => c === 'c').length;
+assert(aCount + bCount + cCount === 10, 'three conditions: all accounted for');
+// Math.round(10*0.33)=3, Math.round(10*0.33)=3, remainder=4
+assert(aCount === 3, `three conditions: a count=${aCount}, expected 3`);
+assert(bCount === 3, `three conditions: b count=${bCount}, expected 3`);
+assert(cCount === 4, `three conditions: c count=${cCount}, expected 4`);
+
+// ============================================================
+section('generateTaskSequence — unknown sequenceType throws');
+
+let threwUnknownSeq = false;
+try { generateTaskSequence(10, 'ABAB', 50, null); } catch (e) { threwUnknownSeq = true; }
+assert(threwUnknownSeq, 'unknown sequenceType throws');
+
+// ============================================================
+section('generateTaskSequence — null startTask random coin flip');
+
+// Over 100 runs, both mov and or should appear as first task
+let seenMovFirst = false, seenOrFirst = false;
+for (let i = 0; i < 100; i++) {
+    const seq = generateTaskSequence(1, 'Random', 0, null);
+    if (seq[0] === 'mov') seenMovFirst = true;
+    if (seq[0] === 'or') seenOrFirst = true;
+}
+assert(seenMovFirst, 'null startTask: saw mov as first task');
+assert(seenOrFirst, 'null startTask: saw or as first task');
+
+// ============================================================
+section('generateTaskSequence — length 1');
+
+const singleTrial = generateTaskSequence(1, 'Random', 50, 'or');
+assert(singleTrial.length === 1, 'length-1 sequence');
+assert(singleTrial[0] === 'or', 'length-1 with startTask=or');
+
+// ============================================================
+section('generateBlockTrials — T1=or PRP block (reversed task routing)');
+
+const prpOrConfig = {
+    ...prpConfig,
+    blockId: 'test_prp_or_first',
+    task1: 'or',
+    task2: 'mov',
+    switchRate: 0,
+    startTask: null,
+};
+const prpOrTrials = generateBlockTrials(prpOrConfig, 10);
+// With switchRate=0 and PRP paradigm, T1 is always or, T2 is always mov
+for (const t of prpOrTrials) {
+    assert(t.meta.task === 'or', `or-first PRP: task1=${t.meta.task}`);
+    assert(t.meta.task2 === 'mov', `or-first PRP: task2=${t.meta.task2}`);
+    // Coherence routing: T1=or → coh_or_1 gets ch1_task, coh_mov_1 gets ch1_distractor
+    assert(t.seParams.coh_or_1 === 0.8, `or-first PRP: coh_or_1=${t.seParams.coh_or_1}`);
+    assert(t.seParams.coh_mov_1 === 0, `or-first PRP: coh_mov_1=${t.seParams.coh_mov_1}`);
+    // T2=mov → coh_mov_2 gets ch2_task, coh_or_2 gets ch2_distractor
+    assert(t.seParams.coh_mov_2 === 0.6, `or-first PRP: coh_mov_2=${t.seParams.coh_mov_2}`);
+    assert(t.seParams.coh_or_2 === 0, `or-first PRP: coh_or_2=${t.seParams.coh_or_2}`);
+}
+
+// ============================================================
+section('generateBlockTrials — meta fields completeness');
+
+const firstTrial = prpTrials[0];
+assert(firstTrial.meta.trialNumber === 1, 'meta: trialNumber starts at 1');
+assert(firstTrial.meta.blockId === 'hirsch_prp', 'meta: blockId from config');
+assert(firstTrial.meta.blockType === 'prp', 'meta: blockType from config');
+assert(firstTrial.meta.paradigm === 'dual-task', 'meta: paradigm from config');
+assert(firstTrial.meta.congruency === 'univalent', 'meta: congruency is univalent');
+assert(firstTrial.meta.previousCongruency === null, 'meta: first trial has null previousCongruency');
+assert(prpTrials[1].meta.previousCongruency === 'univalent', 'meta: second trial has previousCongruency');
+assert(typeof firstTrial.meta.iti === 'number', 'meta: iti is a number');
+assert(firstTrial.meta.iti >= 400 && firstTrial.meta.iti <= 600, 'meta: iti in uniform range');
+assert(firstTrial.meta.distractorDirection === null, 'meta: distractorDirection null for univalent');
+
+// ============================================================
+section('generateBlockTrials — single-task meta directions');
+
+const pureTrial = pureTrials[0];
+assert([0, 180].includes(pureTrial.meta.primaryDirection), 'single-task: primaryDirection is 0 or 180');
+assert(pureTrial.meta.ch2Direction === null, 'single-task: ch2Direction is null');
+
+// ============================================================
+section('applySOAOffset — negative offset');
+
+const negShifted = applySOAOffset(bivalentTrialParams, -50);
+assert(negShifted.start_mov_1 === 50, 'negative offset: start_mov_1 = 100 + (-50) = 50');
+assert(negShifted.start_or_1 === 50, 'negative offset: start_or_1 = 100 + (-50) = 50');
+assert(negShifted.start_go_1 === 50, 'negative offset: start_go_1 = 100 + (-50) = 50');
+assert(negShifted.dur_1 === 1050, 'negative offset: dur_1 = 1100 + (-50) = 1050');
+
+// ============================================================
+section('applySOAOffset — large offset');
+
+const largeShifted = applySOAOffset(bivalentTrialParams, 1000);
+assert(largeShifted.start_mov_1 === 1100, 'large offset: start_mov_1 = 100 + 1000');
+assert(largeShifted.start_go_1 === 1100, 'large offset: start_go_1 = 100 + 1000');
+assert(largeShifted.dur_1 === 2100, 'large offset: dur_1 = 1100 + 1000');
+
+// ============================================================
+section('buildTrialParams — dual-task: task1=or, task2=mov, bivalent ch1');
+
+// This covers: or→mov routing with bivalent ch1 distractor
+// ch1_distractor routes to coh_mov_1 (because task1=or, distractor is mov pathway)
+const dualOrBivalentSpec = {
+    task1: 'or',
+    task2: 'mov',
+    csi: 200,
+    dur_ch1: 300,
+    dur_ch2: 300,
+    soa: 150,
+    responseWindow: 2000,
+    coherence: { ch1_task: 0.8, ch1_distractor: 0.5, ch2_task: 0.6, ch2_distractor: 0 },
+    dir: { ch1_task: 0, ch1_distractor: 180, ch2_task: 0, ch2_distractor: 0 },
+};
+const dualOrBivalentParams = buildTrialParams(dualOrBivalentSpec);
+// task1=or: or1 = ch1_task, mov1 = ch1_distractor
+assert(dualOrBivalentParams.coh_or_1 === 0.8, 'or-bivalent: or1 coherence = 0.8');
+assert(dualOrBivalentParams.coh_mov_1 === 0.5, 'or-bivalent: mov1 (distractor) coherence = 0.5');
+assert(dualOrBivalentParams.dur_or_1 === 300, 'or-bivalent: or1 duration preserved');
+assert(dualOrBivalentParams.dur_mov_1 === 300, 'or-bivalent: mov1 (distractor) duration preserved');
+// task2=mov: mov2 = ch2_task, or2 = ch2_distractor (silenced)
+assert(dualOrBivalentParams.coh_mov_2 === 0.6, 'or-bivalent: mov2 coherence = 0.6');
+assert(dualOrBivalentParams.coh_or_2 === 0, 'or-bivalent: or2 silenced');
+// mov1 is active (coh=0.5), end = 200+300 = 500
+// SE: mov2_abs = start_mov_2 + mov1.end = start_mov_2 + 500
+// Desired = csi + soa = 200 + 150 = 350
+// start_mov_2 = 350 - 500 = -150
+assert(dualOrBivalentParams.start_mov_2 === -150,
+    `or-bivalent: mov2 offset = -150, got ${dualOrBivalentParams.start_mov_2}`);
+
+// ============================================================
+section('generateDualCanvasBlockTrials — unknown t2Rule leaves t2 undefined');
+
+const unknownT2Config = {
+    ...dualCanvasSwitchConfig,
+    blockId: 'test_unknown_t2',
+    t2Rule: 'unknown_rule',
+};
+let threwOnUnknownT2 = false;
+try {
+    generateDualCanvasBlockTrials(unknownT2Config, 5);
+} catch (e) {
+    threwOnUnknownT2 = true;
+}
+// Currently the code doesn't validate t2Rule — this documents the behavior
+// t2TaskSequence will be undefined, causing a crash in classifyDualCanvasTransitions
+assert(threwOnUnknownT2, 'unknown t2Rule causes a crash (no validation)');
+
+// ============================================================
+section('generateAlternatingBlockTrials — pure or block (startTask=or)');
+
+const altPureOrConfig = {
+    ...alternatingConfig,
+    blockId: 'test_alt_pure_or',
+    switchRate: 0,
+    startTask: 'or',
+};
+const altPureOrTrials = generateAlternatingBlockTrials(altPureOrConfig, 10);
+for (const t of altPureOrTrials) {
+    assert(t.meta.task === 'or', `alt pure or: task=${t.meta.task}`);
+    assert(t.seParams.coh_or_1 === 0.8, `alt pure or: coh_or_1=0.8, got ${t.seParams.coh_or_1}`);
+    assert(t.seParams.coh_mov_1 === 0, `alt pure or: coh_mov_1=0 (silenced), got ${t.seParams.coh_mov_1}`);
+    // Silenced pathway duration should be zeroed
+    assert(t.seParams.dur_mov_1 === 0, `alt pure or: dur_mov_1=0 (silenced)`);
+}
+
+// ============================================================
+section('generateBaselinePRPTrials — earlyResolve defaults to false');
+
+const baselineNoER = { ...baselineConfig, blockId: 'test_bl_no_er' };
+delete baselineNoER.earlyResolve;
+const blNoERTrials = generateBaselinePRPTrials(baselineNoER, 3);
+for (const t of blNoERTrials) {
+    assert(t.meta.earlyResolve === false, 'baseline PRP: earlyResolve defaults to false');
+}
+
+// ============================================================
+section('buildSingleCanvasSpec — or task routing');
+
+const orCanvasSpec = buildSingleCanvasSpec('or', 200, 1000, 1000, 0.8, 180, null, null);
+assert(orCanvasSpec.task1 === 'or', 'or spec: task1 is or');
+assert(orCanvasSpec.coherence.ch1_task === 0.8, 'or spec: ch1_task coherence');
+assert(orCanvasSpec.dir.ch1_task === 180, 'or spec: ch1_task direction is 180');
+// Feed through buildTrialParams and verify routing
+const orCanvasParams = buildTrialParams(orCanvasSpec);
+assert(orCanvasParams.coh_or_1 === 0.8, 'or spec→params: coh_or_1 = 0.8');
+assert(orCanvasParams.dir_or_1 === 180, 'or spec→params: dir_or_1 = 180');
+assert(orCanvasParams.coh_mov_1 === 0, 'or spec→params: coh_mov_1 = 0 (silenced)');
+assert(orCanvasParams.dur_mov_1 === 0, 'or spec→params: dur_mov_1 = 0 (silenced)');
+
+// ============================================================
+section('buildSingleCanvasSpec — bivalent or task with distractor');
+
+const orBivSpec = buildSingleCanvasSpec('or', 100, 500, 500, 0.8, 0, 0.4, 180);
+assert(orBivSpec.coherence.ch1_distractor === 0.4, 'or bivalent: distractor coherence 0.4');
+assert(orBivSpec.dir.ch1_distractor === 180, 'or bivalent: distractor direction 180');
+const orBivParams = buildTrialParams(orBivSpec);
+// task1=or: or1 gets ch1_task, mov1 gets ch1_distractor
+assert(orBivParams.coh_or_1 === 0.8, 'or bivalent→params: or1 = 0.8');
+assert(orBivParams.coh_mov_1 === 0.4, 'or bivalent→params: mov1 (distractor) = 0.4');
+assert(orBivParams.dir_mov_1 === 180, 'or bivalent→params: mov1 direction = 180');
+assert(orBivParams.dur_mov_1 === 500, 'or bivalent→params: mov1 duration preserved');
+
+// ============================================================
+section('buildTimingParams — verified through buildTrialParams edge cases');
+
+// soa = dur_ch1 → relative offset should be 0 for active ch2 when ch1 counterpart is active
+const soaEqualsDurSpec = {
+    task1: 'mov',
+    task2: 'or',
+    csi: 100,
+    dur_ch1: 300,
+    dur_ch2: 300,
+    soa: 300,
+    responseWindow: 2000,
+    coherence: { ch1_task: 0.8, ch1_distractor: 0.8, ch2_task: 0.6, ch2_distractor: 0 },
+    dir: { ch1_task: 0, ch1_distractor: 0, ch2_task: 0, ch2_distractor: 0 },
+};
+const soaEqualsParams = buildTrialParams(soaEqualsDurSpec);
+// or1 active (coh=0.8, distractor pathway), end = 100+300 = 400
+// desired ch2 start = csi + soa = 100+300 = 400
+// offset = 400 - 400 = 0
+assert(soaEqualsParams.start_or_2 === 0,
+    `soa=dur_ch1: or2 offset = 0, got ${soaEqualsParams.start_or_2}`);
+
+// soa = 0 → ch2 starts at same time as ch1
+const soaZeroSpec = {
+    task1: 'mov',
+    task2: 'or',
+    csi: 200,
+    dur_ch1: 300,
+    dur_ch2: 300,
+    soa: 0,
+    responseWindow: 2000,
+    coherence: { ch1_task: 0.8, ch1_distractor: 0, ch2_task: 0.6, ch2_distractor: 0 },
+    dir: { ch1_task: 0, ch1_distractor: 0, ch2_task: 0, ch2_distractor: 0 },
+};
+const soaZeroParams = buildTrialParams(soaZeroSpec);
+// or1 silenced (coh=0 → dur=0, end=0). SE: or2_abs = start_or_2 + 0 = start_or_2
+// desired = csi + soa = 200 + 0 = 200
+assert(soaZeroParams.start_or_2 === 200,
+    `soa=0: or2 offset = 200 (absolute), got ${soaZeroParams.start_or_2}`);
+assert(soaZeroParams.start_go_2 === 200, `soa=0: go2 at csi`);
+assert(soaZeroParams.start_2 === 200, `soa=0: cue2 at csi`);
+
+// ============================================================
 // Summary
 console.log(`\n============================`);
 console.log(`PASSED: ${passed}`);
