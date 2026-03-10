@@ -687,7 +687,7 @@ for (const t of switchTrials) {
 }
 
 // ============================================================
-// generateAlternatingBlockTrials
+// generateSidedTrials
 // ============================================================
 
 const alternatingConfig = {
@@ -705,15 +705,15 @@ const alternatingConfig = {
     iti: { type: 'fixed', value: 600, params: [] },
 };
 
-section('generateAlternatingBlockTrials — basic structure');
+section('generateSidedTrials — basic structure');
 
-const altTrials = generateAlternatingBlockTrials(alternatingConfig, 20);
+const altTrials = generateSidedTrials(alternatingConfig, 20);
 assert(altTrials.length === 20, 'generates correct number of trials');
 assert(altTrials[0].seParams !== undefined, 'trial has seParams');
 assert(altTrials[0].meta !== undefined, 'trial has meta');
 
 // ============================================================
-section('generateAlternatingBlockTrials — alternating sides');
+section('generateSidedTrials — alternating sides');
 
 for (let i = 0; i < altTrials.length; i++) {
     const expected = (i % 2 === 0) ? 'left' : 'right';
@@ -722,7 +722,7 @@ for (let i = 0; i < altTrials.length; i++) {
 }
 
 // ============================================================
-section('generateAlternatingBlockTrials — metadata fields');
+section('generateSidedTrials — metadata fields');
 
 for (const t of altTrials) {
     assert(t.meta.paradigm === 'alternating', 'paradigm is alternating');
@@ -738,17 +738,17 @@ for (const t of altTrials) {
 }
 
 // ============================================================
-section('generateAlternatingBlockTrials — earlyResolve defaults to false');
+section('generateSidedTrials — earlyResolve defaults to false');
 
 const altConfigNoER = { ...alternatingConfig, blockId: 'test_alt_no_er' };
 delete altConfigNoER.earlyResolve;
-const altTrialsNoER = generateAlternatingBlockTrials(altConfigNoER, 5);
+const altTrialsNoER = generateSidedTrials(altConfigNoER, 5);
 for (const t of altTrialsNoER) {
     assert(t.meta.earlyResolve === false, 'earlyResolve defaults to false when not set');
 }
 
 // ============================================================
-section('generateAlternatingBlockTrials — transition classification');
+section('generateSidedTrials — transition classification');
 
 assert(altTrials[0].meta.transitionType === 'First', 'first trial is First');
 for (let i = 1; i < altTrials.length; i++) {
@@ -760,10 +760,10 @@ for (let i = 1; i < altTrials.length; i++) {
 }
 
 // ============================================================
-section('generateAlternatingBlockTrials — task sequence respects switchRate');
+section('generateSidedTrials — task sequence respects switchRate');
 
 // With switchRate=50 over 100 trials, expect both repeats and switches
-const altManyTrials = generateAlternatingBlockTrials(alternatingConfig, 100);
+const altManyTrials = generateSidedTrials(alternatingConfig, 100);
 const altHasRepeat = altManyTrials.some(t => t.meta.transitionType === 'Repeat');
 const altHasSwitch = altManyTrials.some(t => t.meta.transitionType === 'Switch');
 assert(altHasRepeat, 'switchRate 50: has repeat transitions');
@@ -771,7 +771,7 @@ assert(altHasSwitch, 'switchRate 50: has switch transitions');
 
 // switchRate=0: all repeats after first trial
 const altPureConfig = { ...alternatingConfig, blockId: 'test_alt_pure', switchRate: 0, startTask: 'mov' };
-const altPureTrials = generateAlternatingBlockTrials(altPureConfig, 20);
+const altPureTrials = generateSidedTrials(altPureConfig, 20);
 for (let i = 1; i < altPureTrials.length; i++) {
     assert(altPureTrials[i].meta.transitionType === 'Repeat',
         `pure block: trial ${i+1} is Repeat`);
@@ -780,7 +780,7 @@ for (let i = 1; i < altPureTrials.length; i++) {
 }
 
 // ============================================================
-section('generateAlternatingBlockTrials — ITI sampling');
+section('generateSidedTrials — ITI sampling');
 
 // Fixed ITI
 for (const t of altTrials) {
@@ -793,14 +793,14 @@ const altChoiceITIConfig = {
     blockId: 'test_alt_choice_iti',
     iti: { type: 'choice', value: 100, params: [100, 600] },
 };
-const altChoiceTrials = generateAlternatingBlockTrials(altChoiceITIConfig, 50);
+const altChoiceTrials = generateSidedTrials(altChoiceITIConfig, 50);
 const itiValues = new Set(altChoiceTrials.map(t => t.meta.iti));
 assert(itiValues.has(100), 'choice iti: includes 100');
 assert(itiValues.has(600), 'choice iti: includes 600');
 assert(itiValues.size === 2, `choice iti: only 2 distinct values, got ${itiValues.size}`);
 
 // ============================================================
-section('generateAlternatingBlockTrials — SE params are single-channel only');
+section('generateSidedTrials — SE params are single-channel only');
 
 for (const t of altTrials) {
     // Channel 2 should be zeroed out
@@ -816,7 +816,7 @@ for (const t of altTrials) {
 }
 
 // ============================================================
-section('generateAlternatingBlockTrials — coherence in active pathway');
+section('generateSidedTrials — coherence in active pathway');
 
 for (const t of altTrials) {
     if (t.meta.task === 'mov') {
@@ -829,7 +829,7 @@ for (const t of altTrials) {
 }
 
 // ============================================================
-section('generateAlternatingBlockTrials — no NaN or undefined in SE params');
+section('generateSidedTrials — no NaN or undefined in SE params');
 
 for (const t of altTrials) {
     for (const [k, v] of Object.entries(t.seParams)) {
@@ -839,7 +839,7 @@ for (const t of altTrials) {
 }
 
 // ============================================================
-// generateBaselinePRPTrials
+// generateSidedTrials
 // ============================================================
 
 const baselineConfig = {
@@ -858,22 +858,22 @@ const baselineConfig = {
     soa: { type: 'choice', value: 600, params: [100, 600] },
 };
 
-section('generateBaselinePRPTrials — basic structure');
+section('generateSidedTrials — basic structure');
 
-const blTrials = generateBaselinePRPTrials(baselineConfig, 20);
+const blTrials = generateSidedTrials(baselineConfig, 20);
 assert(blTrials.length === 20, 'generates correct number of trials');
 assert(blTrials[0].seParams !== undefined, 'trial has seParams');
 assert(blTrials[0].meta !== undefined, 'trial has meta');
 
 // ============================================================
-section('generateBaselinePRPTrials — all trials on right side');
+section('generateSidedTrials — all trials on right side');
 
 for (const t of blTrials) {
     assert(t.meta.side === 'right', `side is right, got ${t.meta.side}`);
 }
 
 // ============================================================
-section('generateBaselinePRPTrials — metadata fields');
+section('generateSidedTrials — metadata fields');
 
 for (const t of blTrials) {
     assert(t.meta.paradigm === 'prp-baseline', 'paradigm is prp-baseline');
@@ -887,7 +887,7 @@ for (const t of blTrials) {
 }
 
 // ============================================================
-section('generateBaselinePRPTrials — single task (switchRate 0)');
+section('generateSidedTrials — single task (switchRate 0)');
 
 for (const t of blTrials) {
     assert(t.meta.task === 'mov', `task is mov (switchRate=0, startTask=mov), got ${t.meta.task}`);
@@ -901,16 +901,16 @@ for (let i = 1; i < blTrials.length; i++) {
 }
 
 // ============================================================
-section('generateBaselinePRPTrials — orientation baseline');
+section('generateSidedTrials — orientation baseline');
 
 const baselineOrConfig = { ...baselineConfig, blockId: 'test_baseline_or', startTask: 'or' };
-const blOrTrials = generateBaselinePRPTrials(baselineOrConfig, 10);
+const blOrTrials = generateSidedTrials(baselineOrConfig, 10);
 for (const t of blOrTrials) {
     assert(t.meta.task === 'or', `or baseline: task is or, got ${t.meta.task}`);
 }
 
 // ============================================================
-section('generateBaselinePRPTrials — SOA sampling');
+section('generateSidedTrials — SOA sampling');
 
 const blSOAValues = new Set(blTrials.map(t => t.meta.soa));
 assert(blSOAValues.has(100) || blSOAValues.has(600), 'SOA sampled from choice set');
@@ -923,20 +923,20 @@ for (const t of blTrials) {
 
 // Fixed SOA
 const baselineFixedSOA = { ...baselineConfig, blockId: 'test_bl_fixed_soa', soa: { type: 'fixed', value: 300, params: [] } };
-const blFixedTrials = generateBaselinePRPTrials(baselineFixedSOA, 5);
+const blFixedTrials = generateSidedTrials(baselineFixedSOA, 5);
 for (const t of blFixedTrials) {
     assert(t.meta.soa === 300, `fixed SOA: got ${t.meta.soa}, expected 300`);
 }
 
 // ============================================================
-section('generateBaselinePRPTrials — ITI sampling');
+section('generateSidedTrials — ITI sampling');
 
 for (const t of blTrials) {
     assert(t.meta.iti === 1000, `fixed iti: got ${t.meta.iti}, expected 1000`);
 }
 
 // ============================================================
-section('generateBaselinePRPTrials — SE params are single-channel only');
+section('generateSidedTrials — SE params are single-channel only');
 
 for (const t of blTrials) {
     assert(t.seParams.dur_mov_2 === 0, 'dur_mov_2 is 0');
@@ -949,7 +949,7 @@ for (const t of blTrials) {
 }
 
 // ============================================================
-section('generateBaselinePRPTrials — coherence in active pathway');
+section('generateSidedTrials — coherence in active pathway');
 
 for (const t of blTrials) {
     // All trials are mov (switchRate=0, startTask=mov)
@@ -958,7 +958,7 @@ for (const t of blTrials) {
 }
 
 // ============================================================
-section('generateBaselinePRPTrials — no NaN or undefined in SE params');
+section('generateSidedTrials — no NaN or undefined in SE params');
 
 for (const t of blTrials) {
     for (const [k, v] of Object.entries(t.seParams)) {
@@ -1142,7 +1142,7 @@ assert(dualOrBivalentParams.start_mov_2 === -150,
     `or-bivalent: mov2 offset = -150, got ${dualOrBivalentParams.start_mov_2}`);
 
 // ============================================================
-section('generateDualCanvasBlockTrials — unknown t2Rule leaves t2 undefined');
+section('generateDualCanvasBlockTrials — unknown t2Rule throws descriptive error');
 
 const unknownT2Config = {
     ...dualCanvasSwitchConfig,
@@ -1150,17 +1150,18 @@ const unknownT2Config = {
     t2Rule: 'unknown_rule',
 };
 let threwOnUnknownT2 = false;
+let unknownT2ErrorMsg = '';
 try {
     generateDualCanvasBlockTrials(unknownT2Config, 5);
 } catch (e) {
     threwOnUnknownT2 = true;
+    unknownT2ErrorMsg = e.message;
 }
-// Currently the code doesn't validate t2Rule — this documents the behavior
-// t2TaskSequence will be undefined, causing a crash in classifyDualCanvasTransitions
-assert(threwOnUnknownT2, 'unknown t2Rule causes a crash (no validation)');
+assert(threwOnUnknownT2, 'unknown t2Rule throws');
+assert(unknownT2ErrorMsg.includes('unknown_rule'), 'error message includes the invalid t2Rule value');
 
 // ============================================================
-section('generateAlternatingBlockTrials — pure or block (startTask=or)');
+section('generateSidedTrials — pure or block (startTask=or)');
 
 const altPureOrConfig = {
     ...alternatingConfig,
@@ -1168,7 +1169,7 @@ const altPureOrConfig = {
     switchRate: 0,
     startTask: 'or',
 };
-const altPureOrTrials = generateAlternatingBlockTrials(altPureOrConfig, 10);
+const altPureOrTrials = generateSidedTrials(altPureOrConfig, 10);
 for (const t of altPureOrTrials) {
     assert(t.meta.task === 'or', `alt pure or: task=${t.meta.task}`);
     assert(t.seParams.coh_or_1 === 0.8, `alt pure or: coh_or_1=0.8, got ${t.seParams.coh_or_1}`);
@@ -1178,11 +1179,11 @@ for (const t of altPureOrTrials) {
 }
 
 // ============================================================
-section('generateBaselinePRPTrials — earlyResolve defaults to false');
+section('generateSidedTrials — earlyResolve defaults to false');
 
 const baselineNoER = { ...baselineConfig, blockId: 'test_bl_no_er' };
 delete baselineNoER.earlyResolve;
-const blNoERTrials = generateBaselinePRPTrials(baselineNoER, 3);
+const blNoERTrials = generateSidedTrials(baselineNoER, 3);
 for (const t of blNoERTrials) {
     assert(t.meta.earlyResolve === false, 'baseline PRP: earlyResolve defaults to false');
 }

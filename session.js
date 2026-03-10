@@ -1,5 +1,5 @@
 // session.js — Multi-block session runner and data collection
-// Depends on: engine.js (loaded first), superExperiment global (from bundle.js)
+// Depends on: engine.js, session_helpers.js (loaded first), superExperiment global (from bundle.js)
 
 const Session = (() => {
     // State
@@ -12,69 +12,12 @@ const Session = (() => {
     const seBlock = superExperiment.block;
     const seEndBlock = superExperiment.endBlock;
 
-    /**
-     * SE config for key mappings.
-     * For identical RSO: both tasks use a (left) and d (right).
-     */
-    function buildSEConfig(rso) {
-        if (rso === 'disjoint') {
-            return {
-                movementKeyMap: { 180: 'a', 0: 'd' },
-                orientationKeyMap: { 180: 'j', 0: 'l' },
-                size: 0.75
-            };
-        }
-        // identical RSO (default, Hirsch)
-        return {
-            movementKeyMap: { 180: 'a', 0: 'd' },
-            orientationKeyMap: { 180: 'a', 0: 'd' },
-            size: 0.75
-        };
-    }
-
     function computeDualCanvasSize() {
         const containerWidth = canvasContainer.clientWidth;
         const gap = 20;
         const targetPx = (containerWidth - gap) / 2;
         const minViewport = Math.min(window.innerWidth, window.innerHeight);
         return targetPx / minViewport;
-    }
-
-    function buildDualCanvasSEConfigs(leftTask, rightTask) {
-	let leftConfig = {} , rightConfig = {};
-	const leftHandHorizontalMapping = { 180: 'a', 0: 'd'};
-	const rightHandHorizontalMapping = { 180: 'j', 0: 'l'};
-	const dummyMapping = { 180: '!', 0: '!'};
-	const dualCanvasSize = computeDualCanvasSize();
-	if (leftTask === 'mov') {
-	    leftConfig = {'movementKeyMap': { ...leftHandHorizontalMapping }, 'orientationKeyMap': dummyMapping, size: dualCanvasSize };
-	} else {
-	    leftConfig = {'orientationKeyMap': { ...leftHandHorizontalMapping }, 'movementKeyMap': dummyMapping, size: dualCanvasSize };
-	}
-	if (rightTask === 'mov') {
-	    rightConfig = {'movementKeyMap': { ...rightHandHorizontalMapping }, 'orientationKeyMap': dummyMapping, size: dualCanvasSize };
-	} else {
-	    rightConfig = {'orientationKeyMap': { ...rightHandHorizontalMapping }, 'movementKeyMap': dummyMapping, size: dualCanvasSize };
-	}
-	return { leftConfig, rightConfig };
-    }
-
-    function buildAlternatingSEConfig(task, side, earlyResolve) {
-	const dummyMapping = { 180: '!', 0: '!'};
-	const dualCanvasSize = computeDualCanvasSize();
-	let horizontalMapping;
-	if (side === 'left') {
-	    horizontalMapping = { 180: 'a', 0: 'd' };
-	} else {
-	    horizontalMapping = { 180: 'j', 0: 'l' };
-	}
-	let seConfig;
-	if (task === 'mov') {
-	    seConfig = { movementKeyMap: { ...horizontalMapping }, orientationKeyMap: { ...dummyMapping }, size: dualCanvasSize, earlyResolve: earlyResolve };
-	} else {
-	    seConfig = { movementKeyMap: { ...dummyMapping }, orientationKeyMap: { ...horizontalMapping }, size: dualCanvasSize, earlyResolve: earlyResolve };
-	}
-	return seConfig;
     }
 
     function setupDualCanvasDOM(leftLabel='T1 (respond with left hand)', rightLabel='T2 (respond with right hand)') {
@@ -221,187 +164,6 @@ const Session = (() => {
     }
 
     /**
-     * Build lookup sets mapping keys to task number (1 or 2) for disjoint RSO.
-     * Returns null for identical RSO (falls back to temporal ordering).
-     */
-    function buildKeyTaskMap(seConfig, trial) {
-        // If both tasks share the same keys, we can't disambiguate by key
-        const movKeys = Object.values(seConfig.movementKeyMap || {});
-        const orKeys = Object.values(seConfig.orientationKeyMap || {});
-        const isDisjoint = movKeys.length > 0 && orKeys.length > 0 &&
-            !movKeys.some(k => orKeys.includes(k));
-
-        if (!isDisjoint) return null;
-
-        // Map task identity → key set
-        const task1 = trial.meta.task;
-        const task1Keys = task1 === 'mov' ? movKeys : orKeys;
-        const task2Keys = task1 === 'mov' ? orKeys : movKeys;
-
-        return { task1Keys, task2Keys };
-    }
-
-    /**
-     * Extract RT and accuracy from SE data.
-     *
-     * SE keypress entries have: { eventType, key, time, isCorrect }
-     *   - time: ms relative to block (i.e., trial) onset
-     *   - isCorrect: true if key matched the active go signal
-     *   - No field distinguishes go1 vs go2.
-     *
-     * For disjoint RSO: we identify which task a keypress belongs to by
-     * checking which key set it falls in. This correctly handles response
-     * reversals (T2 answered before T1).
-     *
-     * For identical RSO: falls back to temporal ordering (1st correct → T1,
-     * 2nd correct → T2). This is inherently ambiguous for response reversals.
-     *
-     * Since sleep(iti) happens before block(), block-internal timestamps
-     * start at 0 (after ITI). No ITI subtraction needed.
-     */
-    function extractResponse(data, trial, seConfig) {
-        const keyPresses = data.keyPresses || [];
-        const isDualTask = trial.meta.paradigm === 'dual-task';
-
-        let rt1_raw = null;
-        let rt2_raw = null;
-        let accuracy1 = 'miss';
-        let accuracy2 = isDualTask ? 'miss' : null;
-        let hadError1 = false;
-        let hadError2 = false;
-
-        const keyMap = isDualTask ? buildKeyTaskMap(seConfig, trial) : null;
-
-        if (keyMap) {
-            // --- Disjoint RSO: identify task by key ---
-            for (const kp of keyPresses) {
-                const isT1Key = keyMap.task1Keys.includes(kp.key);
-                const isT2Key = keyMap.task2Keys.includes(kp.key);
-
-                if (isT1Key) {
-                    if (kp.isCorrect && rt1_raw === null) {
-                        rt1_raw = kp.time;
-                        accuracy1 = hadError1 ? 'corrected' : 'correct';
-                    } else if (!kp.isCorrect && rt1_raw === null) {
-                        hadError1 = true;
-                        accuracy1 = 'error';
-                    }
-                } else if (isT2Key) {
-                    if (kp.isCorrect && rt2_raw === null) {
-                        rt2_raw = kp.time;
-                        accuracy2 = hadError2 ? 'corrected' : 'correct';
-                    } else if (!kp.isCorrect && rt2_raw === null) {
-                        hadError2 = true;
-                        accuracy2 = 'error';
-                    }
-                }
-            }
-        } else {
-            // --- Identical RSO: temporal ordering fallback ---
-            for (const kp of keyPresses) {
-                if (kp.isCorrect) {
-                    if (rt1_raw === null) {
-                        rt1_raw = kp.time;
-                        accuracy1 = hadError1 ? 'corrected' : 'correct';
-                    } else if (isDualTask && rt2_raw === null) {
-                        rt2_raw = kp.time;
-                        accuracy2 = 'correct';
-                    }
-                } else {
-                    if (rt1_raw === null) {
-                        hadError1 = true;
-                        accuracy1 = 'error';
-                    } else if (isDualTask && rt2_raw === null) {
-                        accuracy2 = 'error';
-                    }
-                }
-            }
-        }
-
-        // RT relative to go signal onset (= stimulus onset for these demos)
-        const rt1 = rt1_raw !== null ? rt1_raw - trial.seParams.start_go_1 : null;
-        const rt2 = (isDualTask && rt2_raw !== null)
-            ? rt2_raw - trial.seParams.start_go_2
-            : null;
-
-        return {
-            rt1_raw,
-            rt1,
-            accuracy1,
-            rt2_raw,
-            rt2,
-            accuracy2,
-            responseOrder: (isDualTask && rt1_raw !== null && rt2_raw !== null)
-                ? (rt1_raw <= rt2_raw ? 'T1-first' : 'T2-first')
-                : null,
-            rawKeyPresses: JSON.stringify(keyPresses),
-        };
-    }
-
-    function extractAlternatingResponse(data, trial) {
-	let response;
-	let accuracy1 = 'miss';
-	for (let i = 0; i < data.keyPresses.length; i++) {
-	    if (data.keyPresses[i].isCorrect) {
-		response = data.keyPresses[i];
-		accuracy1 = (i === 0) ? 'correct' : 'corrected';
-		break;
-	    }
-	}
-	if (accuracy1 === 'miss' && data.keyPresses.length > 0) {
-	    accuracy1 = 'error';
-	}
-	let rt1_raw = null, rt1 = null;
-	if (response != null) {
-	    rt1_raw = response.time;
-	    rt1 = rt1_raw - trial.seParams.start_go_1;
-	}
-	return { rt1, rt1_raw, accuracy1, rt2: null, rt2_raw: null, accuracy2: null, rawKeyPresses: JSON.stringify(data.keyPresses) };
-    }
-
-
-    function extractDualCanvasResponse(leftData, rightData, trial) {
-	let leftResponse, rightResponse;
-	let accuracy1 = 'miss', accuracy2 = 'miss';
-	for (let i = 0; i < leftData.keyPresses.length; i++) {
-	    if (leftData.keyPresses[i].isCorrect) {
-		leftResponse = leftData.keyPresses[i];
-		accuracy1 = (i === 0) ? 'correct' : 'corrected';
-		break;
-	    }
-	}
-	if (accuracy1 === 'miss' && leftData.keyPresses.length > 0) {
-	    accuracy1 = 'error';
-	}
-
-	for (let i = 0; i < rightData.keyPresses.length; i++) {
-	    if (rightData.keyPresses[i].isCorrect) {
-		rightResponse = rightData.keyPresses[i];
-		accuracy2 = (i === 0) ? 'correct' : 'corrected';
-		break;
-	    }
-	}
-	if (accuracy2 === 'miss' && rightData.keyPresses.length > 0) {
-	    accuracy2 = 'error';
-	}
-
-	let rt1_raw = null, rt2_raw = null, rt1 = null, rt2 = null;
-	if (leftResponse != null) {
-	    rt1_raw = leftResponse.time;
-	    rt1 = rt1_raw - trial.leftSeParams.start_go_1;
-	}
-	if (rightResponse != null) {
-	    rt2_raw = rightResponse.time;
-	    rt2 = rt2_raw - trial.rightSeParams.start_go_1;
-	}
-	let responseOrder = null;
-	if (rt1_raw !== null && rt2_raw !== null) {
-	    responseOrder = (rt2_raw - rt1_raw > 0) ? 'T1-first' : 'T2-first';
-	}
-	return { rt1, rt1_raw, accuracy1, rt2, rt2_raw, accuracy2, responseOrder, rawKeyPresses: JSON.stringify({ left : leftData.keyPresses, right : rightData.keyPresses} ) }
-    }
-
-    /**
      * Run a complete block of trials.
      */
     async function runBlock(blockDef, blockOrder) {
@@ -414,11 +176,11 @@ const Session = (() => {
 	    trials = generateDualCanvasBlockTrials(blockConfig, numTrials);
 	    canvasContainer.classList.toggle('dual-canvas-mode', true);
 	} else if (canvasType === 'alternating') {
-	    trials = generateAlternatingBlockTrials(blockConfig, numTrials);
+	    trials = generateSidedTrials(blockConfig, numTrials);
 	    canvasContainer.classList.toggle('dual-canvas-mode', true);
 	    ({ leftParent, rightParent } = setupDualCanvasDOM());
 	} else if (canvasType === 'prp-baseline') {
-	    trials = generateBaselinePRPTrials(blockConfig, numTrials);
+	    trials = generateSidedTrials(blockConfig, numTrials);
 	    canvasContainer.classList.toggle('dual-canvas-mode', true);
 	    ({ leftParent, rightParent } = setupDualCanvasDOM('S1 (no response needed)', 'Respond with right hand: J/L'));
 	} else {
@@ -439,13 +201,13 @@ const Session = (() => {
             // Update status display
             updateStatus(blockConfig.blockId, i + 1, trials.length, blockOrder);
 	    if (canvasType === 'dual-canvas') {
-		const { leftConfig, rightConfig } = buildDualCanvasSEConfigs(trials[i].meta.task, trials[i].meta.task2);
+		const { leftConfig, rightConfig } = buildDualCanvasSEConfigs(trials[i].meta.task, trials[i].meta.task2, computeDualCanvasSize());
 		trialData = await runDualCanvasTrial(trials[i], leftConfig, rightConfig, prevResponseTime);
 	    } else if (canvasType === 'alternating') {
-		const config = buildAlternatingSEConfig(trials[i].meta.task, trials[i].meta.side, trials[i].meta.earlyResolve);
+		const config = buildAlternatingSEConfig(trials[i].meta.task, trials[i].meta.side, trials[i].meta.earlyResolve, computeDualCanvasSize());
 		trialData = await runAlternatingTrial(trials[i], config, leftParent, rightParent);
 	    } else if (canvasType === 'prp-baseline') {
-		const config = buildAlternatingSEConfig(trials[i].meta.task, trials[i].meta.side, trials[i].meta.earlyResolve);
+		const config = buildAlternatingSEConfig(trials[i].meta.task, trials[i].meta.side, trials[i].meta.earlyResolve, computeDualCanvasSize());
 		trialData = await runBaselinePRPTrial(trials[i], config, leftParent, rightParent)
 	    } else {
 		trialData = await runTrial(trials[i], seConfig, prevResponseTime);

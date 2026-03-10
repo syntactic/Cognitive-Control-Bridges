@@ -556,6 +556,8 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
 	    blockConfig.switchRate,
 	    null
 	);
+    } else {
+	throw new Error(`Unknown t2Rule: '${blockConfig.t2Rule}'`);
     }
 
     const transitions = classifyDualCanvasTransitions(t1TaskSequence, t2TaskSequence);
@@ -600,7 +602,22 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
     return trials;
 }
 
-function generateAlternatingBlockTrials(blockConfig, numTrials) {
+/**
+ * Generates trials for sided paradigms (alternating task-switching, PRP baseline).
+ * Each trial is assigned to a side of a dual-canvas display.
+ *
+ * For alternating: side alternates left/right across trials.
+ * For prp-baseline: side is always 'right' (left shows a placeholder asterisk).
+ *
+ * SOA is only sampled for prp-baseline (blockConfig.soa must exist).
+ *
+ * @param {object} blockConfig - must include paradigm ('alternating' or 'prp-baseline')
+ * @param {number} numTrials
+ * @returns {{ seParams: object, meta: object }[]}
+ */
+function generateSidedTrials(blockConfig, numTrials) {
+    const isBaseline = blockConfig.paradigm === 'prp-baseline';
+
     let taskSequence = generateTaskSequence(
 	numTrials,
 	blockConfig.sequenceType,
@@ -611,6 +628,7 @@ function generateAlternatingBlockTrials(blockConfig, numTrials) {
 
     const trials = [];
     for (let i = 0; i < numTrials; i++) {
+	const soa = isBaseline ? sampleFromDistribution(blockConfig.soa) : null;
 	const iti = sampleFromDistribution(blockConfig.iti);
 	const coherence = blockConfig.coherence.ch1_task;
 	const direction = Math.random() < 0.5 ? 0 : 180;
@@ -619,44 +637,7 @@ function generateAlternatingBlockTrials(blockConfig, numTrials) {
 
 	const meta = {
 	    trialNumber: i + 1,
-	    side: (i % 2 === 0) ? 'left' : 'right',
-	    blockId: blockConfig.blockId,
-	    blockType: blockConfig.blockType,
-	    paradigm: blockConfig.paradigm,
-	    earlyResolve: blockConfig.earlyResolve ?? false,
-	    task: taskSequence[i],
-	    task2: null,
-	    transitionType: transitions[i],
-	    iti: iti,
-	    direction: direction,
-	    congruency: 'univalent'
-	};
-	trials.push({ seParams: canvasTrialParams, meta });
-    }
-    return trials;
-}
-
- function generateBaselinePRPTrials(blockConfig, numTrials) {
-    let taskSequence = generateTaskSequence(
-	numTrials,
-	blockConfig.sequenceType,
-	blockConfig.switchRate,
-	blockConfig.startTask
-    );
-    const transitions = classifyTransitions(taskSequence);
-
-    const trials = [];
-    for (let i = 0; i < numTrials; i++) {
-	const soa = sampleFromDistribution(blockConfig.soa);
-	const iti = sampleFromDistribution(blockConfig.iti);
-	const coherence = blockConfig.coherence.ch1_task;
-	const direction = Math.random() < 0.5 ? 0 : 180;
-	const spec = buildSingleCanvasSpec(taskSequence[i], blockConfig.csi, blockConfig.stimulusDuration, blockConfig.responseWindow, coherence, direction);
-	const canvasTrialParams = buildTrialParams(spec);
-
-	const meta = {
-	    trialNumber: i + 1,
-	    side: 'right',
+	    side: isBaseline ? 'right' : ((i % 2 === 0) ? 'left' : 'right'),
 	    blockId: blockConfig.blockId,
 	    blockType: blockConfig.blockType,
 	    paradigm: blockConfig.paradigm,
@@ -672,4 +653,4 @@ function generateAlternatingBlockTrials(blockConfig, numTrials) {
 	trials.push({ seParams: canvasTrialParams, meta });
     }
     return trials;
- }
+}
