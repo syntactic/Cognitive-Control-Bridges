@@ -41,7 +41,7 @@ const TEST_SIZE = 0.5;
 
 section('buildDualCanvasSEConfigs — cross-type (mov + or)');
 
-const { leftConfig: lc1, rightConfig: rc1 } = buildDualCanvasSEConfigs('mov', 'or', TEST_SIZE);
+const { leftConfig: lc1, rightConfig: rc1 } = buildDualCanvasSEConfigs('mov', 'or', false, TEST_SIZE);
 assert(lc1.movementKeyMap[180] === 'a', 'left mov: 180 -> a');
 assert(lc1.movementKeyMap[0] === 'd', 'left mov: 0 -> d');
 assert(lc1.orientationKeyMap[180] === '!', 'left or: dummy');
@@ -55,7 +55,7 @@ assert(rc1.movementKeyMap[0] === '!', 'right mov: dummy');
 
 section('buildDualCanvasSEConfigs — cross-type reversed (or + mov)');
 
-const { leftConfig: lc2, rightConfig: rc2 } = buildDualCanvasSEConfigs('or', 'mov', TEST_SIZE);
+const { leftConfig: lc2, rightConfig: rc2 } = buildDualCanvasSEConfigs('or', 'mov', false, TEST_SIZE);
 assert(lc2.orientationKeyMap[180] === 'a', 'left or: 180 -> a');
 assert(lc2.orientationKeyMap[0] === 'd', 'left or: 0 -> d');
 assert(lc2.movementKeyMap[180] === '!', 'left mov: dummy');
@@ -67,7 +67,7 @@ assert(rc2.orientationKeyMap[180] === '!', 'right or: dummy');
 
 section('buildDualCanvasSEConfigs — same-type (mov + mov)');
 
-const { leftConfig: lc3, rightConfig: rc3 } = buildDualCanvasSEConfigs('mov', 'mov', TEST_SIZE);
+const { leftConfig: lc3, rightConfig: rc3 } = buildDualCanvasSEConfigs('mov', 'mov', false, TEST_SIZE);
 assert(lc3.movementKeyMap[180] === 'a', 'left mov: 180 -> a');
 assert(lc3.movementKeyMap[0] === 'd', 'left mov: 0 -> d');
 assert(rc3.movementKeyMap[180] === 'j', 'right mov: 180 -> j');
@@ -80,7 +80,7 @@ assert(rc3.orientationKeyMap[180] === '!', 'right or: dummy');
 
 section('buildDualCanvasSEConfigs — same-type (or + or)');
 
-const { leftConfig: lc4, rightConfig: rc4 } = buildDualCanvasSEConfigs('or', 'or', TEST_SIZE);
+const { leftConfig: lc4, rightConfig: rc4 } = buildDualCanvasSEConfigs('or', 'or', false, TEST_SIZE);
 assert(lc4.orientationKeyMap[180] === 'a', 'left or: 180 -> a');
 assert(lc4.orientationKeyMap[0] === 'd', 'left or: 0 -> d');
 assert(rc4.orientationKeyMap[180] === 'j', 'right or: 180 -> j');
@@ -95,10 +95,10 @@ section('buildDualCanvasSEConfigs — disjoint keys (no overlap)');
 
 // Verify left and right configs never share real keys
 const allConfigs = [
-    buildDualCanvasSEConfigs('mov', 'or', TEST_SIZE),
-    buildDualCanvasSEConfigs('or', 'mov', TEST_SIZE),
-    buildDualCanvasSEConfigs('mov', 'mov', TEST_SIZE),
-    buildDualCanvasSEConfigs('or', 'or', TEST_SIZE),
+    buildDualCanvasSEConfigs('mov', 'or', false, TEST_SIZE),
+    buildDualCanvasSEConfigs('or', 'mov', false, TEST_SIZE),
+    buildDualCanvasSEConfigs('mov', 'mov', false, TEST_SIZE),
+    buildDualCanvasSEConfigs('or', 'or', false, TEST_SIZE),
 ];
 
 for (const { leftConfig, rightConfig } of allConfigs) {
@@ -119,9 +119,20 @@ for (const { leftConfig, rightConfig } of allConfigs) {
 
 section('buildDualCanvasSEConfigs — size parameter');
 
-const { leftConfig: lcSz, rightConfig: rcSz } = buildDualCanvasSEConfigs('mov', 'or', 0.42);
+const { leftConfig: lcSz, rightConfig: rcSz } = buildDualCanvasSEConfigs('mov', 'or', false, 0.42);
 assert(lcSz.size === 0.42, 'left config gets passed size');
 assert(rcSz.size === 0.42, 'right config gets passed size');
+
+// ============================================================
+
+section('buildDualCanvasSEConfigs — earlyResolve parameter');
+
+const { leftConfig: lcEr, rightConfig: rcEr } = buildDualCanvasSEConfigs('mov', 'or', true, TEST_SIZE);
+assert(lcEr.earlyResolve === true, 'left config gets earlyResolve true');
+assert(rcEr.earlyResolve === true, 'right config gets earlyResolve true');
+const { leftConfig: lcNoEr, rightConfig: rcNoEr } = buildDualCanvasSEConfigs('mov', 'or', false, TEST_SIZE);
+assert(lcNoEr.earlyResolve === false, 'left config gets earlyResolve false');
+assert(rcNoEr.earlyResolve === false, 'right config gets earlyResolve false');
 
 // ============================================================
 // extractDualCanvasResponse tests
@@ -453,13 +464,24 @@ const iOrKeys = Object.values(identicalConfig.orientationKeyMap);
 assert(iMovKeys.every((k, i) => k === iOrKeys[i]), 'identical: mov and or keys match');
 
 // ============================================================
+
+section('buildSEConfig — earlyResolve parameter');
+
+const erConfig = buildSEConfig('disjoint', true);
+assert(erConfig.earlyResolve === true, 'buildSEConfig passes earlyResolve true');
+const noErConfig = buildSEConfig('disjoint', false);
+assert(noErConfig.earlyResolve === false, 'buildSEConfig passes earlyResolve false');
+const defaultErConfig = buildSEConfig('disjoint');
+assert(defaultErConfig.earlyResolve === undefined, 'buildSEConfig earlyResolve undefined when omitted');
+
+// ============================================================
 // buildKeyTaskMap tests
 // ============================================================
 
 section('buildKeyTaskMap — disjoint RSO returns key sets');
 
 const disjointSEConfig = buildSEConfig('disjoint');
-const movTrial = { meta: { task: 'mov' } };
+const movTrial = { meta: { t1_task: 'mov' } };
 const keyMap1 = buildKeyTaskMap(disjointSEConfig, movTrial);
 assert(keyMap1 !== null, 'disjoint: returns non-null');
 assert(keyMap1.task1Keys.includes('a'), 'disjoint mov trial: T1 keys include a');
@@ -467,7 +489,7 @@ assert(keyMap1.task1Keys.includes('d'), 'disjoint mov trial: T1 keys include d')
 assert(keyMap1.task2Keys.includes('j'), 'disjoint mov trial: T2 keys include j');
 assert(keyMap1.task2Keys.includes('l'), 'disjoint mov trial: T2 keys include l');
 
-const orTrial = { meta: { task: 'or' } };
+const orTrial = { meta: { t1_task: 'or' } };
 const keyMap2 = buildKeyTaskMap(disjointSEConfig, orTrial);
 assert(keyMap2.task1Keys.includes('j'), 'disjoint or trial: T1 keys include j');
 assert(keyMap2.task1Keys.includes('l'), 'disjoint or trial: T1 keys include l');
@@ -492,7 +514,7 @@ section('extractResponse — single-task correct');
 
 const stTrial = {
     seParams: { start_go_1: 200, start_go_2: 0 },
-    meta: { paradigm: 'single-task', task: 'mov' },
+    meta: { paradigm: 'single-task', t1_task: 'mov' },
 };
 const stRes1 = extractResponse(
     { keyPresses: [{ key: 'a', time: 500, isCorrect: true }] },
@@ -547,7 +569,7 @@ section('extractResponse — disjoint RSO dual-task: normal order');
 
 const dtTrial = {
     seParams: { start_go_1: 200, start_go_2: 400 },
-    meta: { paradigm: 'dual-task', task: 'mov', task2: 'or' },
+    meta: { paradigm: 'dual-task', t1_task: 'mov', t2_task: 'or' },
 };
 const dtRes1 = extractResponse(
     { keyPresses: [
@@ -630,7 +652,7 @@ section('extractResponse — identical RSO dual-task: temporal ordering');
 
 const dtIdenticalTrial = {
     seParams: { start_go_1: 200, start_go_2: 400 },
-    meta: { paradigm: 'dual-task', task: 'mov', task2: 'or' },
+    meta: { paradigm: 'dual-task', t1_task: 'mov', t2_task: 'or' },
 };
 const dtIdRes1 = extractResponse(
     { keyPresses: [

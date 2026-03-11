@@ -17,19 +17,21 @@ const DUMMY_KEYS = { 180: '!', 0: '!' };
  * SE config for single-canvas key mappings.
  * For identical RSO: both tasks use a (left) and d (right).
  */
-function buildSEConfig(rso) {
+function buildSEConfig(rso, earlyResolve) {
     if (rso === 'disjoint') {
         return {
             movementKeyMap: { ...LEFT_HAND_KEYS },
             orientationKeyMap: { ...RIGHT_HAND_KEYS },
-            size: 0.75
+            size: 0.75,
+            earlyResolve
         };
     }
     // identical RSO (default, Hirsch)
     return {
         movementKeyMap: { ...LEFT_HAND_KEYS },
         orientationKeyMap: { ...LEFT_HAND_KEYS },
-        size: 0.75
+        size: 0.75,
+        earlyResolve
     };
 }
 
@@ -40,19 +42,20 @@ function buildSEConfig(rso) {
  *
  * @param {string} leftTask - 'mov' or 'or'
  * @param {string} rightTask - 'mov' or 'or'
+ * @param {boolean} earlyResolve - whether the trial resolves on response
  * @param {number} size - canvas size (fraction of viewport)
  */
-function buildDualCanvasSEConfigs(leftTask, rightTask, size) {
+function buildDualCanvasSEConfigs(leftTask, rightTask, earlyResolve, size) {
     let leftConfig, rightConfig;
     if (leftTask === 'mov') {
-	leftConfig = { movementKeyMap: { ...LEFT_HAND_KEYS }, orientationKeyMap: { ...DUMMY_KEYS }, size };
+	leftConfig = { movementKeyMap: { ...LEFT_HAND_KEYS }, orientationKeyMap: { ...DUMMY_KEYS }, size, earlyResolve };
     } else {
-	leftConfig = { orientationKeyMap: { ...LEFT_HAND_KEYS }, movementKeyMap: { ...DUMMY_KEYS }, size };
+	leftConfig = { orientationKeyMap: { ...LEFT_HAND_KEYS }, movementKeyMap: { ...DUMMY_KEYS }, size, earlyResolve };
     }
     if (rightTask === 'mov') {
-	rightConfig = { movementKeyMap: { ...RIGHT_HAND_KEYS }, orientationKeyMap: { ...DUMMY_KEYS }, size };
+	rightConfig = { movementKeyMap: { ...RIGHT_HAND_KEYS }, orientationKeyMap: { ...DUMMY_KEYS }, size, earlyResolve };
     } else {
-	rightConfig = { orientationKeyMap: { ...RIGHT_HAND_KEYS }, movementKeyMap: { ...DUMMY_KEYS }, size };
+	rightConfig = { orientationKeyMap: { ...RIGHT_HAND_KEYS }, movementKeyMap: { ...DUMMY_KEYS }, size, earlyResolve };
     }
     return { leftConfig, rightConfig };
 }
@@ -88,7 +91,7 @@ function buildKeyTaskMap(seConfig, trial) {
     const isDisjoint = movKeys.length > 0 && orKeys.length > 0 &&
         !movKeys.some(k => orKeys.includes(k));
     if (!isDisjoint) return null;
-    const task1 = trial.meta.task;
+    const task1 = trial.meta.t1_task;
     const task1Keys = task1 === 'mov' ? movKeys : orKeys;
     const task2Keys = task1 === 'mov' ? orKeys : movKeys;
     return { task1Keys, task2Keys };

@@ -320,8 +320,8 @@ for (const t of prpTrials) {
     // SE: ch2_abs = start_X_2 + ch1_X.end = start_X_2 + 0 = start_X_2.
     // Desired absolute start = csi + soa.
     const desiredAbsStart = prpConfig.csi + t.meta.soa;
-    const activeKey = t.meta.task2 === 'mov' ? 'start_mov_2' : 'start_or_2';
-    const silencedKey = t.meta.task2 === 'mov' ? 'start_or_2' : 'start_mov_2';
+    const activeKey = t.meta.t2_task === 'mov' ? 'start_mov_2' : 'start_or_2';
+    const silencedKey = t.meta.t2_task === 'mov' ? 'start_or_2' : 'start_mov_2';
     // For silenced ch1 counterpart, offset IS the desired absolute start
     if (t.seParams[activeKey] !== desiredAbsStart) { allValid = false; break; }
     // Silenced pathway should be zeroed
@@ -330,7 +330,7 @@ for (const t of prpTrials) {
 assert(allValid, 'all PRP trials have valid structure and correct ch2 offsets');
 
 // Check that T1-T2 switching occurs (with switchRate=50 over 24 trials)
-const t1Tasks = prpTrials.map(t => t.meta.task);
+const t1Tasks = prpTrials.map(t => t.meta.t1_task);
 const hasSwitch = prpTrials.some(t => t.meta.transitionType === 'Switch');
 const hasRepeat = prpTrials.some(t => t.meta.transitionType === 'Repeat');
 // With switchRate=50 and 24 trials, probability of zero switches or zero repeats is negligible
@@ -339,8 +339,8 @@ assert(hasRepeat, 'PRP block has T1-T2 repetitions');
 
 // Check that task2 is always the opposite of task1
 for (const t of prpTrials) {
-    assert(t.meta.task2 === switchTask(t.meta.task),
-        `task2 is opposite of task1: ${t.meta.task} → ${t.meta.task2}`);
+    assert(t.meta.t2_task === switchTask(t.meta.t1_task),
+        `task2 is opposite of task1: ${t.meta.t1_task} → ${t.meta.t2_task}`);
 }
 
 // Check SOA values are from the choice set
@@ -381,8 +381,8 @@ const pureConfig = {
 
 const pureTrials = generateBlockTrials(pureConfig, 40);
 assert(pureTrials.length === 40, 'pure block: 40 trials');
-assert(pureTrials.every(t => t.meta.task === 'mov'), 'pure block: all mov');
-assert(pureTrials.every(t => t.meta.task2 === null), 'pure block: no task2');
+assert(pureTrials.every(t => t.meta.t1_task === 'mov'), 'pure block: all mov');
+assert(pureTrials.every(t => t.meta.t2_task === null), 'pure block: no task2');
 assert(pureTrials.every(t => t.seParams.task_2 === null), 'pure block: SE task_2 null');
 assert(pureTrials.every(t => t.meta.soa === null), 'pure block: soa null');
 assert(pureTrials[0].meta.transitionType === 'First', 'pure block: first is First');
@@ -412,9 +412,9 @@ const mixedConfig = {
 
 const mixedTrials = generateBlockTrials(mixedConfig, 80);
 assert(mixedTrials.length === 80, 'mixed block: 80 trials');
-const mixedTasks = new Set(mixedTrials.map(t => t.meta.task));
+const mixedTasks = new Set(mixedTrials.map(t => t.meta.t1_task));
 assert(mixedTasks.has('mov') && mixedTasks.has('or'), 'mixed block: both tasks present');
-assert(mixedTrials.every(t => t.meta.task2 === null), 'mixed block: no task2');
+assert(mixedTrials.every(t => t.meta.t2_task === null), 'mixed block: no task2');
 assert(mixedTrials.some(t => t.meta.transitionType === 'Switch'), 'mixed block: has switches');
 assert(mixedTrials.some(t => t.meta.transitionType === 'Repeat'), 'mixed block: has repeats');
 
@@ -526,9 +526,9 @@ assert(switchTrials.length === 24, 'switch: 24 trials generated');
 
 // Every trial should have opposite tasks on left and right
 for (const t of switchTrials) {
-    assert(t.meta.task !== t.meta.task2,
-        `switch: T1=${t.meta.task} differs from T2=${t.meta.task2}`);
-    assert(t.meta.task2 === switchTask(t.meta.task),
+    assert(t.meta.t1_task !== t.meta.t2_task,
+        `switch: T1=${t.meta.t1_task} differs from T2=${t.meta.t2_task}`);
+    assert(t.meta.t2_task === switchTask(t.meta.t1_task),
         'switch: T2 is switchTask(T1)');
     assert(t.meta.transitionType === 'Switch',
         'switch: all transitions are Switch when tasks always differ');
@@ -562,8 +562,8 @@ assert(sameTrials.length === 24, 'same: 24 trials generated');
 
 // Every trial should have identical tasks on both canvases
 for (const t of sameTrials) {
-    assert(t.meta.task === t.meta.task2,
-        `same: T1=${t.meta.task} matches T2=${t.meta.task2}`);
+    assert(t.meta.t1_task === t.meta.t2_task,
+        `same: T1=${t.meta.t1_task} matches T2=${t.meta.t2_task}`);
     assert(t.meta.transitionType === 'Repeat',
         'same: all transitions are Repeat when tasks always match');
 }
@@ -581,8 +581,8 @@ const indTrials = generateDualCanvasBlockTrials(dualCanvasIndependentConfig, 60)
 assert(indTrials.length === 60, 'independent: 60 trials generated');
 
 // With independent sequences over 60 trials, expect both same and different pairings
-const hasRepeatPairing = indTrials.some(t => t.meta.task === t.meta.task2);
-const hasSwitchPairing = indTrials.some(t => t.meta.task !== t.meta.task2);
+const hasRepeatPairing = indTrials.some(t => t.meta.t1_task === t.meta.t2_task);
+const hasSwitchPairing = indTrials.some(t => t.meta.t1_task !== t.meta.t2_task);
 assert(hasRepeatPairing, 'independent: has some same-task pairings');
 assert(hasSwitchPairing, 'independent: has some different-task pairings');
 
@@ -612,27 +612,6 @@ for (const t of soaTrials) {
 }
 
 // ============================================================
-section('generateDualCanvasBlockTrials — crossCanvasCongruency');
-
-// Check that crossCanvasCongruency is correctly computed from directions
-for (const t of soaTrials) {
-    const sameDir = t.meta.direction_1 === t.meta.direction_2;
-    const expected = sameDir ? 'congruent' : 'incongruent';
-    assert(t.meta.crossCanvasCongruency === expected,
-        `congruency: directions ${t.meta.direction_1}/${t.meta.direction_2} → ${expected}`);
-}
-
-// ============================================================
-section('generateDualCanvasBlockTrials — previousCrossCanvasCongruency');
-
-assert(soaTrials[0].meta.previousCrossCanvasCongruency === null,
-    'previousCongruency: null on first trial');
-for (let i = 1; i < soaTrials.length; i++) {
-    assert(soaTrials[i].meta.previousCrossCanvasCongruency === soaTrials[i-1].meta.crossCanvasCongruency,
-        `previousCongruency: trial ${i+1} matches trial ${i}'s crossCanvasCongruency`);
-}
-
-// ============================================================
 section('generateDualCanvasBlockTrials — coherence fallback');
 
 // Default: both canvases use ch1_task (0.8) when leftCoherence/rightCoherence not set
@@ -654,10 +633,10 @@ const dualCanvasCustomCohConfig = {
 const cohTrials = generateDualCanvasBlockTrials(dualCanvasCustomCohConfig, 10);
 for (const t of cohTrials) {
     // Left canvas active pathway should have 0.9 coherence
-    const leftActiveCoh = t.meta.task === 'mov' ? t.leftSeParams.coh_mov_1 : t.leftSeParams.coh_or_1;
+    const leftActiveCoh = t.meta.t1_task === 'mov' ? t.leftSeParams.coh_mov_1 : t.leftSeParams.coh_or_1;
     assert(leftActiveCoh === 0.9, `custom coherence: left=${leftActiveCoh}, expected 0.9`);
     // Right canvas active pathway should have 0.5 coherence
-    const rightActiveCoh = t.meta.task2 === 'mov' ? t.rightSeParams.coh_mov_1 : t.rightSeParams.coh_or_1;
+    const rightActiveCoh = t.meta.t2_task === 'mov' ? t.rightSeParams.coh_mov_1 : t.rightSeParams.coh_or_1;
     assert(rightActiveCoh === 0.5, `custom coherence: right=${rightActiveCoh}, expected 0.5`);
 }
 
@@ -728,13 +707,12 @@ for (const t of altTrials) {
     assert(t.meta.paradigm === 'alternating', 'paradigm is alternating');
     assert(t.meta.blockType === 'mixed', 'blockType is mixed');
     assert(t.meta.blockId === 'test_alternating', 'blockId matches config');
-    assert(t.meta.task2 === null, 'task2 is null (single-task per trial)');
-    assert(t.meta.congruency === 'univalent', 'congruency is univalent');
+    assert(t.meta.t2_task === null, 't2_task is null (single-task per trial)');
     assert(t.meta.earlyResolve === true, 'earlyResolve logged in meta');
-    assert(t.meta.direction === 0 || t.meta.direction === 180,
-        `direction is 0 or 180, got ${t.meta.direction}`);
-    assert(t.meta.task === 'mov' || t.meta.task === 'or',
-        `task is mov or or, got ${t.meta.task}`);
+    assert(t.meta.t1_target_dir === 0 || t.meta.t1_target_dir === 180,
+        `t1_target_dir is 0 or 180, got ${t.meta.t1_target_dir}`);
+    assert(t.meta.t1_task === 'mov' || t.meta.t1_task === 'or',
+        `t1_task is mov or or, got ${t.meta.t1_task}`);
 }
 
 // ============================================================
@@ -752,8 +730,8 @@ section('generateSidedTrials — transition classification');
 
 assert(altTrials[0].meta.transitionType === 'First', 'first trial is First');
 for (let i = 1; i < altTrials.length; i++) {
-    const prev = altTrials[i - 1].meta.task;
-    const curr = altTrials[i].meta.task;
+    const prev = altTrials[i - 1].meta.t1_task;
+    const curr = altTrials[i].meta.t1_task;
     const expected = curr === prev ? 'Repeat' : 'Switch';
     assert(altTrials[i].meta.transitionType === expected,
         `trial ${i+1}: task ${prev}→${curr}, transition=${altTrials[i].meta.transitionType}, expected ${expected}`);
@@ -775,7 +753,7 @@ const altPureTrials = generateSidedTrials(altPureConfig, 20);
 for (let i = 1; i < altPureTrials.length; i++) {
     assert(altPureTrials[i].meta.transitionType === 'Repeat',
         `pure block: trial ${i+1} is Repeat`);
-    assert(altPureTrials[i].meta.task === 'mov',
+    assert(altPureTrials[i].meta.t1_task === 'mov',
         `pure block: trial ${i+1} is mov`);
 }
 
@@ -819,7 +797,7 @@ for (const t of altTrials) {
 section('generateSidedTrials — coherence in active pathway');
 
 for (const t of altTrials) {
-    if (t.meta.task === 'mov') {
+    if (t.meta.t1_task === 'mov') {
         assert(t.seParams.coh_mov_1 === 0.8, `mov trial: coh_mov_1=0.8, got ${t.seParams.coh_mov_1}`);
         assert(t.seParams.coh_or_1 === 0, `mov trial: coh_or_1=0 (silenced)`);
     } else {
@@ -879,18 +857,18 @@ for (const t of blTrials) {
     assert(t.meta.paradigm === 'prp-baseline', 'paradigm is prp-baseline');
     assert(t.meta.blockType === 'prp-baseline', 'blockType is prp-baseline');
     assert(t.meta.blockId === 'test_baseline', 'blockId matches config');
-    assert(t.meta.task2 === null, 'task2 is null (single-task)');
-    assert(t.meta.congruency === 'univalent', 'congruency is univalent');
+    assert(t.meta.t1_task === null, 't1_task is null (asterisk)');
+    assert(t.meta.t2_task !== null, 't2_task is the actual task');
     assert(t.meta.earlyResolve === true, 'earlyResolve logged in meta');
-    assert(t.meta.direction === 0 || t.meta.direction === 180,
-        `direction is 0 or 180, got ${t.meta.direction}`);
+    assert(t.meta.t2_target_dir === 0 || t.meta.t2_target_dir === 180,
+        `t2_target_dir is 0 or 180, got ${t.meta.t2_target_dir}`);
 }
 
 // ============================================================
 section('generateSidedTrials — single task (switchRate 0)');
 
 for (const t of blTrials) {
-    assert(t.meta.task === 'mov', `task is mov (switchRate=0, startTask=mov), got ${t.meta.task}`);
+    assert(t.meta.t2_task === 'mov', `t2_task is mov (switchRate=0, startTask=mov), got ${t.meta.t2_task}`);
 }
 
 // All transitions after first should be Repeat
@@ -906,7 +884,7 @@ section('generateSidedTrials — orientation baseline');
 const baselineOrConfig = { ...baselineConfig, blockId: 'test_baseline_or', startTask: 'or' };
 const blOrTrials = generateSidedTrials(baselineOrConfig, 10);
 for (const t of blOrTrials) {
-    assert(t.meta.task === 'or', `or baseline: task is or, got ${t.meta.task}`);
+    assert(t.meta.t2_task === 'or', `or baseline: t2_task is or, got ${t.meta.t2_task}`);
 }
 
 // ============================================================
@@ -1060,8 +1038,8 @@ const prpOrConfig = {
 const prpOrTrials = generateBlockTrials(prpOrConfig, 10);
 // With switchRate=0 and PRP paradigm, T1 is always or, T2 is always mov
 for (const t of prpOrTrials) {
-    assert(t.meta.task === 'or', `or-first PRP: task1=${t.meta.task}`);
-    assert(t.meta.task2 === 'mov', `or-first PRP: task2=${t.meta.task2}`);
+    assert(t.meta.t1_task === 'or', `or-first PRP: task1=${t.meta.t1_task}`);
+    assert(t.meta.t2_task === 'mov', `or-first PRP: task2=${t.meta.t2_task}`);
     // Coherence routing: T1=or → coh_or_1 gets ch1_task, coh_mov_1 gets ch1_distractor
     assert(t.seParams.coh_or_1 === 0.8, `or-first PRP: coh_or_1=${t.seParams.coh_or_1}`);
     assert(t.seParams.coh_mov_1 === 0, `or-first PRP: coh_mov_1=${t.seParams.coh_mov_1}`);
@@ -1078,19 +1056,16 @@ assert(firstTrial.meta.trialNumber === 1, 'meta: trialNumber starts at 1');
 assert(firstTrial.meta.blockId === 'hirsch_prp', 'meta: blockId from config');
 assert(firstTrial.meta.blockType === 'prp', 'meta: blockType from config');
 assert(firstTrial.meta.paradigm === 'dual-task', 'meta: paradigm from config');
-assert(firstTrial.meta.congruency === 'univalent', 'meta: congruency is univalent');
-assert(firstTrial.meta.previousCongruency === null, 'meta: first trial has null previousCongruency');
-assert(prpTrials[1].meta.previousCongruency === 'univalent', 'meta: second trial has previousCongruency');
 assert(typeof firstTrial.meta.iti === 'number', 'meta: iti is a number');
 assert(firstTrial.meta.iti >= 400 && firstTrial.meta.iti <= 600, 'meta: iti in uniform range');
-assert(firstTrial.meta.distractorDirection === null, 'meta: distractorDirection null for univalent');
+assert(firstTrial.meta.t1_distractor_dir === null, 'meta: distractorDirection null for univalent');
 
 // ============================================================
 section('generateBlockTrials — single-task meta directions');
 
 const pureTrial = pureTrials[0];
-assert([0, 180].includes(pureTrial.meta.primaryDirection), 'single-task: primaryDirection is 0 or 180');
-assert(pureTrial.meta.ch2Direction === null, 'single-task: ch2Direction is null');
+assert([0, 180].includes(pureTrial.meta.t1_target_dir), 'single-task: primaryDirection is 0 or 180');
+assert(pureTrial.meta.t2_target_dir === null, 'single-task: ch2Direction is null');
 
 // ============================================================
 section('applySOAOffset — negative offset');
@@ -1171,7 +1146,7 @@ const altPureOrConfig = {
 };
 const altPureOrTrials = generateSidedTrials(altPureOrConfig, 10);
 for (const t of altPureOrTrials) {
-    assert(t.meta.task === 'or', `alt pure or: task=${t.meta.task}`);
+    assert(t.meta.t1_task === 'or', `alt pure or: task=${t.meta.t1_task}`);
     assert(t.seParams.coh_or_1 === 0.8, `alt pure or: coh_or_1=0.8, got ${t.seParams.coh_or_1}`);
     assert(t.seParams.coh_mov_1 === 0, `alt pure or: coh_mov_1=0 (silenced), got ${t.seParams.coh_mov_1}`);
     // Silenced pathway duration should be zeroed

@@ -33,6 +33,7 @@ const HIRSCH_DEFAULTS = {
 const HIRSCH_DUAL_DEFAULTS = {
     ...HIRSCH_DEFAULTS,
     paradigm: 'dual-canvas',
+    earlyResolve: true,
     iti: { type: 'fixed', value: 1000 },
     soa: { type: 'choice', value: 600, params: [100, 600] },
     rso: 'disjoint',

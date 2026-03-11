@@ -140,9 +140,13 @@ const Session = (() => {
 	await seEndBlock('canvasRight');
 	leftParent.innerHTML = '';
 	const result = extractAlternatingResponse(data, trial);
+	// Remap response to T2 slot: asterisk is T1 (no response), actual task is T2
 	return {
 	    ...trial.meta,
-	    ...result
+	    rt1: null, rt1_raw: null, accuracy1: null,
+	    rt2: result.rt1, rt2_raw: result.rt1_raw, accuracy2: result.accuracy1,
+	    responseOrder: null,
+	    rawKeyPresses: result.rawKeyPresses,
 	};
     }
 
@@ -185,7 +189,7 @@ const Session = (() => {
 	    ({ leftParent, rightParent } = setupDualCanvasDOM('S1 (no response needed)', 'Respond with right hand: J/L'));
 	} else {
 	    trials = generateBlockTrials(blockConfig, numTrials);
-	    seConfig = buildSEConfig(blockConfig.rso);
+	    seConfig = buildSEConfig(blockConfig.rso, blockConfig.earlyResolve);
 	    canvasContainer.classList.toggle('dual-canvas-mode', false);
 	}
 
@@ -201,13 +205,13 @@ const Session = (() => {
             // Update status display
             updateStatus(blockConfig.blockId, i + 1, trials.length, blockOrder);
 	    if (canvasType === 'dual-canvas') {
-		const { leftConfig, rightConfig } = buildDualCanvasSEConfigs(trials[i].meta.task, trials[i].meta.task2, computeDualCanvasSize());
+		const { leftConfig, rightConfig } = buildDualCanvasSEConfigs(trials[i].meta.t1_task, trials[i].meta.t2_task, trials[i].meta.earlyResolve, computeDualCanvasSize());
 		trialData = await runDualCanvasTrial(trials[i], leftConfig, rightConfig, prevResponseTime);
 	    } else if (canvasType === 'alternating') {
-		const config = buildAlternatingSEConfig(trials[i].meta.task, trials[i].meta.side, trials[i].meta.earlyResolve, computeDualCanvasSize());
+		const config = buildAlternatingSEConfig(trials[i].meta.t1_task, trials[i].meta.side, trials[i].meta.earlyResolve, computeDualCanvasSize());
 		trialData = await runAlternatingTrial(trials[i], config, leftParent, rightParent);
 	    } else if (canvasType === 'prp-baseline') {
-		const config = buildAlternatingSEConfig(trials[i].meta.task, trials[i].meta.side, trials[i].meta.earlyResolve, computeDualCanvasSize());
+		const config = buildAlternatingSEConfig(trials[i].meta.t2_task, trials[i].meta.side, trials[i].meta.earlyResolve, computeDualCanvasSize());
 		trialData = await runBaselinePRPTrial(trials[i], config, leftParent, rightParent)
 	    } else {
 		trialData = await runTrial(trials[i], seConfig, prevResponseTime);
@@ -283,12 +287,10 @@ const Session = (() => {
         // Column order
 	const columns = [
 	    'blockOrder', 'blockId', 'blockType', 'paradigm',
-	    'trialNumber', 'task', 'task2', 'transitionType',
-	    'congruency', 'previousCongruency',
-	    'crossCanvasCongruency', 'previousCrossCanvasCongruency',
-	    'iti', 'soa', 'side', 'earlyResolve', 'direction',
-	    'primaryDirection', 'distractorDirection', 'ch2Direction',
-	    'direction_1', 'direction_2',
+	    'trialNumber', 't1_task', 't2_task', 'transitionType',
+	    'iti', 'soa', 'side', 'earlyResolve',
+	    't1_target_dir', 't1_distractor_dir',
+	    't2_target_dir', 't2_distractor_dir',
 	    'rt1', 'accuracy1', 'rt2', 'accuracy2',
 	    'responseOrder', 'rt1_raw', 'rt2_raw', 'rawKeyPresses',
 	];

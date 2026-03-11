@@ -401,7 +401,6 @@ function generateBlockTrials(blockConfig, numTrials) {
         }
 
         const congruency = congruencySequence[i];
-        const previousCongruency = i > 0 ? congruencySequence[i - 1] : null;
 
         // Sample per-trial timing
         const iti = sampleFromDistribution(blockConfig.iti);
@@ -437,16 +436,15 @@ function generateBlockTrials(blockConfig, numTrials) {
             blockId: blockConfig.blockId,
             blockType: blockConfig.blockType,
             paradigm: blockConfig.paradigm,
-            task: task1,
-            task2: task2,
+            t1_task: task1,
+            t2_task: task2,
             transitionType: transitions[i],
-            congruency: congruency,
-            previousCongruency: previousCongruency,
             iti: iti,
             soa: soa,
-            primaryDirection: dir.ch1_task,
-            distractorDirection: congruency === 'univalent' ? null : dir.ch1_distractor,
-            ch2Direction: isDualTask ? dir.ch2_task : null,
+            t1_target_dir: dir.ch1_task,
+            t1_distractor_dir: congruency === 'univalent' ? null : dir.ch1_distractor,
+            t2_target_dir: isDualTask ? dir.ch2_task : null,
+            t2_distractor_dir: null,
         };
 
         trials.push({ seParams, meta });
@@ -500,19 +498,18 @@ function applySOAOffset(params, offset) {
 // orientation distractor on the same canvas):
 //
 // 1. Add congruency config to blockConfig (per-canvas or shared):
-//    leftCongruency: { conditions: ['congruent','incongruent'], proportions: [0.5,0.5] }
+//    t1Congruency: { conditions: ['congruent','incongruent'], proportions: [0.5,0.5] }
 //
 // 2. Call generateCongruencySequence for each canvas independently.
 //
-// 3. Use the congruency label to control distractorDirection in
+// 3. Use the congruency label to control t1_distractor_dir / t2_distractor_dir in
 //    buildSingleCanvasSpec (similar to how assignDirections handles it for
 //    single-canvas trials).
 //
-// 4. This enables three independent congruency dimensions in the data:
-//    - Within left canvas:  task vs distractor direction
-//    - Within right canvas: task vs distractor direction
-//    - Cross canvas:        left task vs right task direction (already tracked
-//      as crossCanvasCongruency)
+// 4. This enables three independent congruency dimensions derivable from the CSV:
+//    - Within T1: compare t1_target_dir vs t1_distractor_dir
+//    - Within T2: compare t2_target_dir vs t2_distractor_dir
+//    - Cross task: compare t1_target_dir vs t2_target_dir
 //
 // These three dimensions allow a 2x2x2 congruency analysis and three-way
 // interactions with SOA — a novel design not possible with single-canvas PRP.
@@ -571,8 +568,6 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
 
 	const direction_1 = Math.random() < 0.5 ? 0 : 180;
 	const direction_2 = Math.random() < 0.5 ? 0 : 180;
-	const crossCanvasCongruency = direction_1 === direction_2 ? 'congruent' : 'incongruent';
-        const previousCrossCanvasCongruency = i > 0 ? trials[i-1].meta.crossCanvasCongruency : null;
 	const left_spec = buildSingleCanvasSpec(t1TaskSequence[i], blockConfig.csi, blockConfig.stimulusDuration,
 	    blockConfig.responseWindow, leftCoherence, direction_1);
 	const right_spec = buildSingleCanvasSpec(t2TaskSequence[i], blockConfig.csi, blockConfig.stimulusDuration,
@@ -587,15 +582,15 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
             blockId: blockConfig.blockId,
             blockType: blockConfig.blockType,
             paradigm: blockConfig.paradigm,
-            task: t1TaskSequence[i],
-            task2: t2TaskSequence[i],
+            t1_task: t1TaskSequence[i],
+            t2_task: t2TaskSequence[i],
             transitionType: transitions[i],
-            crossCanvasCongruency: crossCanvasCongruency,
-            previousCrossCanvasCongruency: previousCrossCanvasCongruency,
             iti: iti,
             soa: soa,
-            direction_1: direction_1,
-	    direction_2: direction_2,
+            t1_target_dir: direction_1,
+            t1_distractor_dir: null,
+            t2_target_dir: direction_2,
+            t2_distractor_dir: null,
         };
 	trials.push({ leftSeParams: leftCanvasTrialParams, rightSeParams: shiftedRightCanvasTrialParams, meta });
     }
@@ -642,13 +637,15 @@ function generateSidedTrials(blockConfig, numTrials) {
 	    blockType: blockConfig.blockType,
 	    paradigm: blockConfig.paradigm,
 	    earlyResolve: blockConfig.earlyResolve ?? false,
-	    task: taskSequence[i],
-	    task2: null,
+	    t1_task: isBaseline ? null : taskSequence[i],
+	    t2_task: isBaseline ? taskSequence[i] : null,
 	    transitionType: transitions[i],
 	    iti: iti,
 	    soa: soa,
-	    direction: direction,
-	    congruency: 'univalent'
+	    t1_target_dir: isBaseline ? null : direction,
+	    t1_distractor_dir: null,
+	    t2_target_dir: isBaseline ? direction : null,
+	    t2_distractor_dir: null,
 	};
 	trials.push({ seParams: canvasTrialParams, meta });
     }
