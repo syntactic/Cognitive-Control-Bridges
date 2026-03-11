@@ -123,6 +123,11 @@
                 <option value="demo_mixed_only">Single-Canvas Mixed only</option>
                 <option value="demo_dual_same">Dual-Canvas Same Task</option>
             </optgroup>
+            <optgroup label="Switch Frequency">
+                <option value="sf_univalent">Univalent (pure switch costs)</option>
+                <option value="sf_neutral">Neutral (orthogonal dimensions)</option>
+                <option value="sf_bivalent">Bivalent (congruency + Gratton)</option>
+            </optgroup>
             <optgroup label="Hirsch Replication">
                 <option value="hirsch_faithful">Full Replication</option>
                 <option value="hirsch_part1">Part 1: Task Switching</option>
@@ -162,6 +167,7 @@
     <script src="engine.js"></script>
     <script src="demo_block_configs.js"></script>
     <script src="hirsch_block_configs.js"></script>
+    <script src="switch-frequency.js"></script>
     <script src="session_helpers.js"></script>
     <script src="session.js"></script>
 
@@ -193,6 +199,16 @@
                 case 'demo_dual_same':
                     blocks = DEMO_DUAL_CANVAS_SAME_SESSION;
                     break;
+                // Switch frequency
+                case 'sf_univalent':
+                    blocks = SF_UNIVALENT_SESSION;
+                    break;
+                case 'sf_neutral':
+                    blocks = SF_NEUTRAL_SESSION;
+                    break;
+                case 'sf_bivalent':
+                    blocks = SF_BIVALENT_SESSION;
+                    break;
                 // Hirsch replication
                 case 'hirsch_faithful':
                     blocks = HIRSCH_FAITHFUL_SESSION;
@@ -220,7 +236,8 @@
                     return null;
             }
 
-            const isDualCanvas = id !== 'demo_session' && id !== 'demo_prp_only' && id !== 'demo_mixed_only';
+            const isDualCanvas = blocks.some(b =>
+                ['dual-canvas', 'alternating', 'prp-baseline'].includes(b.blockConfig.paradigm));
             const infoDiv = document.querySelector('.info');
             if (isDualCanvas) {
                 infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Left task controls: A = left, D = right<br>Right task controls: J = left, L = right';

@@ -5,9 +5,17 @@
 // Key mapping constants
 // ============================================================
 
+// Horizontal 2-direction presets
 const LEFT_HAND_KEYS = { 180: 'a', 0: 'd' };
 const RIGHT_HAND_KEYS = { 180: 'j', 0: 'l' };
 const DUMMY_KEYS = { 180: '!', 0: '!' };
+
+// Full 4-direction presets (spatially intuitive)
+const NATURAL_WASD = { 0: 'd', 90: 'w', 180: 'a', 270: 's' };
+const NATURAL_IJKL = { 0: 'l', 90: 'i', 180: 'j', 270: 'k' };
+
+// Reversed 4-direction preset (spatially counterintuitive)
+const UNNATURAL_WASD = { 0: 'a', 90: 's', 180: 'd', 270: 'w' };
 
 // ============================================================
 // SE config builders
@@ -15,9 +23,23 @@ const DUMMY_KEYS = { 180: '!', 0: '!' };
 
 /**
  * SE config for single-canvas key mappings.
- * For identical RSO: both tasks use a (left) and d (right).
+ *
+ * When keyMaps is provided (from blockConfig), it takes precedence over rso.
+ * Otherwise falls back to preset mappings based on rso.
+ *
+ * @param {string} rso - 'disjoint' or 'identical'
+ * @param {boolean} earlyResolve
+ * @param {{ mov: object, or: object }} [keyMaps] - explicit key maps from block config
  */
-function buildSEConfig(rso, earlyResolve) {
+function buildSEConfig(rso, earlyResolve, keyMaps) {
+    if (keyMaps) {
+        return {
+            movementKeyMap: { ...keyMaps.mov },
+            orientationKeyMap: { ...keyMaps.or },
+            size: 0.75,
+            earlyResolve
+        };
+    }
     if (rso === 'disjoint') {
         return {
             movementKeyMap: { ...LEFT_HAND_KEYS },

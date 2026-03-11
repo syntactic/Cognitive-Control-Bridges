@@ -189,7 +189,7 @@ const Session = (() => {
 	    ({ leftParent, rightParent } = setupDualCanvasDOM('S1 (no response needed)', 'Respond with right hand: J/L'));
 	} else {
 	    trials = generateBlockTrials(blockConfig, numTrials);
-	    seConfig = buildSEConfig(blockConfig.rso, blockConfig.earlyResolve);
+	    seConfig = buildSEConfig(blockConfig.rso, blockConfig.earlyResolve, blockConfig.keyMaps);
 	    canvasContainer.classList.toggle('dual-canvas-mode', false);
 	}
 

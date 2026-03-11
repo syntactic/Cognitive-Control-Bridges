@@ -139,24 +139,32 @@ function generateCongruencySequence(numTrials, conditions, proportions) {
 /**
  * Assigns the four direction values for a trial's spec.dir object.
  *
- * For single-task: primary direction is random horizontal [0, 180].
- *   Distractor direction depends on congruency condition.
- * For dual-task: channel 1 and 2 each get independent random directions.
- *   Channel 2 dimension depends on response set overlap.
+ * Direction pools are derived from keyMaps when provided, allowing tasks
+ * to use different spatial dimensions (e.g., horizontal movement + vertical
+ * orientation). Without keyMaps, defaults to horizontal [0, 180] for all tasks.
  *
  * @param {string} task - primary task ('mov' or 'or'), used for single-task routing
  * @param {string} congruency - 'congruent'|'incongruent'|'neutral'|'univalent'
  * @param {string} paradigm - 'single-task' or 'dual-task'
- * @param {string} rso - 'identical' or 'disjoint'
+ * @param {string} rso - 'identical' or 'disjoint' (unused, kept for signature compat)
+ * @param {{ mov: object, or: object }} [keyMaps] - key maps from block config.
+ *   Direction pools are derived from the keys (e.g., {180:'a', 0:'d'} → [0, 180]).
  * @returns {{ ch1_task: number, ch1_distractor: number, ch2_task: number, ch2_distractor: number }}
  */
-function assignDirections(task, congruency, paradigm, rso) {
+function assignDirections(task, congruency, paradigm, rso, keyMaps) {
+    const defaultDirs = [0, 180];
+    const taskDirPool = keyMaps ? Object.keys(keyMaps[task]).map(Number) : defaultDirs;
+
+    function randomFrom(pool) {
+        return pool[Math.floor(Math.random() * pool.length)];
+    }
+
     if (paradigm === 'dual-task') {
-        // Channel 1: random horizontal direction
-        const ch1Dir = Math.random() < 0.5 ? 0 : 180;
-        // Channel 2: always horizontal. Disjointness is handled by
-        // separate key maps in session.js, not by direction dimension.
-        const ch2Dir = Math.random() < 0.5 ? 0 : 180;
+        const otherDirPool = keyMaps
+            ? Object.keys(keyMaps[switchTask(task)]).map(Number)
+            : defaultDirs;
+        const ch1Dir = randomFrom(taskDirPool);
+        const ch2Dir = randomFrom(otherDirPool);
         return {
             ch1_task: ch1Dir,
             ch1_distractor: 0,  // no within-channel distractors in dual-task
@@ -166,15 +174,20 @@ function assignDirections(task, congruency, paradigm, rso) {
     }
 
     // Single-task
-    const primaryDir = Math.random() < 0.5 ? 0 : 180;
+    const primaryDir = randomFrom(taskDirPool);
     let distractorDir = 0;
 
     if (congruency === 'congruent') {
         distractorDir = primaryDir;
     } else if (congruency === 'incongruent') {
-        distractorDir = primaryDir === 0 ? 180 : 0;
+        distractorDir = (primaryDir + 180) % 360;
     } else if (congruency === 'neutral') {
-        distractorDir = Math.random() < 0.5 ? 90 : 270;
+        // With keyMaps: distractor from other task's pool (orthogonal by design).
+        // Without keyMaps: default to [90, 270] for backward compat.
+        const neutralPool = keyMaps
+            ? Object.keys(keyMaps[switchTask(task)]).map(Number)
+            : [90, 270];
+        distractorDir = randomFrom(neutralPool);
     }
     // 'univalent': distractorDir stays 0, coherence silences the pathway
 
@@ -411,7 +424,8 @@ function generateBlockTrials(blockConfig, numTrials) {
             task1,
             congruency,
             blockConfig.paradigm,
-            blockConfig.rso
+            blockConfig.rso,
+            blockConfig.keyMaps
         );
 
         // Build the full spec object
