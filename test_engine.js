@@ -512,6 +512,7 @@ const dualCanvasSwitchConfig = {
     startTask: null,
     rso: 'disjoint',
     t2Rule: 'switch',
+    earlyResolve: true,
     csi: 200,
     stimulusDuration: 300,
     responseWindow: 2000,
@@ -650,6 +651,23 @@ try {
     threwOnIdentical = true;
 }
 assert(threwOnIdentical, 'throws when rso is not disjoint');
+
+// ============================================================
+section('generateDualCanvasBlockTrials — earlyResolve propagated to meta');
+
+for (const t of switchTrials) {
+    assert(t.meta.earlyResolve === true, 'earlyResolve propagated from config');
+}
+
+// ============================================================
+section('generateDualCanvasBlockTrials — earlyResolve defaults to false');
+
+const dualCanvasNoERConfig = { ...dualCanvasSwitchConfig, blockId: 'test_dual_no_er' };
+delete dualCanvasNoERConfig.earlyResolve;
+const noERTrials = generateDualCanvasBlockTrials(dualCanvasNoERConfig, 5);
+for (const t of noERTrials) {
+    assert(t.meta.earlyResolve === false, 'earlyResolve defaults to false when not set');
+}
 
 // ============================================================
 section('generateDualCanvasBlockTrials — no NaN or undefined in SE params');

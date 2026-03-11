@@ -217,6 +217,7 @@ const Session = (() => {
 		trialData = await runTrial(trials[i], seConfig, prevResponseTime);
 	    }
             trialData.blockOrder = blockOrder;
+            trialData.isPractice = blockDef.isPractice || false;
             prevResponseTime = performance.now();
 
             allTrialData.push(trialData);
@@ -286,7 +287,7 @@ const Session = (() => {
 
         // Column order
 	const columns = [
-	    'blockOrder', 'blockId', 'blockType', 'paradigm',
+	    'blockOrder', 'blockId', 'blockType', 'paradigm', 'isPractice',
 	    'trialNumber', 't1_task', 't2_task', 'transitionType',
 	    'iti', 'soa', 'side', 'earlyResolve',
 	    't1_target_dir', 't1_distractor_dir',

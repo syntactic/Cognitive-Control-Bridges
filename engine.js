@@ -582,6 +582,7 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
             blockId: blockConfig.blockId,
             blockType: blockConfig.blockType,
             paradigm: blockConfig.paradigm,
+            earlyResolve: blockConfig.earlyResolve ?? false,
             t1_task: t1TaskSequence[i],
             t2_task: t2TaskSequence[i],
             transitionType: transitions[i],

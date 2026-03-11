@@ -14,14 +14,14 @@
 // Orientation task: J = left, L = right (right hand).
 
 const HIRSCH_DEFAULTS = {
-    csi: 200,
-    stimulusDuration: 2500,
-    responseWindow: 2500,
+    csi: 0,
+    stimulusDuration: 5000,
+    responseWindow: 5000,
     rso: 'disjoint',
     coherence: {
-        ch1_task: 0.8,
+        ch1_task: 0.5,
         ch1_distractor: 0,
-        ch2_task: 0.6,
+        ch2_task: 0,
         ch2_distractor: 0,
     },
     congruency: {
@@ -45,7 +45,7 @@ const HIRSCH_ALTERNATING_DEFAULTS = {
     earlyResolve: true,
     iti: { type: 'choice', params: [100, 600], value: 600 },
     coherence: {
-        ch1_task: 0.8,
+        ch1_task: 0.5,
         ch1_distractor: 0,
         ch2_task: 0,
         ch2_distractor: 0,
@@ -126,16 +126,16 @@ const hirschDualCanvasPRP = {
 const HIRSCH_FAITHFUL_SESSION = [
     // --- Part 1: Task Switching ---
     // Practice + pure baselines
-    { blockConfig: hirschAlternatingPureMov, numTrials: 6,
+    { blockConfig: hirschAlternatingPureMov, numTrials: 6, isPractice: true,
       instructions: 'Practice pure block: MOVEMENT only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
     { blockConfig: hirschAlternatingPureMov, numTrials: 41,
       instructions: 'Pure block: MOVEMENT only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingPureOr, numTrials: 6,
+    { blockConfig: hirschAlternatingPureOr, numTrials: 6, isPractice: true,
       instructions: 'Practice pure block: ORIENTATION only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
     { blockConfig: hirschAlternatingPureOr, numTrials: 41,
       instructions: 'Pure block: ORIENTATION only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
     // Practice + experimental mixed blocks (4 x 81 trials)
-    { blockConfig: hirschAlternatingMixed, numTrials: 12,
+    { blockConfig: hirschAlternatingMixed, numTrials: 12, isPractice: true,
       instructions: 'Practice mixed block: Respond with the matching hand.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
     { blockConfig: hirschAlternatingMixed, numTrials: 81,
       instructions: 'Mixed block 1 of 4:\n\nRespond with the matching hand.\nA/D for left, J/L for right.\n\nPress any key.' },
@@ -148,16 +148,16 @@ const HIRSCH_FAITHFUL_SESSION = [
 
     // --- Part 2: Dual-Task PRP ---
     // Practice + pure baselines (asterisk on left, respond right only)
-    { blockConfig: hirschDualCanvasPRPPureMov, numTrials: 6,
+    { blockConfig: hirschDualCanvasPRPPureMov, numTrials: 6, isPractice: true,
       instructions: 'Practice PRP pure block: MOVEMENT only.\nRight hand: J/L.\n\nPress any key.' },
     { blockConfig: hirschDualCanvasPRPPureMov, numTrials: 41,
       instructions: 'PRP pure block: MOVEMENT only.\nRight hand: J/L.\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRPPureOr, numTrials: 6,
+    { blockConfig: hirschDualCanvasPRPPureOr, numTrials: 6, isPractice: true,
       instructions: 'Practice PRP pure block: ORIENTATION only.\nRight hand: J/L.\n\nPress any key.' },
     { blockConfig: hirschDualCanvasPRPPureOr, numTrials: 41,
       instructions: 'PRP pure block: ORIENTATION only.\nRight hand: J/L.\n\nPress any key.' },
     // Practice + experimental PRP blocks (4 x 81 trials)
-    { blockConfig: hirschDualCanvasPRP, numTrials: 12,
+    { blockConfig: hirschDualCanvasPRP, numTrials: 12, isPractice: true,
       instructions: 'Practice PRP block: Respond LEFT first (A/D), then RIGHT (J/L).\n\nPress any key.' },
     { blockConfig: hirschDualCanvasPRP, numTrials: 81,
       instructions: 'PRP block 1 of 4: Respond LEFT first (A/D), then RIGHT (J/L).\n\nPress any key.' },
