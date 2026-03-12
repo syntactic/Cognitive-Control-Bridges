@@ -13,8 +13,8 @@
 //                  Congruent/incongruent manipulation. Enables Gratton analysis.
 //
 // Key mappings per design:
-//   Designs 1 & 3: Movement A/D (left hand), Orientation J/L (right hand)
-//   Design 2:      Movement A/D (left hand), Orientation I/K (right hand)
+//   Designs 1 & 2: Movement A/D (left hand), Orientation I/K (right hand)
+//   Design 3:      Movement A/D (left hand), Orientation J/L (right hand)
 
 // ============================================================
 // Key maps (block-config level, not referencing session_helpers constants
@@ -52,7 +52,7 @@ const SWITCH_FREQ_DEFAULTS = {
 // ============================================================
 
 const UNIVALENT_COHERENCE = {
-    ch1_task: 0.8,
+    ch1_task: 0.6,
     ch1_distractor: 0,
     ch2_task: 0,
     ch2_distractor: 0,
@@ -72,7 +72,7 @@ const sfUnivalentPureMov = {
     task1: 'mov',
     coherence: UNIVALENT_COHERENCE,
     congruency: UNIVALENT_CONGRUENCY,
-    keyMaps: SF_HORIZONTAL_KEY_MAPS,
+    keyMaps: SF_ORTHOGONAL_KEY_MAPS,
 };
 
 const sfUnivalentPureOr = {
@@ -84,7 +84,7 @@ const sfUnivalentPureOr = {
     task1: 'or',
     coherence: UNIVALENT_COHERENCE,
     congruency: UNIVALENT_CONGRUENCY,
-    keyMaps: SF_HORIZONTAL_KEY_MAPS,
+    keyMaps: SF_ORTHOGONAL_KEY_MAPS,
 };
 
 const sfUnivalentMixed10 = {
@@ -96,7 +96,7 @@ const sfUnivalentMixed10 = {
     task1: 'mov',
     coherence: UNIVALENT_COHERENCE,
     congruency: UNIVALENT_CONGRUENCY,
-    keyMaps: SF_HORIZONTAL_KEY_MAPS,
+    keyMaps: SF_ORTHOGONAL_KEY_MAPS,
 };
 
 const sfUnivalentMixed25 = {
@@ -128,8 +128,8 @@ const sfUnivalentMixed100 = {
 // ============================================================
 
 const NEUTRAL_COHERENCE = {
-    ch1_task: 0.8,
-    ch1_distractor: 0.2,
+    ch1_task: 0.6,
+    ch1_distractor: 0.6,
     ch2_task: 0,
     ch2_distractor: 0,
 };
@@ -204,8 +204,8 @@ const sfNeutralMixed100 = {
 // ============================================================
 
 const BIVALENT_COHERENCE = {
-    ch1_task: 0.8,
-    ch1_distractor: 0.2,
+    ch1_task: 0.6,
+    ch1_distractor: 0.6,
     ch2_task: 0,
     ch2_distractor: 0,
 };
@@ -284,13 +284,13 @@ const SF_UNIVALENT_INSTRUCTIONS = {
         + 'Left hand: A = leftward, D = rightward.\n\n'
         + 'Press any key to begin.',
     pureOr: 'Pure block: ORIENTATION task only.\n\n'
-        + 'Right hand: J = leftward, L = rightward.\n\n'
+        + 'Right hand: I = upward, K = downward.\n\n'
         + 'Press any key to begin.',
     mixed: (rate) =>
         `Mixed block: The task switches on ~${rate}% of trials.\n\n`
         + 'The border style tells you which task to do:\n'
         + '  Dotted = MOVEMENT (left hand: A/D)\n'
-        + '  Dashed = ORIENTATION (right hand: J/L)\n\n'
+        + '  Dashed = ORIENTATION (right hand: I = up, K = down)\n\n'
         + 'Press any key to begin.',
 };
 

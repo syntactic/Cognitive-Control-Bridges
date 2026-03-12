@@ -78,14 +78,11 @@ const Session = (() => {
      * Run a single trial: wait ITI, call block(), extract results.
      * @param {object} trial - { seParams, meta } from generateBlockTrials
      * @param {object} seConfig - SE config with key mappings
-     * @param {number|null} prevResponseTime - timestamp of previous response (for future RSI support)
+     * @param {number|null} prevResponseTime - timestamp of previous response
      * @returns {object} Trial data with meta + rt + accuracy
      */
     async function runTrial(trial, seConfig, prevResponseTime) {
         // --- ITI ---
-        // For RSI upgrade: replace this with:
-        //   const delay = trial.meta.iti - (performance.now() - prevResponseTime);
-        //   await sleep(Math.max(0, delay));
         await sleep(trial.meta.iti);
 
         // --- Run SE block (single trial) ---
