@@ -18,6 +18,9 @@ const HIRSCH_DEFAULTS = {
     stimulusDuration: 5000,
     responseWindow: 5000,
     rso: 'disjoint',
+    earlyResolve: true,
+    feedback: false,
+    acceptFirstResponse: true,
     coherence: {
         ch1_task: 0.5,
         ch1_distractor: 0,
@@ -33,7 +36,6 @@ const HIRSCH_DEFAULTS = {
 const HIRSCH_DUAL_DEFAULTS = {
     ...HIRSCH_DEFAULTS,
     paradigm: 'dual-canvas',
-    earlyResolve: true,
     iti: { type: 'fixed', value: 1000 },
     soa: { type: 'choice', value: 600, params: [100, 600] },
     rso: 'disjoint',
@@ -42,7 +44,6 @@ const HIRSCH_DUAL_DEFAULTS = {
 const HIRSCH_ALTERNATING_DEFAULTS = {
     ...HIRSCH_DEFAULTS,
     paradigm: 'alternating',
-    earlyResolve: true,
     iti: { type: 'choice', params: [100, 600], value: 600 },
     coherence: {
         ch1_task: 0.5,
