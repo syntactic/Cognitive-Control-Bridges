@@ -91,7 +91,7 @@ const Session = (() => {
             0,                  // regen = 0 (no inter-trial interval from SE)
             seConfig,
             false,              // isLoop
-            true,               // isFeedback
+            seConfig.feedback,               // isFeedback
             null,               // canvasId (auto-create)
             canvasContainer     // parent element
         );
@@ -112,13 +112,13 @@ const Session = (() => {
 	const side = trial.meta.side;
 	let data;
 	if (side === 'left') {
-	    data = await seBlock([trial.seParams], 0, config, false, true, 'canvasLeft', leftParent);
+	    data = await seBlock([trial.seParams], 0, config, false, config.feedback, 'canvasLeft', leftParent);
 	    await seEndBlock('canvasLeft');
 	} else {
-	    data = await seBlock([trial.seParams], 0, config, false, true, 'canvasRight', rightParent);
+	    data = await seBlock([trial.seParams], 0, config, false, config.feedback, 'canvasRight', rightParent);
 	    await seEndBlock('canvasRight');
 	}
-	const result = extractAlternatingResponse(data, trial);
+	const result = extractAlternatingResponse(data, trial, config);
 	return {
 	    ...trial.meta,
 	    ...result
@@ -133,10 +133,10 @@ const Session = (() => {
 	leftParent.appendChild(placeholder);
 	await sleep(trial.meta.soa);
 
-	const data = await seBlock([trial.seParams], 0, rightConfig, false, true, 'canvasRight', rightParent);
+	const data = await seBlock([trial.seParams], 0, rightConfig, false, rightConfig.feedback, 'canvasRight', rightParent);
 	await seEndBlock('canvasRight');
 	leftParent.innerHTML = '';
-	const result = extractAlternatingResponse(data, trial);
+	const result = extractAlternatingResponse(data, trial, rightConfig);
 	// Remap response to T2 slot: asterisk is T1 (no response), actual task is T2
 	return {
 	    ...trial.meta,
@@ -151,13 +151,13 @@ const Session = (() => {
         await sleep(trial.meta.iti);
 	const { leftParent, rightParent } = setupDualCanvasDOM();
 
-	const leftPromise = seBlock([trial.leftSeParams], 0, leftConfig, false, true, 'canvasLeft', leftParent);
-	const rightPromise = seBlock([trial.rightSeParams], 0, rightConfig, false, true, 'canvasRight', rightParent);
+	const leftPromise = seBlock([trial.leftSeParams], 0, leftConfig, false, leftConfig.feedback, 'canvasLeft', leftParent);
+	const rightPromise = seBlock([trial.rightSeParams], 0, rightConfig, false, rightConfig.feedback, 'canvasRight', rightParent);
 	const [leftData, rightData] = await Promise.all([leftPromise, rightPromise]);
 
 	await seEndBlock('canvasLeft');
 	await seEndBlock('canvasRight');
-	const result = extractDualCanvasResponse(leftData, rightData, trial);
+	const result = extractDualCanvasResponse(leftData, rightData, trial, leftConfig, rightConfig);
 	return {
 	    ...trial.meta,
 	    ...result,
@@ -171,6 +171,8 @@ const Session = (() => {
         const { blockConfig, numTrials, instructions } = blockDef;
 	let trials;
 	let seConfig;
+	const feedback = blockConfig.feedback ?? true;
+	const acceptFirstResponse = blockConfig.acceptFirstResponse ?? false;
 	const canvasType = blockConfig.paradigm ?? 'single-canvas';
 	let leftParent, rightParent;
 	if (canvasType === 'dual-canvas') {
@@ -186,7 +188,7 @@ const Session = (() => {
 	    ({ leftParent, rightParent } = setupDualCanvasDOM('S1 (no response needed)', 'Respond with right hand: J/L'));
 	} else {
 	    trials = generateBlockTrials(blockConfig, numTrials);
-	    seConfig = buildSEConfig(blockConfig.rso, blockConfig.earlyResolve, blockConfig.keyMaps);
+	    seConfig = buildSEConfig(blockConfig.rso, blockConfig.earlyResolve, feedback, acceptFirstResponse, blockConfig.keyMaps);
 	    canvasContainer.classList.toggle('dual-canvas-mode', false);
 	}
 
@@ -202,13 +204,13 @@ const Session = (() => {
             // Update status display
             updateStatus(blockConfig.blockId, i + 1, trials.length, blockOrder);
 	    if (canvasType === 'dual-canvas') {
-		const { leftConfig, rightConfig } = buildDualCanvasSEConfigs(trials[i].meta.t1_task, trials[i].meta.t2_task, trials[i].meta.earlyResolve, computeDualCanvasSize());
+		const { leftConfig, rightConfig } = buildDualCanvasSEConfigs(trials[i].meta.t1_task, trials[i].meta.t2_task, trials[i].meta.earlyResolve, feedback, acceptFirstResponse, computeDualCanvasSize());
 		trialData = await runDualCanvasTrial(trials[i], leftConfig, rightConfig, prevResponseTime);
 	    } else if (canvasType === 'alternating') {
-		const config = buildAlternatingSEConfig(trials[i].meta.t1_task, trials[i].meta.side, trials[i].meta.earlyResolve, computeDualCanvasSize());
+		const config = buildAlternatingSEConfig(trials[i].meta.t1_task, trials[i].meta.side, trials[i].meta.earlyResolve, feedback, acceptFirstResponse, computeDualCanvasSize());
 		trialData = await runAlternatingTrial(trials[i], config, leftParent, rightParent);
 	    } else if (canvasType === 'prp-baseline') {
-		const config = buildAlternatingSEConfig(trials[i].meta.t2_task, trials[i].meta.side, trials[i].meta.earlyResolve, computeDualCanvasSize());
+		const config = buildAlternatingSEConfig(trials[i].meta.t2_task, trials[i].meta.side, trials[i].meta.earlyResolve, feedback, acceptFirstResponse, computeDualCanvasSize());
 		trialData = await runBaselinePRPTrial(trials[i], config, leftParent, rightParent)
 	    } else {
 		trialData = await runTrial(trials[i], seConfig, prevResponseTime);

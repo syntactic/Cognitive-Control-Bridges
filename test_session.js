@@ -35,13 +35,17 @@ function assert(condition, message) {
 // Fixed size for testing (real code computes from DOM via computeDualCanvasSize)
 const TEST_SIZE = 0.5;
 
+// Minimal SE configs for testing extractors
+const NO_ACCEPT_FIRST = { acceptFirstResponse: false };
+const ACCEPT_FIRST = { acceptFirstResponse: true };
+
 // ============================================================
 // buildDualCanvasSEConfigs tests
 // ============================================================
 
 section('buildDualCanvasSEConfigs — cross-type (mov + or)');
 
-const { leftConfig: lc1, rightConfig: rc1 } = buildDualCanvasSEConfigs('mov', 'or', false, TEST_SIZE);
+const { leftConfig: lc1, rightConfig: rc1 } = buildDualCanvasSEConfigs('mov', 'or', false, true, false, TEST_SIZE);
 assert(lc1.movementKeyMap[180] === 'a', 'left mov: 180 -> a');
 assert(lc1.movementKeyMap[0] === 'd', 'left mov: 0 -> d');
 assert(lc1.orientationKeyMap[180] === '!', 'left or: dummy');
@@ -55,7 +59,7 @@ assert(rc1.movementKeyMap[0] === '!', 'right mov: dummy');
 
 section('buildDualCanvasSEConfigs — cross-type reversed (or + mov)');
 
-const { leftConfig: lc2, rightConfig: rc2 } = buildDualCanvasSEConfigs('or', 'mov', false, TEST_SIZE);
+const { leftConfig: lc2, rightConfig: rc2 } = buildDualCanvasSEConfigs('or', 'mov', false, true, false, TEST_SIZE);
 assert(lc2.orientationKeyMap[180] === 'a', 'left or: 180 -> a');
 assert(lc2.orientationKeyMap[0] === 'd', 'left or: 0 -> d');
 assert(lc2.movementKeyMap[180] === '!', 'left mov: dummy');
@@ -67,7 +71,7 @@ assert(rc2.orientationKeyMap[180] === '!', 'right or: dummy');
 
 section('buildDualCanvasSEConfigs — same-type (mov + mov)');
 
-const { leftConfig: lc3, rightConfig: rc3 } = buildDualCanvasSEConfigs('mov', 'mov', false, TEST_SIZE);
+const { leftConfig: lc3, rightConfig: rc3 } = buildDualCanvasSEConfigs('mov', 'mov', false, true, false, TEST_SIZE);
 assert(lc3.movementKeyMap[180] === 'a', 'left mov: 180 -> a');
 assert(lc3.movementKeyMap[0] === 'd', 'left mov: 0 -> d');
 assert(rc3.movementKeyMap[180] === 'j', 'right mov: 180 -> j');
@@ -80,7 +84,7 @@ assert(rc3.orientationKeyMap[180] === '!', 'right or: dummy');
 
 section('buildDualCanvasSEConfigs — same-type (or + or)');
 
-const { leftConfig: lc4, rightConfig: rc4 } = buildDualCanvasSEConfigs('or', 'or', false, TEST_SIZE);
+const { leftConfig: lc4, rightConfig: rc4 } = buildDualCanvasSEConfigs('or', 'or', false, true, false, TEST_SIZE);
 assert(lc4.orientationKeyMap[180] === 'a', 'left or: 180 -> a');
 assert(lc4.orientationKeyMap[0] === 'd', 'left or: 0 -> d');
 assert(rc4.orientationKeyMap[180] === 'j', 'right or: 180 -> j');
@@ -95,10 +99,10 @@ section('buildDualCanvasSEConfigs — disjoint keys (no overlap)');
 
 // Verify left and right configs never share real keys
 const allConfigs = [
-    buildDualCanvasSEConfigs('mov', 'or', false, TEST_SIZE),
-    buildDualCanvasSEConfigs('or', 'mov', false, TEST_SIZE),
-    buildDualCanvasSEConfigs('mov', 'mov', false, TEST_SIZE),
-    buildDualCanvasSEConfigs('or', 'or', false, TEST_SIZE),
+    buildDualCanvasSEConfigs('mov', 'or', false, true, false, TEST_SIZE),
+    buildDualCanvasSEConfigs('or', 'mov', false, true, false, TEST_SIZE),
+    buildDualCanvasSEConfigs('mov', 'mov', false, true, false, TEST_SIZE),
+    buildDualCanvasSEConfigs('or', 'or', false, true, false, TEST_SIZE),
 ];
 
 for (const { leftConfig, rightConfig } of allConfigs) {
@@ -119,7 +123,7 @@ for (const { leftConfig, rightConfig } of allConfigs) {
 
 section('buildDualCanvasSEConfigs — size parameter');
 
-const { leftConfig: lcSz, rightConfig: rcSz } = buildDualCanvasSEConfigs('mov', 'or', false, 0.42);
+const { leftConfig: lcSz, rightConfig: rcSz } = buildDualCanvasSEConfigs('mov', 'or', false, true, false, 0.42);
 assert(lcSz.size === 0.42, 'left config gets passed size');
 assert(rcSz.size === 0.42, 'right config gets passed size');
 
@@ -127,10 +131,10 @@ assert(rcSz.size === 0.42, 'right config gets passed size');
 
 section('buildDualCanvasSEConfigs — earlyResolve parameter');
 
-const { leftConfig: lcEr, rightConfig: rcEr } = buildDualCanvasSEConfigs('mov', 'or', true, TEST_SIZE);
+const { leftConfig: lcEr, rightConfig: rcEr } = buildDualCanvasSEConfigs('mov', 'or', true, true, false, TEST_SIZE);
 assert(lcEr.earlyResolve === true, 'left config gets earlyResolve true');
 assert(rcEr.earlyResolve === true, 'right config gets earlyResolve true');
-const { leftConfig: lcNoEr, rightConfig: rcNoEr } = buildDualCanvasSEConfigs('mov', 'or', false, TEST_SIZE);
+const { leftConfig: lcNoEr, rightConfig: rcNoEr } = buildDualCanvasSEConfigs('mov', 'or', false, true, false, TEST_SIZE);
 assert(lcNoEr.earlyResolve === false, 'left config gets earlyResolve false');
 assert(rcNoEr.earlyResolve === false, 'right config gets earlyResolve false');
 
@@ -148,7 +152,7 @@ const trial1 = {
 const result1 = extractDualCanvasResponse(
     { keyPresses: [{ key: 'a', time: 500, isCorrect: true }] },
     { keyPresses: [{ key: 'j', time: 900, isCorrect: true }] },
-    trial1
+    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
 assert(result1.accuracy1 === 'correct', 'left: correct on first press');
 assert(result1.accuracy2 === 'correct', 'right: correct on first press');
@@ -168,7 +172,7 @@ const result2 = extractDualCanvasResponse(
         { key: 'a', time: 550, isCorrect: true },
     ]},
     { keyPresses: [{ key: 'j', time: 900, isCorrect: true }] },
-    trial1
+    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
 assert(result2.accuracy1 === 'corrected', 'left: corrected after error');
 assert(result2.accuracy2 === 'correct', 'right: correct on first press');
@@ -185,7 +189,7 @@ const result3 = extractDualCanvasResponse(
         { key: 'd', time: 600, isCorrect: false },
     ]},
     { keyPresses: [{ key: 'l', time: 900, isCorrect: true }] },
-    trial1
+    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
 assert(result3.accuracy1 === 'error', 'left: error (only wrong keys)');
 assert(result3.rt1_raw === null, 'left: no rt1_raw on error');
@@ -200,7 +204,7 @@ section('extractDualCanvasResponse — miss (no keypresses)');
 const result4 = extractDualCanvasResponse(
     { keyPresses: [] },
     { keyPresses: [{ key: 'j', time: 800, isCorrect: true }] },
-    trial1
+    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
 assert(result4.accuracy1 === 'miss', 'left: miss (no keypresses)');
 assert(result4.accuracy2 === 'correct', 'right: correct');
@@ -214,7 +218,7 @@ section('extractDualCanvasResponse — both miss');
 const result5 = extractDualCanvasResponse(
     { keyPresses: [] },
     { keyPresses: [] },
-    trial1
+    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
 assert(result5.accuracy1 === 'miss', 'left: miss');
 assert(result5.accuracy2 === 'miss', 'right: miss');
@@ -229,7 +233,7 @@ section('extractDualCanvasResponse — response reversal (T2 first)');
 const result6 = extractDualCanvasResponse(
     { keyPresses: [{ key: 'a', time: 1000, isCorrect: true }] },
     { keyPresses: [{ key: 'j', time: 700, isCorrect: true }] },
-    trial1
+    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
 assert(result6.responseOrder === 'T2-first', 'T2 responded before T1');
 assert(result6.rt1_raw === 1000, 'rt1_raw is 1000');
@@ -242,7 +246,7 @@ section('extractDualCanvasResponse — simultaneous responses');
 const result7 = extractDualCanvasResponse(
     { keyPresses: [{ key: 'a', time: 800, isCorrect: true }] },
     { keyPresses: [{ key: 'j', time: 800, isCorrect: true }] },
-    trial1
+    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
 // Equal timestamps: rt2_raw - rt1_raw = 0, which is NOT > 0, so T2-first
 assert(result7.responseOrder === 'T2-first', 'equal timestamps -> T2-first by convention');
@@ -254,7 +258,7 @@ section('extractDualCanvasResponse — rawKeyPresses format');
 const result8 = extractDualCanvasResponse(
     { keyPresses: [{ key: 'a', time: 500, isCorrect: true }] },
     { keyPresses: [{ key: 'j', time: 900, isCorrect: true }] },
-    trial1
+    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
 const parsed = JSON.parse(result8.rawKeyPresses);
 assert(parsed.left !== undefined, 'rawKeyPresses has left');
@@ -274,7 +278,7 @@ const trialZero = {
 const result9 = extractDualCanvasResponse(
     { keyPresses: [{ key: 'a', time: 0, isCorrect: true }] },
     { keyPresses: [{ key: 'j', time: 0, isCorrect: true }] },
-    trialZero
+    trialZero, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
 assert(result9.rt1_raw === 0, 'rt1_raw is 0 (not null)');
 assert(result9.rt2_raw === 0, 'rt2_raw is 0 (not null)');
@@ -288,7 +292,7 @@ assert(result9.responseOrder !== null, 'responseOrder computed even at time 0');
 
 section('buildAlternatingSEConfig — left side, mov task');
 
-const altLC1 = buildAlternatingSEConfig('mov', 'left', true, TEST_SIZE);
+const altLC1 = buildAlternatingSEConfig('mov', 'left', true, true, false, TEST_SIZE);
 assert(altLC1.movementKeyMap[180] === 'a', 'left mov: 180 -> a');
 assert(altLC1.movementKeyMap[0] === 'd', 'left mov: 0 -> d');
 assert(altLC1.orientationKeyMap[180] === '!', 'left or: dummy');
@@ -299,7 +303,7 @@ assert(altLC1.earlyResolve === true, 'earlyResolve is true');
 
 section('buildAlternatingSEConfig — left side, or task');
 
-const altLC2 = buildAlternatingSEConfig('or', 'left', true, TEST_SIZE);
+const altLC2 = buildAlternatingSEConfig('or', 'left', true, true, false, TEST_SIZE);
 assert(altLC2.orientationKeyMap[180] === 'a', 'left or: 180 -> a');
 assert(altLC2.orientationKeyMap[0] === 'd', 'left or: 0 -> d');
 assert(altLC2.movementKeyMap[180] === '!', 'left mov: dummy');
@@ -309,7 +313,7 @@ assert(altLC2.movementKeyMap[0] === '!', 'left mov: dummy');
 
 section('buildAlternatingSEConfig — right side, mov task');
 
-const altRC1 = buildAlternatingSEConfig('mov', 'right', false, TEST_SIZE);
+const altRC1 = buildAlternatingSEConfig('mov', 'right', false, true, false, TEST_SIZE);
 assert(altRC1.movementKeyMap[180] === 'j', 'right mov: 180 -> j');
 assert(altRC1.movementKeyMap[0] === 'l', 'right mov: 0 -> l');
 assert(altRC1.orientationKeyMap[180] === '!', 'right or: dummy');
@@ -319,7 +323,7 @@ assert(altRC1.earlyResolve === false, 'earlyResolve is false');
 
 section('buildAlternatingSEConfig — right side, or task');
 
-const altRC2 = buildAlternatingSEConfig('or', 'right', true, TEST_SIZE);
+const altRC2 = buildAlternatingSEConfig('or', 'right', true, true, false, TEST_SIZE);
 assert(altRC2.orientationKeyMap[180] === 'j', 'right or: 180 -> j');
 assert(altRC2.orientationKeyMap[0] === 'l', 'right or: 0 -> l');
 assert(altRC2.movementKeyMap[180] === '!', 'right mov: dummy');
@@ -329,10 +333,10 @@ assert(altRC2.movementKeyMap[180] === '!', 'right mov: dummy');
 section('buildAlternatingSEConfig — disjoint keys across sides');
 
 const allAltConfigs = [
-    [buildAlternatingSEConfig('mov', 'left', true, TEST_SIZE), buildAlternatingSEConfig('mov', 'right', true, TEST_SIZE)],
-    [buildAlternatingSEConfig('or', 'left', true, TEST_SIZE), buildAlternatingSEConfig('or', 'right', true, TEST_SIZE)],
-    [buildAlternatingSEConfig('mov', 'left', true, TEST_SIZE), buildAlternatingSEConfig('or', 'right', true, TEST_SIZE)],
-    [buildAlternatingSEConfig('or', 'left', true, TEST_SIZE), buildAlternatingSEConfig('mov', 'right', true, TEST_SIZE)],
+    [buildAlternatingSEConfig('mov', 'left', true, true, false, TEST_SIZE), buildAlternatingSEConfig('mov', 'right', true, true, false, TEST_SIZE)],
+    [buildAlternatingSEConfig('or', 'left', true, true, false, TEST_SIZE), buildAlternatingSEConfig('or', 'right', true, true, false, TEST_SIZE)],
+    [buildAlternatingSEConfig('mov', 'left', true, true, false, TEST_SIZE), buildAlternatingSEConfig('or', 'right', true, true, false, TEST_SIZE)],
+    [buildAlternatingSEConfig('or', 'left', true, true, false, TEST_SIZE), buildAlternatingSEConfig('mov', 'right', true, true, false, TEST_SIZE)],
 ];
 
 for (const [leftCfg, rightCfg] of allAltConfigs) {
@@ -353,7 +357,7 @@ for (const [leftCfg, rightCfg] of allAltConfigs) {
 
 section('buildAlternatingSEConfig — size parameter');
 
-const altSz = buildAlternatingSEConfig('mov', 'left', true, 0.37);
+const altSz = buildAlternatingSEConfig('mov', 'left', true, true, false, 0.37);
 assert(altSz.size === 0.37, 'config gets passed size');
 
 // ============================================================
@@ -368,7 +372,7 @@ section('extractAlternatingResponse — correct on first press');
 
 const altRes1 = extractAlternatingResponse(
     { keyPresses: [{ key: 'a', time: 500, isCorrect: true }] },
-    altTrial
+    altTrial, NO_ACCEPT_FIRST
 );
 assert(altRes1.accuracy1 === 'correct', 'correct on first press');
 assert(altRes1.rt1_raw === 500, 'rt1_raw = 500');
@@ -386,7 +390,7 @@ const altRes2 = extractAlternatingResponse(
         { key: 'd', time: 400, isCorrect: false },
         { key: 'a', time: 550, isCorrect: true },
     ]},
-    altTrial
+    altTrial, NO_ACCEPT_FIRST
 );
 assert(altRes2.accuracy1 === 'corrected', 'corrected after error');
 assert(altRes2.rt1_raw === 550, 'rt1_raw from correct press');
@@ -401,7 +405,7 @@ const altRes3 = extractAlternatingResponse(
         { key: 'd', time: 400, isCorrect: false },
         { key: 'd', time: 600, isCorrect: false },
     ]},
-    altTrial
+    altTrial, NO_ACCEPT_FIRST
 );
 assert(altRes3.accuracy1 === 'error', 'error (only wrong keys)');
 assert(altRes3.rt1_raw === null, 'no rt1_raw on error');
@@ -413,7 +417,7 @@ section('extractAlternatingResponse — miss (no keypresses)');
 
 const altRes4 = extractAlternatingResponse(
     { keyPresses: [] },
-    altTrial
+    altTrial, NO_ACCEPT_FIRST
 );
 assert(altRes4.accuracy1 === 'miss', 'miss (no keypresses)');
 assert(altRes4.rt1_raw === null, 'no rt1_raw on miss');
@@ -425,7 +429,7 @@ section('extractAlternatingResponse — rawKeyPresses format');
 
 const altRes5 = extractAlternatingResponse(
     { keyPresses: [{ key: 'a', time: 500, isCorrect: true }, { key: 'd', time: 700, isCorrect: false }] },
-    altTrial
+    altTrial, NO_ACCEPT_FIRST
 );
 const altParsed = JSON.parse(altRes5.rawKeyPresses);
 assert(Array.isArray(altParsed), 'rawKeyPresses is a JSON array');
@@ -726,7 +730,7 @@ const altTrialZero = {
 };
 const altResZero = extractAlternatingResponse(
     { keyPresses: [{ key: 'a', time: 0, isCorrect: true }] },
-    altTrialZero
+    altTrialZero, NO_ACCEPT_FIRST
 );
 assert(altResZero.rt1_raw === 0, 'time 0: rt1_raw is 0 (not null)');
 assert(altResZero.rt1 === 0, 'time 0: rt1 is 0');
@@ -830,6 +834,143 @@ const ssRes6 = extractSingleStreamResponse(
 assert(ssRes6.rt_raw === 400, 'rt_raw from first correct');
 assert(ssRes6.accuracy === 'correct', 'correct (ignores later presses)');
 assert(ssRes6.consumedCount === 1, 'consumed only up to first correct');
+
+// ============================================================
+// acceptFirstResponse tests — extractSingleStreamResponse
+// ============================================================
+
+section('extractSingleStreamResponse — acceptFirstResponse: correct on first press');
+
+const afrRes1 = extractSingleStreamResponse(
+    [{ key: 'a', time: 500, isCorrect: true }], 200, true
+);
+assert(afrRes1.accuracy === 'correct', 'acceptFirst: correct on first press');
+assert(afrRes1.rt_raw === 500, 'acceptFirst: rt_raw = 500');
+assert(afrRes1.rt === 300, 'acceptFirst: rt = 300');
+assert(afrRes1.consumedCount === 1, 'acceptFirst: consumed 1');
+
+// ============================================================
+
+section('extractSingleStreamResponse — acceptFirstResponse: error on first press');
+
+const afrRes2 = extractSingleStreamResponse(
+    [{ key: 'd', time: 400, isCorrect: false },
+     { key: 'a', time: 600, isCorrect: true }], 200, true
+);
+assert(afrRes2.accuracy === 'error', 'acceptFirst error: takes first wrong press');
+assert(afrRes2.rt_raw === 400, 'acceptFirst error: rt_raw from wrong press');
+assert(afrRes2.rt === 200, 'acceptFirst error: rt = 400 - 200');
+assert(afrRes2.consumedCount === 1, 'acceptFirst error: consumed only 1');
+
+// ============================================================
+
+section('extractSingleStreamResponse — acceptFirstResponse: miss (empty)');
+
+const afrRes3 = extractSingleStreamResponse([], 200, true);
+assert(afrRes3.accuracy === 'miss', 'acceptFirst miss: still miss on empty');
+assert(afrRes3.rt_raw === null, 'acceptFirst miss: no rt_raw');
+assert(afrRes3.consumedCount === 0, 'acceptFirst miss: consumed 0');
+
+// ============================================================
+
+section('extractSingleStreamResponse — acceptFirstResponse: single wrong press');
+
+const afrRes4 = extractSingleStreamResponse(
+    [{ key: 'd', time: 400, isCorrect: false }], 200, true
+);
+assert(afrRes4.accuracy === 'error', 'acceptFirst single wrong: error');
+assert(afrRes4.rt_raw === 400, 'acceptFirst single wrong: rt_raw set');
+assert(afrRes4.rt === 200, 'acceptFirst single wrong: rt = 400 - 200');
+assert(afrRes4.consumedCount === 1, 'acceptFirst single wrong: consumed 1');
+
+// ============================================================
+// acceptFirstResponse tests — higher-level extractors
+// ============================================================
+
+section('extractResponse — single-task acceptFirstResponse: error on first press');
+
+const stAfrConfig = buildSEConfig('identical', false, true, true);
+const stAfrRes = extractResponse(
+    { keyPresses: [
+        { key: 'd', time: 400, isCorrect: false },
+        { key: 'a', time: 600, isCorrect: true },
+    ]},
+    stTrial, stAfrConfig
+);
+assert(stAfrRes.accuracy1 === 'error', 'single-task acceptFirst: error on first press');
+assert(stAfrRes.rt1_raw === 400, 'single-task acceptFirst: rt_raw from wrong press');
+assert(stAfrRes.rt1 === 200, 'single-task acceptFirst: rt1 = 400 - 200');
+
+// ============================================================
+
+section('extractAlternatingResponse — acceptFirstResponse: error on first press');
+
+const altAfrRes = extractAlternatingResponse(
+    { keyPresses: [
+        { key: 'd', time: 400, isCorrect: false },
+        { key: 'a', time: 600, isCorrect: true },
+    ]},
+    altTrial, ACCEPT_FIRST
+);
+assert(altAfrRes.accuracy1 === 'error', 'alt acceptFirst: error on first press');
+assert(altAfrRes.rt1_raw === 400, 'alt acceptFirst: rt_raw from wrong press');
+assert(altAfrRes.rt1 === 200, 'alt acceptFirst: rt1 = 400 - 200');
+
+// ============================================================
+
+section('extractDualCanvasResponse — acceptFirstResponse: error on first press');
+
+const dcAfrRes = extractDualCanvasResponse(
+    { keyPresses: [
+        { key: 'd', time: 400, isCorrect: false },
+        { key: 'a', time: 600, isCorrect: true },
+    ]},
+    { keyPresses: [{ key: 'j', time: 900, isCorrect: true }] },
+    trial1, ACCEPT_FIRST, ACCEPT_FIRST
+);
+assert(dcAfrRes.accuracy1 === 'error', 'dc acceptFirst: left error on first press');
+assert(dcAfrRes.rt1_raw === 400, 'dc acceptFirst: left rt_raw from wrong press');
+assert(dcAfrRes.accuracy2 === 'correct', 'dc acceptFirst: right correct');
+
+// ============================================================
+// feedback and acceptFirstResponse builder tests
+// ============================================================
+
+section('buildSEConfig — feedback and acceptFirstResponse parameters');
+
+const fbConfig = buildSEConfig('disjoint', false, true, false);
+assert(fbConfig.feedback === true, 'buildSEConfig: feedback true');
+assert(fbConfig.acceptFirstResponse === false, 'buildSEConfig: acceptFirstResponse false');
+
+const fbConfig2 = buildSEConfig('disjoint', false, false, true);
+assert(fbConfig2.feedback === false, 'buildSEConfig: feedback false');
+assert(fbConfig2.acceptFirstResponse === true, 'buildSEConfig: acceptFirstResponse true');
+
+// ============================================================
+
+section('buildDualCanvasSEConfigs — feedback and acceptFirstResponse parameters');
+
+const { leftConfig: lcFb, rightConfig: rcFb } = buildDualCanvasSEConfigs('mov', 'or', false, true, false, TEST_SIZE);
+assert(lcFb.feedback === true, 'dual: left feedback true');
+assert(lcFb.acceptFirstResponse === false, 'dual: left acceptFirstResponse false');
+assert(rcFb.feedback === true, 'dual: right feedback true');
+assert(rcFb.acceptFirstResponse === false, 'dual: right acceptFirstResponse false');
+
+const { leftConfig: lcFb2, rightConfig: rcFb2 } = buildDualCanvasSEConfigs('mov', 'or', false, false, true, TEST_SIZE);
+assert(lcFb2.feedback === false, 'dual: left feedback false');
+assert(lcFb2.acceptFirstResponse === true, 'dual: left acceptFirstResponse true');
+
+// ============================================================
+
+section('buildAlternatingSEConfig — feedback and acceptFirstResponse parameters');
+
+const altFbConfig = buildAlternatingSEConfig('mov', 'left', true, true, false, TEST_SIZE);
+assert(altFbConfig.feedback === true, 'alt: feedback true');
+assert(altFbConfig.acceptFirstResponse === false, 'alt: acceptFirstResponse false');
+
+const altFbConfig2 = buildAlternatingSEConfig('mov', 'left', true, false, true, TEST_SIZE);
+assert(altFbConfig2.feedback === false, 'alt: feedback false');
+assert(altFbConfig2.acceptFirstResponse === true, 'alt: acceptFirstResponse true');
 
 // ============================================================
 // Summary
