@@ -429,6 +429,10 @@ function generateBlockTrials(blockConfig, numTrials) {
         );
 
         // Build the full spec object
+	const coh = blockConfig.coherence;
+	const resolvedCoherence = coh.mov !== undefined
+	    ? { ch1_task: coh[task1], ch1_distractor: 0, ch2_task: task2 ? coh[task2] : 0, ch2_distractor: 0 }
+	    : coh;
         const spec = {
             task1: task1,
             task2: task2,
@@ -437,7 +441,7 @@ function generateBlockTrials(blockConfig, numTrials) {
             dur_ch2: isDualTask ? blockConfig.stimulusDuration : 0,
             soa: soa ?? 0,
             responseWindow: blockConfig.responseWindow,
-            coherence: blockConfig.coherence,
+            coherence: resolvedCoherence,
             dir: dir,
         };
 
@@ -577,8 +581,8 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
         // Sample per-trial timing
         const iti = sampleFromDistribution(blockConfig.iti);
         const soa = sampleFromDistribution(blockConfig.soa);
-	const leftCoherence = blockConfig.leftCoherence ?? blockConfig.coherence.ch1_task;
-	const rightCoherence = blockConfig.rightCoherence ?? blockConfig.coherence.ch1_task;
+	const leftCoherence = blockConfig.coherence[t1TaskSequence[i]] ?? blockConfig.coherence.ch1_task;
+	const rightCoherence = blockConfig.coherence[t2TaskSequence[i]] ?? blockConfig.coherence.ch1_task;
 
 	const direction_1 = Math.random() < 0.5 ? 0 : 180;
 	const direction_2 = Math.random() < 0.5 ? 0 : 180;
@@ -640,7 +644,7 @@ function generateSidedTrials(blockConfig, numTrials) {
     for (let i = 0; i < numTrials; i++) {
 	const soa = isBaseline ? sampleFromDistribution(blockConfig.soa) : null;
 	const iti = sampleFromDistribution(blockConfig.iti);
-	const coherence = blockConfig.coherence.ch1_task;
+	const coherence = blockConfig.coherence[taskSequence[i]] ?? blockConfig.coherence.ch1_task;
 	const direction = Math.random() < 0.5 ? 0 : 180;
 	const spec = buildSingleCanvasSpec(taskSequence[i], blockConfig.csi, blockConfig.stimulusDuration, blockConfig.responseWindow, coherence, direction);
 	const canvasTrialParams = buildTrialParams(spec);

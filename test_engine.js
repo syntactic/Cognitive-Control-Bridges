@@ -358,6 +358,29 @@ for (const t of prpTrials) {
 }
 
 // ============================================================
+section('generateBlockTrials — task-indexed coherence (PRP)');
+
+const prpTaskCohConfig = {
+    ...prpConfig,
+    blockId: 'test_prp_task_coh',
+    coherence: { mov: 0.3, or: 0.7 },
+};
+const prpTaskCohTrials = generateBlockTrials(prpTaskCohConfig, 20);
+for (const t of prpTaskCohTrials) {
+    // T1 coherence should match its task identity
+    const t1CohKey = t.meta.t1_task === 'mov' ? 'coh_mov_1' : 'coh_or_1';
+    const expectedT1 = t.meta.t1_task === 'mov' ? 0.3 : 0.7;
+    assert(t.seParams[t1CohKey] === expectedT1,
+        `task-indexed PRP: T1 task=${t.meta.t1_task}, ${t1CohKey}=${t.seParams[t1CohKey]}, expected=${expectedT1}`);
+
+    // T2 coherence should match its task identity
+    const t2CohKey = t.meta.t2_task === 'mov' ? 'coh_mov_2' : 'coh_or_2';
+    const expectedT2 = t.meta.t2_task === 'mov' ? 0.3 : 0.7;
+    assert(t.seParams[t2CohKey] === expectedT2,
+        `task-indexed PRP: T2 task=${t.meta.t2_task}, ${t2CohKey}=${t.seParams[t2CohKey]}, expected=${expectedT2}`);
+}
+
+// ============================================================
 section('generateBlockTrials — pure single-task block');
 
 const pureConfig = {
@@ -613,32 +636,38 @@ for (const t of soaTrials) {
 }
 
 // ============================================================
-section('generateDualCanvasBlockTrials — coherence fallback');
+section('generateDualCanvasBlockTrials — channel-indexed coherence fallback');
 
-// Default: both canvases use ch1_task (0.8) when leftCoherence/rightCoherence not set
+// Default: both canvases use ch1_task (0.8) when task-indexed coherence not set
 const cohTrial = soaTrials[0];
 assert(cohTrial.leftSeParams.coh_mov_1 === 0.8 || cohTrial.leftSeParams.coh_or_1 === 0.8,
     'coherence fallback: left canvas uses ch1_task=0.8');
 assert(cohTrial.rightSeParams.coh_mov_1 === 0.8 || cohTrial.rightSeParams.coh_or_1 === 0.8,
     'coherence fallback: right canvas uses ch1_task=0.8');
 
-// Override: leftCoherence/rightCoherence take precedence
-const dualCanvasCustomCohConfig = {
+// ============================================================
+section('generateDualCanvasBlockTrials — task-indexed coherence');
+
+// Task-indexed format: each task gets its own coherence regardless of canvas side
+const dualCanvasTaskCohConfig = {
     ...dualCanvasSwitchConfig,
-    blockId: 'test_dual_coh',
-    leftCoherence: 0.9,
-    rightCoherence: 0.5,
+    blockId: 'test_dual_task_coh',
+    coherence: { mov: 0.9, or: 0.5 },
     soa: { type: 'fixed', value: 100, params: [] },
 };
 
-const cohTrials = generateDualCanvasBlockTrials(dualCanvasCustomCohConfig, 10);
+const cohTrials = generateDualCanvasBlockTrials(dualCanvasTaskCohConfig, 10);
 for (const t of cohTrials) {
-    // Left canvas active pathway should have 0.9 coherence
+    // Movement task should always get 0.9, regardless of which canvas it's on
     const leftActiveCoh = t.meta.t1_task === 'mov' ? t.leftSeParams.coh_mov_1 : t.leftSeParams.coh_or_1;
-    assert(leftActiveCoh === 0.9, `custom coherence: left=${leftActiveCoh}, expected 0.9`);
-    // Right canvas active pathway should have 0.5 coherence
+    const expectedLeft = t.meta.t1_task === 'mov' ? 0.9 : 0.5;
+    assert(leftActiveCoh === expectedLeft,
+        `task-indexed coh: left task=${t.meta.t1_task}, got=${leftActiveCoh}, expected=${expectedLeft}`);
+
     const rightActiveCoh = t.meta.t2_task === 'mov' ? t.rightSeParams.coh_mov_1 : t.rightSeParams.coh_or_1;
-    assert(rightActiveCoh === 0.5, `custom coherence: right=${rightActiveCoh}, expected 0.5`);
+    const expectedRight = t.meta.t2_task === 'mov' ? 0.9 : 0.5;
+    assert(rightActiveCoh === expectedRight,
+        `task-indexed coh: right task=${t.meta.t2_task}, got=${rightActiveCoh}, expected=${expectedRight}`);
 }
 
 // ============================================================
@@ -821,6 +850,25 @@ for (const t of altTrials) {
     } else {
         assert(t.seParams.coh_or_1 === 0.8, `or trial: coh_or_1=0.8, got ${t.seParams.coh_or_1}`);
         assert(t.seParams.coh_mov_1 === 0, `or trial: coh_mov_1=0 (silenced)`);
+    }
+}
+
+// ============================================================
+section('generateSidedTrials — task-indexed coherence (alternating)');
+
+const altTaskCohConfig = {
+    ...alternatingConfig,
+    blockId: 'test_alt_task_coh',
+    coherence: { mov: 0.9, or: 0.4 },
+};
+const altTaskCohTrials = generateSidedTrials(altTaskCohConfig, 20);
+for (const t of altTaskCohTrials) {
+    if (t.meta.t1_task === 'mov') {
+        assert(t.seParams.coh_mov_1 === 0.9, `task-indexed alt mov: coh_mov_1=0.9, got ${t.seParams.coh_mov_1}`);
+        assert(t.seParams.coh_or_1 === 0, `task-indexed alt mov: coh_or_1=0 (silenced)`);
+    } else {
+        assert(t.seParams.coh_or_1 === 0.4, `task-indexed alt or: coh_or_1=0.4, got ${t.seParams.coh_or_1}`);
+        assert(t.seParams.coh_mov_1 === 0, `task-indexed alt or: coh_mov_1=0 (silenced)`);
     }
 }
 
