@@ -252,3 +252,128 @@ function extractDualCanvasResponse(leftData, rightData, trial, leftSeConfig, rig
 	rawKeyPresses: JSON.stringify({ left: leftData.keyPresses, right: rightData.keyPresses }),
     };
 }
+
+function argMax(arr) {
+    let currMax = Number.NEGATIVE_INFINITY;
+    let maxIndex = 0;
+    for (let i = 0; i < arr.length; i++) {
+	if (arr[i] >= currMax) {
+	    currMax = arr[i];
+	    maxIndex = i;
+	}
+    }
+    return maxIndex
+}
+
+function createQuest(priorMean, priorSD) {
+    // Private state — just local variables
+    const numValues = 100;
+    const logMin = Math.log10(0.01);
+    const step = Math.abs(logMin / numValues);
+    const intensityAxis = createAxis();
+    const logMean = Math.log10(priorMean);
+    const logUpper = Math.log10(priorMean + priorSD);
+    const logLower = Math.log10(priorMean - priorSD);
+    const logSD = (logUpper - logLower) / 2;
+
+    const gamma = 0.5;
+    const delta = 0.02;
+    const beta = 3.5;
+    const epsilon = 0.03315;
+    let qArray = computePrior(intensityAxis, logMean, logSD);
+    const originalPrior = [ ...qArray ];
+
+    function createAxis() {
+	const axis = new Array(numValues).fill(0);
+	for (let i = 0; i < axis.length; i++) {
+	    axis[i] = logMin + i * step;
+	}
+	return axis;
+    }
+
+    function computePrior(intensityAxis, priorMean, priorSD) {
+	let logPrior = new Array(intensityAxis.length).fill(0);
+	// technically, log(priorSD) and 0.5 * log(2*pi) should be subtracted from each term, but since these
+	// are invariant across the loop, they don't affect the distribution in a significant way and can be ignored
+	for (let i = 0; i < intensityAxis.length; i++) {
+	    logPrior[i] = -0.5 * ((intensityAxis[i] - priorMean) / priorSD) ** 2
+	}
+	return logPrior;
+    }
+
+    function psi(x) {
+	return gamma + (1 - gamma - delta) * (1 - Math.exp(-(10**(beta * (x + epsilon)))));
+    }
+
+    // We calculate this once and store it in the closure!
+    const rulebooks = compute_s_and_f();
+
+    function compute_s_and_f() {
+	// 1. Create the padded arrays. 
+	// If our main axis is 100 units, we need 201 units to safely slide all the way 
+	// from one end to the other without going out of bounds.
+	const padding = numValues; 
+	const size = (2 * padding) + 1; 
+	
+	const s = new Array(size).fill(0);
+	const f = new Array(size).fill(0);
+	
+	for (let i = 0; i < size; i++) {
+	    // 2. What is the physical distance this index represents?
+	    // Index 'padding' (100) is the center, so (i - padding) gives us an offset 
+	    // ranging from -100 to +100. Multiply by 'step' to get the log-distance!
+	    let distance_x = (i - padding) * step;
+	    
+	    // 3. Get the raw probability from our canonical psychometric function
+	    let p = psi(distance_x);
+	    
+	    // 4. Store the logs!
+	    s[i] = Math.log(p);
+	    f[i] = Math.log(1 - p);
+	}
+	
+	return { s, f };
+    }
+
+
+    // Placeholder functions to avoid ReferenceErrors in the return object
+    function getNextIntensity() {
+	return 10**intensityAxis[argMax(qArray)];
+    }
+
+    function update(testedCoherence, wasCorrect) {
+	// 1. Convert the raw coherence to an internal array index
+	const logIntensity = Math.log10(testedCoherence);
+
+	// Calculate how many 'steps' this log value is from our minimum log value
+	// Math.round ensures we snap to the nearest valid index in our array
+	const testedIndex = Math.round((logIntensity - logMin) / step);
+
+	// 2. Pick the right rulebook (S for correct, F for incorrect)
+	const arrayToUse = wasCorrect ? rulebooks.s : rulebooks.f;
+
+	// 3. Slide and add (with the corrected sign!)
+	for (let i = 0; i < qArray.length; i++) {
+	    // Distance is (Tested - Hypothesis) + Padding
+	    let shiftIndex = (testedIndex - i) + numValues;
+
+	    // Ensure we don't accidentally go out of bounds if testedCoherence
+	    // was wildly outside our expected min/max range
+	    if (shiftIndex >= 0 && shiftIndex < arrayToUse.length) {
+		qArray[i] += arrayToUse[shiftIndex];
+	    }
+	}
+    }
+
+    function getFinalEstimate() {
+	const likelihoodOnly = qArray.map((val, i) => val - originalPrior[i]);
+	return 10**intensityAxis[argMax(likelihoodOnly)];
+    }
+
+    // Return an object with methods that close over the state
+    return {
+	getNextIntensity,
+	update,
+	getFinalEstimate
+    };
+}

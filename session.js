@@ -197,12 +197,24 @@ const Session = (() => {
             await showInstructions(instructions);
         }
 
+	let quest;
+	let newCoherence;
+	if (blockDef.runQuest) {
+	    quest = createQuest(0.5, 0.2);
+	}
         let prevResponseTime = null;
 	let trialData;
         for (let i = 0; i < trials.length; i++) {
             if (!isRunning) break;
             // Update status display
             updateStatus(blockConfig.blockId, i + 1, trials.length, blockOrder);
+	    const task_1 = trials[i].seParams.task_1;
+	    const task_2 = trials[i].seParams.task_2;
+	    // override coherence if we're running Quest
+	    if (blockDef.runQuest) {
+		newCoherence = quest.getNextIntensity();
+		trials[i].seParams["coh_" + task_1 + "_1"] = newCoherence;
+	    }
 	    if (canvasType === 'dual-canvas') {
 		const { leftConfig, rightConfig } = buildDualCanvasSEConfigs(trials[i].meta.t1_task, trials[i].meta.t2_task, trials[i].meta.earlyResolve, feedback, acceptFirstResponse, computeDualCanvasSize());
 		trialData = await runDualCanvasTrial(trials[i], leftConfig, rightConfig, prevResponseTime);
@@ -217,11 +229,31 @@ const Session = (() => {
 	    }
             trialData.blockOrder = blockOrder;
             trialData.isPractice = blockDef.isPractice || false;
+	    if (task_1) {
+		trialData.t1_target_coherence = trials[i].seParams["coh_" + task_1 + "_1"];
+	    }
+	    if (task_2) {
+		trialData.t2_target_coherence = trials[i].seParams["coh_" + task_2 + "_2"];
+	    }
             prevResponseTime = performance.now();
+	    if (blockDef.runQuest) {
+		quest.update(newCoherence, trialData.accuracy1 === 'correct');
+	    }
 
             allTrialData.push(trialData);
 
         }
+	if (blockDef.runQuest) {
+	    return quest.getFinalEstimate();
+	}
+    }
+
+    function overwriteCoherence(session, coherences, startIndex) {
+	for (let b = startIndex; b < session.length; b++) {
+	    if (session[b].useQuest) {
+		session[b].blockConfig.coherence = coherences;
+	    }
+	}
     }
 
     /**
@@ -236,9 +268,15 @@ const Session = (() => {
         // Clear container
         canvasContainer.innerHTML = '';
 
+	const questCoherences = { mov: 0.5, or: 0.5}; // some defaults
         for (let b = 0; b < sessionDef.length; b++) {
             if (!isRunning) break;
-            await runBlock(sessionDef[b], b + 1);
+            const questResult = await runBlock(sessionDef[b], b + 1);
+	    if (questResult !== undefined) {
+		questCoherences[sessionDef[b].blockConfig.startTask] = questResult;
+		overwriteCoherence(sessionDef, questCoherences, b + 1);
+	    }
+
 
             // Inter-block break (except after the last block)
             if (b < sessionDef.length - 1 && isRunning) {
