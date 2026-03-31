@@ -212,7 +212,7 @@ const Session = (() => {
 	    const task_2 = trials[i].seParams.task_2;
 	    // override coherence if we're running Quest
 	    if (blockDef.runQuest) {
-		newCoherence = quest.getNextIntensity();
+		newCoherence = Math.min(quest.getNextIntensity(), 0.9);
 		trials[i].seParams["coh_" + task_1 + "_1"] = newCoherence;
 	    }
 	    if (canvasType === 'dual-canvas') {
@@ -243,8 +243,9 @@ const Session = (() => {
             allTrialData.push(trialData);
 
         }
+	// originally I ran getFinalEstimate here but in perfect blocks, subtracting the prior causes serious problems
 	if (blockDef.runQuest) {
-	    return quest.getFinalEstimate();
+	    return quest.getNextIntensity();
 	}
     }
 
@@ -329,6 +330,7 @@ const Session = (() => {
 	    'iti', 'soa', 'side', 'earlyResolve',
 	    't1_target_dir', 't1_distractor_dir',
 	    't2_target_dir', 't2_distractor_dir',
+	    't1_target_coherence', 't2_target_coherence',
 	    'rt1', 'accuracy1', 'rt2', 'accuracy2',
 	    'responseOrder', 'rt1_raw', 'rt2_raw', 'rawKeyPresses',
 	];

@@ -225,3 +225,12 @@ const HIRSCH_PRP_DEMO = [
     { blockConfig: hirschDualCanvasPRP, numTrials: 40,
       instructions: 'Quick test: Dual-canvas PRP.\nRespond LEFT first (A/D), then RIGHT (J/L).\n\nPress any key.' },
 ];
+
+const HIRSCH_QUEST_DEMO = [
+    { blockConfig: hirschAlternatingPureMov, numTrials: 20, isPractice: true, runQuest: true,
+      instructions: 'QUEST demo: MOVEMENT.\n\nPress any key.' },
+    { blockConfig: hirschAlternatingPureOr, numTrials: 20, isPractice: true, runQuest: true,
+      instructions: 'QUEST demo: ORIENTATION.\n\nPress any key.' },
+    { blockConfig: hirschAlternatingMixed, numTrials: 10, useQuest: true,
+      instructions: 'Mixed block with QUEST thresholds.\n\nPress any key.' },
+];

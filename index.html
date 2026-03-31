@@ -138,6 +138,7 @@
                 <option value="hirsch_alt_mixed">Alternating Mixed</option>
                 <option value="hirsch_prp_baseline">PRP Baseline (Asterisk)</option>
                 <option value="hirsch_prp">PRP Dual-Canvas</option>
+		<option value="hirsch_quest_demo">Quest Demo</option>
             </optgroup>
         </select>
         <button id="start-btn" disabled>Start</button>
@@ -231,6 +232,9 @@
                     break;
                 case 'hirsch_prp':
                     blocks = HIRSCH_PRP_DEMO;
+                    break;
+                case 'hirsch_quest_demo':
+                    blocks = HIRSCH_QUEST_DEMO;
                     break;
                 default:
                     return null;
