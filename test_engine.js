@@ -1299,6 +1299,671 @@ assert(soaZeroParams.start_go_2 === 200, `soa=0: go2 at csi`);
 assert(soaZeroParams.start_2 === 200, `soa=0: cue2 at csi`);
 
 // ============================================================
+// NEW: generateFactorialSequence
+// ============================================================
+
+section('generateFactorialSequence — single factor');
+
+const singleFactor = generateFactorialSequence(12, { transition: ['Repeat', 'Switch'] });
+assert(singleFactor.length === 12, 'single factor: correct length');
+const repeatCount = singleFactor.filter(c => c.transition === 'Repeat').length;
+const switchCount = singleFactor.filter(c => c.transition === 'Switch').length;
+assert(repeatCount === 6, `single factor: 6 Repeat cells, got ${repeatCount}`);
+assert(switchCount === 6, `single factor: 6 Switch cells, got ${switchCount}`);
+
+// ============================================================
+section('generateFactorialSequence — two factors (2x2)');
+
+const twoFactors = generateFactorialSequence(20, {
+    transition: ['Repeat', 'Switch'],
+    soa: [100, 600],
+});
+assert(twoFactors.length === 20, 'two factors: correct length');
+// 4 cells, 20/4 = 5 reps each
+const cellCounts2x2 = {};
+for (const c of twoFactors) {
+    const key = `${c.transition}_${c.soa}`;
+    cellCounts2x2[key] = (cellCounts2x2[key] || 0) + 1;
+}
+assert(Object.keys(cellCounts2x2).length === 4, '2x2: exactly 4 unique cells');
+assert(cellCounts2x2['Repeat_100'] === 5, '2x2: Repeat/100 has 5 reps');
+assert(cellCounts2x2['Repeat_600'] === 5, '2x2: Repeat/600 has 5 reps');
+assert(cellCounts2x2['Switch_100'] === 5, '2x2: Switch/100 has 5 reps');
+assert(cellCounts2x2['Switch_600'] === 5, '2x2: Switch/600 has 5 reps');
+
+// ============================================================
+section('generateFactorialSequence — three factors (2x2x2)');
+
+const threeFactors = generateFactorialSequence(24, {
+    transition: ['Repeat', 'Switch'],
+    soa: [100, 600],
+    congruency: ['congruent', 'incongruent'],
+});
+assert(threeFactors.length === 24, 'three factors: correct length');
+// 8 cells, 24/8 = 3 reps each
+const cellCounts2x2x2 = {};
+for (const c of threeFactors) {
+    const key = `${c.transition}_${c.soa}_${c.congruency}`;
+    cellCounts2x2x2[key] = (cellCounts2x2x2[key] || 0) + 1;
+}
+assert(Object.keys(cellCounts2x2x2).length === 8, '2x2x2: exactly 8 unique cells');
+for (const [key, count] of Object.entries(cellCounts2x2x2)) {
+    assert(count === 3, `2x2x2: cell ${key} has 3 reps, got ${count}`);
+}
+
+// ============================================================
+section('generateFactorialSequence — remainder when not perfectly divisible');
+
+// 10 trials, 4 cells: 2 full reps (8) + 2 random remainder
+const remainder = generateFactorialSequence(10, {
+    transition: ['Repeat', 'Switch'],
+    soa: [100, 600],
+});
+assert(remainder.length === 10, 'remainder: correct length');
+// Each cell should have at least 2 (from full reps) and at most 4 (2 + both remainder items)
+const remCounts = {};
+for (const c of remainder) {
+    const key = `${c.transition}_${c.soa}`;
+    remCounts[key] = (remCounts[key] || 0) + 1;
+}
+for (const [key, count] of Object.entries(remCounts)) {
+    assert(count >= 2, `remainder: cell ${key} has at least 2, got ${count}`);
+    assert(count <= 4, `remainder: cell ${key} has at most 4, got ${count}`);
+}
+// Total should be 10
+const remTotal = Object.values(remCounts).reduce((a, b) => a + b, 0);
+assert(remTotal === 10, `remainder: total is 10, got ${remTotal}`);
+
+// ============================================================
+section('generateFactorialSequence — empty factors');
+
+const empty = generateFactorialSequence(5, {});
+assert(empty.length === 5, 'empty factors: correct length');
+assert(empty.every(c => Object.keys(c).length === 0), 'empty factors: all empty objects');
+
+// ============================================================
+section('generateFactorialSequence — single cell (1x1)');
+
+const singleCell = generateFactorialSequence(8, { transition: ['Repeat'] });
+assert(singleCell.length === 8, 'single cell: correct length');
+assert(singleCell.every(c => c.transition === 'Repeat'), 'single cell: all Repeat');
+
+// ============================================================
+section('generateFactorialSequence — shuffled (not in product order)');
+
+// With 100 trials and 2 cells, probability of all Repeat first is vanishingly small
+const shuffleCheck = generateFactorialSequence(100, { transition: ['Repeat', 'Switch'] });
+// Check that the first 50 aren't all Repeat (would indicate no shuffle)
+const first50Repeat = shuffleCheck.slice(0, 50).every(c => c.transition === 'Repeat');
+assert(!first50Repeat, 'shuffled: not all Repeat in first half');
+
+// ============================================================
+// NEW: deriveTasksFromTransitions
+// ============================================================
+
+section('deriveTasksFromTransitions — basic');
+
+const derived = deriveTasksFromTransitions(['First', 'Repeat', 'Switch', 'Switch', 'Repeat'], 'mov');
+assert(derived.length === 5, 'derived: correct length');
+assert(derived[0] === 'mov', 'derived: starts with mov');
+assert(derived[1] === 'mov', 'derived: Repeat keeps mov');
+assert(derived[2] === 'or', 'derived: Switch flips to or');
+assert(derived[3] === 'mov', 'derived: Switch flips back to mov');
+assert(derived[4] === 'mov', 'derived: Repeat keeps mov');
+
+// ============================================================
+section('deriveTasksFromTransitions — all Repeat');
+
+const allRepeat = deriveTasksFromTransitions(['First', 'Repeat', 'Repeat', 'Repeat'], 'or');
+assert(allRepeat.every(t => t === 'or'), 'all Repeat: all or');
+
+// ============================================================
+section('deriveTasksFromTransitions — all Switch');
+
+const allSwitch = deriveTasksFromTransitions(['First', 'Switch', 'Switch', 'Switch'], 'mov');
+assert(allSwitch[0] === 'mov', 'all Switch: starts mov');
+assert(allSwitch[1] === 'or', 'all Switch: trial 2 is or');
+assert(allSwitch[2] === 'mov', 'all Switch: trial 3 is mov');
+assert(allSwitch[3] === 'or', 'all Switch: trial 4 is or');
+
+// ============================================================
+section('deriveTasksFromTransitions — roundtrip with classifyTransitions');
+
+const roundtripStart = 'or';
+const roundtripTransitions = ['First', 'Switch', 'Repeat', 'Switch', 'Repeat', 'Repeat'];
+const roundtripTasks = deriveTasksFromTransitions(roundtripTransitions, roundtripStart);
+const reclassified = classifyTransitions(roundtripTasks);
+for (let i = 0; i < roundtripTransitions.length; i++) {
+    assert(reclassified[i] === roundtripTransitions[i],
+        `roundtrip: index ${i} — ${reclassified[i]} === ${roundtripTransitions[i]}`);
+}
+
+// ============================================================
+// NEW: generateSequenceVectors
+// ============================================================
+
+// Shared base config for generateSequenceVectors tests
+const gsvBaseConfig = {
+    blockId: 'test_gsv',
+    blockType: 'mixed',
+    paradigm: 'single-task',
+    sequenceType: 'Random',
+    switchRate: 50,
+    startTask: null,
+    csi: 200,
+    stimulusDuration: 300,
+    responseWindow: 2000,
+    coherence: { ch1_task: 0.8, ch1_distractor: 0, ch2_task: 0, ch2_distractor: 0 },
+    congruency: { conditions: ['univalent'], proportions: [1.0] },
+    iti: { type: 'fixed', value: 500 },
+};
+
+section('generateSequenceVectors — stochastic: vector lengths');
+
+const gsvStochastic = generateSequenceVectors(gsvBaseConfig, 30);
+assert(gsvStochastic.task1.length === 30, 'stochastic: task1 length');
+assert(gsvStochastic.task2.length === 30, 'stochastic: task2 length');
+assert(gsvStochastic.transition.length === 30, 'stochastic: transition length');
+assert(gsvStochastic.soa.length === 30, 'stochastic: soa length');
+assert(gsvStochastic.iti.length === 30, 'stochastic: iti length');
+assert(gsvStochastic.congruency.length === 30, 'stochastic: congruency length');
+
+// ============================================================
+section('generateSequenceVectors — stochastic: single-task T2 is null');
+
+assert(gsvStochastic.task2.every(t => t === null), 'stochastic single-task: all task2 null');
+
+// ============================================================
+section('generateSequenceVectors — stochastic: first transition is First');
+
+assert(gsvStochastic.transition[0] === 'First', 'stochastic: first transition is First');
+
+// ============================================================
+section('generateSequenceVectors — stochastic: SOA null when no soa config');
+
+const gsvNoSOA = generateSequenceVectors({ ...gsvBaseConfig, blockId: 'test_gsv_no_soa' }, 10);
+assert(gsvNoSOA.soa.every(s => s === null), 'no soa config: all null');
+
+// ============================================================
+section('generateSequenceVectors — missing congruency defaults to univalent');
+
+const gsvNoCong = { ...gsvBaseConfig, blockId: 'test_gsv_no_cong' };
+delete gsvNoCong.congruency;
+const vecNoCong = generateSequenceVectors(gsvNoCong, 10);
+assert(vecNoCong.congruency.every(c => c === 'univalent'), 'missing congruency: all univalent');
+
+// ============================================================
+section('generateSequenceVectors — dual-task: T2 defaults to switch');
+
+const gsvDualTask = generateSequenceVectors({
+    ...gsvBaseConfig,
+    blockId: 'test_gsv_dual',
+    paradigm: 'dual-task',
+    task1: 'mov',
+    soa: { type: 'choice', value: 100, params: [100, 600] },
+}, 20);
+for (let i = 0; i < 20; i++) {
+    assert(gsvDualTask.task2[i] === switchTask(gsvDualTask.task1[i]),
+        `dual-task default: task2 is switchTask(task1) at trial ${i+1}`);
+}
+
+// ============================================================
+section('generateSequenceVectors — dual-canvas: T2 defaults to independent');
+
+const gsvDualCanvas = generateSequenceVectors({
+    ...gsvBaseConfig,
+    blockId: 'test_gsv_dc',
+    paradigm: 'dual-canvas',
+    rso: 'disjoint',
+    soa: { type: 'fixed', value: 100 },
+}, 60);
+// With independent T2 over 60 trials, expect both same and different pairings
+const dcHasSame = gsvDualCanvas.task1.some((t, i) => t === gsvDualCanvas.task2[i]);
+const dcHasDiff = gsvDualCanvas.task1.some((t, i) => t !== gsvDualCanvas.task2[i]);
+assert(dcHasSame, 'dual-canvas independent: has some same-task pairings');
+assert(dcHasDiff, 'dual-canvas independent: has some different-task pairings');
+
+// ============================================================
+section('generateSequenceVectors — dual-canvas: transitions reflect T1-T2 match');
+
+for (let i = 0; i < gsvDualCanvas.task1.length; i++) {
+    const expected = gsvDualCanvas.task1[i] === gsvDualCanvas.task2[i] ? 'Repeat' : 'Switch';
+    assert(gsvDualCanvas.transition[i] === expected,
+        `dual-canvas transition[${i}]: ${gsvDualCanvas.transition[i]} === ${expected}`);
+}
+
+// ============================================================
+section('generateSequenceVectors — prp-baseline: task1 null, task2 has actual task');
+
+const gsvBaseline = generateSequenceVectors({
+    ...gsvBaseConfig,
+    blockId: 'test_gsv_bl',
+    paradigm: 'prp-baseline',
+    switchRate: 0,
+    startTask: 'mov',
+    soa: { type: 'fixed', value: 100 },
+}, 10);
+assert(gsvBaseline.task1.every(t => t === null), 'prp-baseline: all task1 null');
+assert(gsvBaseline.task2.every(t => t === 'mov'), 'prp-baseline: all task2 mov');
+
+// ============================================================
+section('generateSequenceVectors — effectiveStartTask: dual-task uses task1 field');
+
+const gsvDTStart = generateSequenceVectors({
+    ...gsvBaseConfig,
+    blockId: 'test_gsv_dt_start',
+    paradigm: 'dual-task',
+    task1: 'or',
+    startTask: null,
+    switchRate: 0,
+    soa: { type: 'fixed', value: 100 },
+}, 10);
+// task1 field is 'or', so all task1 should be 'or'
+assert(gsvDTStart.task1.every(t => t === 'or'), 'dual-task start: uses task1 field, all or');
+
+// ============================================================
+section('generateSequenceVectors — effectiveStartTask: single-task uses startTask (null = random)');
+
+// Over 50 runs, null startTask should produce both mov and or
+let gsvSeenMov = false, gsvSeenOr = false;
+for (let i = 0; i < 50; i++) {
+    const v = generateSequenceVectors({
+        ...gsvBaseConfig,
+        blockId: 'test_gsv_st_random',
+        startTask: null,
+        switchRate: 0,
+    }, 1);
+    if (v.task1[0] === 'mov') gsvSeenMov = true;
+    if (v.task1[0] === 'or') gsvSeenOr = true;
+}
+assert(gsvSeenMov, 'single-task null startTask: saw mov');
+assert(gsvSeenOr, 'single-task null startTask: saw or');
+
+// ============================================================
+section('generateSequenceVectors — Factorial: switchRate validation');
+
+let threwOnBadRate = false;
+try {
+    generateSequenceVectors({
+        ...gsvBaseConfig,
+        blockId: 'test_gsv_bad_rate',
+        sequenceType: 'Factorial',
+        switchRate: 75,
+    }, 10);
+} catch (e) {
+    threwOnBadRate = true;
+}
+assert(threwOnBadRate, 'Factorial throws on switchRate 75');
+
+// switchRate 0 should NOT throw
+let threwOnZeroRate = false;
+try {
+    generateSequenceVectors({
+        ...gsvBaseConfig,
+        blockId: 'test_gsv_zero_rate',
+        sequenceType: 'Factorial',
+        switchRate: 0,
+        startTask: 'mov',
+    }, 10);
+} catch (e) {
+    threwOnZeroRate = true;
+}
+assert(!threwOnZeroRate, 'Factorial does not throw on switchRate 0');
+
+// ============================================================
+section('generateSequenceVectors — Factorial: pure block (switchRate=0, all Repeat)');
+
+const gsvFactPure = generateSequenceVectors({
+    ...gsvBaseConfig,
+    blockId: 'test_gsv_fact_pure',
+    sequenceType: 'Factorial',
+    switchRate: 0,
+    startTask: 'mov',
+    iti: { type: 'choice', params: [100, 600] },
+}, 10);
+assert(gsvFactPure.transition[0] === 'First', 'Factorial pure: first is First');
+assert(gsvFactPure.transition.slice(1).every(t => t === 'Repeat'), 'Factorial pure: rest are Repeat');
+assert(gsvFactPure.task1.every(t => t === 'mov'), 'Factorial pure: all mov');
+// ITI should still be crossed
+const factPureITI = new Set(gsvFactPure.iti);
+assert(factPureITI.has(100) && factPureITI.has(600), 'Factorial pure: ITI crossed');
+assert(gsvFactPure.iti.filter(v => v === 100).length === 5, 'Factorial pure: balanced ITI 100');
+assert(gsvFactPure.iti.filter(v => v === 600).length === 5, 'Factorial pure: balanced ITI 600');
+
+// ============================================================
+section('generateSequenceVectors — Factorial: transition x SOA crossed');
+
+const gsvFactCrossed = generateSequenceVectors({
+    ...gsvBaseConfig,
+    blockId: 'test_gsv_fact_crossed',
+    sequenceType: 'Factorial',
+    switchRate: 50,
+    startTask: 'mov',
+    soa: { type: 'choice', params: [100, 600] },
+    iti: { type: 'fixed', value: 500 },
+}, 20);
+assert(gsvFactCrossed.transition[0] === 'First', 'Factorial crossed: first is First');
+// After first trial, check balanced cells (ignoring first which is forced to First)
+// 20 trials, 4 cells (2 trans x 2 soa). First trial forced to First.
+// Count transition x SOA cells for trials 1-19 (index 1+)
+const factCellCounts = {};
+for (let i = 1; i < 20; i++) {
+    const key = `${gsvFactCrossed.transition[i]}_${gsvFactCrossed.soa[i]}`;
+    factCellCounts[key] = (factCellCounts[key] || 0) + 1;
+}
+// The factorial crossing gives 5 of each cell in the pool of 20, but trial 0's
+// transition was forced to First (overwriting one Repeat or Switch). So 19 trials
+// remain with the original SOA values but a modified transition[0].
+// Total Repeat + Switch in trials 1..19 should be 19
+const factNonFirstCount = Object.values(factCellCounts).reduce((a, b) => a + b, 0);
+assert(factNonFirstCount === 19, `Factorial crossed: 19 non-First trials, got ${factNonFirstCount}`);
+// SOA should be perfectly balanced across all 20 trials (First override doesn't touch SOA)
+const soa100Count = gsvFactCrossed.soa.filter(s => s === 100).length;
+const soa600Count = gsvFactCrossed.soa.filter(s => s === 600).length;
+assert(soa100Count === 10, `Factorial crossed: 10 SOA=100, got ${soa100Count}`);
+assert(soa600Count === 10, `Factorial crossed: 10 SOA=600, got ${soa600Count}`);
+
+// ============================================================
+section('generateSequenceVectors — Factorial: congruency crossed');
+
+const gsvFactCong = generateSequenceVectors({
+    ...gsvBaseConfig,
+    blockId: 'test_gsv_fact_cong',
+    sequenceType: 'Factorial',
+    switchRate: 50,
+    startTask: 'mov',
+    congruency: { conditions: ['congruent', 'incongruent'], proportions: [0.5, 0.5] },
+    iti: { type: 'fixed', value: 500 },
+}, 24);
+// 2 transitions x 2 congruencies = 4 cells, 24/4 = 6 each
+const congCounts = {};
+for (const c of gsvFactCong.congruency) {
+    congCounts[c] = (congCounts[c] || 0) + 1;
+}
+assert(congCounts['congruent'] === 12, `Factorial cong: 12 congruent, got ${congCounts['congruent']}`);
+assert(congCounts['incongruent'] === 12, `Factorial cong: 12 incongruent, got ${congCounts['incongruent']}`);
+
+// ============================================================
+section('generateSequenceVectors — Factorial: task sequence consistent with transitions');
+
+// After deriveTasksFromTransitions, reclassifying should match (except First)
+for (let i = 1; i < gsvFactCrossed.task1.length; i++) {
+    const prev = gsvFactCrossed.task1[i - 1];
+    const curr = gsvFactCrossed.task1[i];
+    const expected = curr === prev ? 'Repeat' : 'Switch';
+    assert(gsvFactCrossed.transition[i] === expected,
+        `Factorial task-transition consistency: trial ${i+1} ${prev}->${curr} = ${expected}`);
+}
+
+// ============================================================
+section('generateSequenceVectors — Factorial: non-crossed factors use fallback sampling');
+
+const gsvFactFallback = generateSequenceVectors({
+    ...gsvBaseConfig,
+    blockId: 'test_gsv_fact_fb',
+    sequenceType: 'Factorial',
+    switchRate: 50,
+    startTask: 'mov',
+    soa: { type: 'fixed', value: 200 },  // fixed, so not crossed
+    iti: { type: 'choice', params: [100, 600] },  // choice, so crossed
+}, 10);
+// SOA should be sampled from fixed distribution (all 200)
+assert(gsvFactFallback.soa.every(s => s === 200),
+    'Factorial fallback: fixed SOA all 200');
+// ITI should be crossed (balanced)
+assert(gsvFactFallback.iti.filter(v => v === 100).length === 5,
+    'Factorial fallback: ITI 100 balanced');
+
+// ============================================================
+section('generateSequenceVectors — Factorial: SOA null when no soa config');
+
+const gsvFactNoSOA = generateSequenceVectors({
+    ...gsvBaseConfig,
+    blockId: 'test_gsv_fact_no_soa',
+    sequenceType: 'Factorial',
+    switchRate: 0,
+    startTask: 'mov',
+}, 8);
+assert(gsvFactNoSOA.soa.every(s => s === null), 'Factorial no soa: all null');
+
+// ============================================================
+// NEW: Integration — generateBlockTrials with Factorial
+// ============================================================
+
+section('generateBlockTrials — Factorial: balanced SOA and transitions');
+
+const factBlockConfig = {
+    blockId: 'test_fact_block',
+    blockType: 'mixed',
+    paradigm: 'single-task',
+    sequenceType: 'Factorial',
+    switchRate: 50,
+    startTask: 'mov',
+    csi: 200,
+    stimulusDuration: 300,
+    responseWindow: 2000,
+    rso: 'disjoint',
+    coherence: { ch1_task: 0.8, ch1_distractor: 0, ch2_task: 0, ch2_distractor: 0 },
+    congruency: { conditions: ['univalent'], proportions: [1.0] },
+    iti: { type: 'fixed', value: 500 },
+};
+
+const factTrials = generateBlockTrials(factBlockConfig, 20);
+assert(factTrials.length === 20, 'Factorial block: 20 trials');
+
+// All SOAs should be null for single-task
+assert(factTrials.every(t => t.meta.soa === null), 'Factorial block: SOA null for single-task');
+
+// First trial is First
+assert(factTrials[0].meta.transitionType === 'First', 'Factorial block: first is First');
+
+// Transitions (excluding first) should be balanced: ~9-10 Repeat, ~9-10 Switch
+const factRepeat = factTrials.filter(t => t.meta.transitionType === 'Repeat').length;
+const factSwitch = factTrials.filter(t => t.meta.transitionType === 'Switch').length;
+// 20 trials: 1 First + 19 distributed. Original pool has 10R/10S, one becomes First.
+assert(factRepeat + factSwitch === 19,
+    `Factorial block: 19 non-First transitions, got ${factRepeat + factSwitch}`);
+
+// SE params should be valid
+for (const t of factTrials) {
+    for (const [k, v] of Object.entries(t.seParams)) {
+        assert(v !== undefined && (typeof v !== 'number' || !isNaN(v)),
+            `Factorial block: seParams.${k} not NaN/undefined`);
+    }
+}
+
+// ============================================================
+section('generateBlockTrials — Factorial: dual-task PRP with crossed SOA');
+
+const factPRPConfig = {
+    blockId: 'test_fact_prp',
+    blockType: 'prp',
+    paradigm: 'dual-task',
+    sequenceType: 'Factorial',
+    switchRate: 50,
+    task1: 'mov',
+    startTask: null,
+    csi: 200,
+    stimulusDuration: 300,
+    responseWindow: 2000,
+    rso: 'disjoint',
+    coherence: { ch1_task: 0.8, ch1_distractor: 0, ch2_task: 0.6, ch2_distractor: 0 },
+    congruency: { conditions: ['univalent'], proportions: [1.0] },
+    iti: { type: 'fixed', value: 500 },
+    soa: { type: 'choice', value: 100, params: [100, 600] },
+};
+
+const factPRPTrials = generateBlockTrials(factPRPConfig, 20);
+assert(factPRPTrials.length === 20, 'Factorial PRP: 20 trials');
+
+// SOA should be balanced
+const prpSOA100 = factPRPTrials.filter(t => t.meta.soa === 100).length;
+const prpSOA600 = factPRPTrials.filter(t => t.meta.soa === 600).length;
+assert(prpSOA100 === 10, `Factorial PRP: 10 SOA=100, got ${prpSOA100}`);
+assert(prpSOA600 === 10, `Factorial PRP: 10 SOA=600, got ${prpSOA600}`);
+
+// T2 should always be switch of T1 (default t2Rule for dual-task)
+for (const t of factPRPTrials) {
+    assert(t.meta.t2_task === switchTask(t.meta.t1_task),
+        `Factorial PRP: T2 is switch of T1`);
+}
+
+// ============================================================
+section('generateBlockTrials — Factorial: pure block (switchRate=0)');
+
+const factPureBlockConfig = {
+    ...factBlockConfig,
+    blockId: 'test_fact_pure_block',
+    switchRate: 0,
+    startTask: 'or',
+};
+
+const factPureTrials = generateBlockTrials(factPureBlockConfig, 12);
+assert(factPureTrials.length === 12, 'Factorial pure block: 12 trials');
+assert(factPureTrials.every(t => t.meta.t1_task === 'or'), 'Factorial pure block: all or');
+assert(factPureTrials[0].meta.transitionType === 'First', 'Factorial pure block: first is First');
+assert(factPureTrials.slice(1).every(t => t.meta.transitionType === 'Repeat'),
+    'Factorial pure block: rest are Repeat');
+
+// ============================================================
+// NEW: Integration — generateSidedTrials with Factorial
+// ============================================================
+
+section('generateSidedTrials — Factorial: alternating with crossed ITI');
+
+const factAltConfig = {
+    blockId: 'test_fact_alt',
+    blockType: 'mixed',
+    paradigm: 'alternating',
+    sequenceType: 'Factorial',
+    switchRate: 50,
+    startTask: 'mov',
+    earlyResolve: true,
+    csi: 200,
+    stimulusDuration: 2500,
+    responseWindow: 2500,
+    coherence: { ch1_task: 0.8, ch1_distractor: 0, ch2_task: 0, ch2_distractor: 0 },
+    iti: { type: 'choice', params: [100, 600] },
+};
+
+const factAltTrials = generateSidedTrials(factAltConfig, 20);
+assert(factAltTrials.length === 20, 'Factorial alternating: 20 trials');
+
+// SOA should be null for alternating
+assert(factAltTrials.every(t => t.meta.soa === null), 'Factorial alternating: SOA null');
+
+// ITI should be balanced
+const altITI100 = factAltTrials.filter(t => t.meta.iti === 100).length;
+const altITI600 = factAltTrials.filter(t => t.meta.iti === 600).length;
+assert(altITI100 === 10, `Factorial alternating: 10 ITI=100, got ${altITI100}`);
+assert(altITI600 === 10, `Factorial alternating: 10 ITI=600, got ${altITI600}`);
+
+// Sides alternate
+for (let i = 0; i < factAltTrials.length; i++) {
+    const expected = (i % 2 === 0) ? 'left' : 'right';
+    assert(factAltTrials[i].meta.side === expected,
+        `Factorial alternating: trial ${i+1} side=${factAltTrials[i].meta.side}`);
+}
+
+// No NaN/undefined in SE params
+for (const t of factAltTrials) {
+    for (const [k, v] of Object.entries(t.seParams)) {
+        assert(v !== undefined && (typeof v !== 'number' || !isNaN(v)),
+            `Factorial alternating: seParams.${k} not NaN/undefined`);
+    }
+}
+
+// ============================================================
+section('generateSidedTrials — Factorial: prp-baseline with crossed SOA');
+
+const factBlConfig = {
+    blockId: 'test_fact_bl',
+    blockType: 'prp-baseline',
+    paradigm: 'prp-baseline',
+    sequenceType: 'Factorial',
+    switchRate: 0,
+    startTask: 'mov',
+    earlyResolve: true,
+    csi: 200,
+    stimulusDuration: 2500,
+    responseWindow: 2500,
+    coherence: { ch1_task: 0.8, ch1_distractor: 0, ch2_task: 0, ch2_distractor: 0 },
+    iti: { type: 'fixed', value: 1000 },
+    soa: { type: 'choice', params: [100, 600] },
+};
+
+const factBlTrials = generateSidedTrials(factBlConfig, 10);
+assert(factBlTrials.length === 10, 'Factorial baseline: 10 trials');
+
+// SOA should be balanced
+const blSOA100 = factBlTrials.filter(t => t.meta.soa === 100).length;
+const blSOA600 = factBlTrials.filter(t => t.meta.soa === 600).length;
+assert(blSOA100 === 5, `Factorial baseline: 5 SOA=100, got ${blSOA100}`);
+assert(blSOA600 === 5, `Factorial baseline: 5 SOA=600, got ${blSOA600}`);
+
+// Task remapping: t1 null, t2 has actual task
+assert(factBlTrials.every(t => t.meta.t1_task === null), 'Factorial baseline: all t1_task null');
+assert(factBlTrials.every(t => t.meta.t2_task === 'mov'), 'Factorial baseline: all t2_task mov');
+assert(factBlTrials.every(t => t.meta.side === 'right'), 'Factorial baseline: all side right');
+
+// ============================================================
+// NEW: Integration — generateDualCanvasBlockTrials with Factorial
+// ============================================================
+
+section('generateDualCanvasBlockTrials — Factorial: crossed SOA');
+
+const factDCConfig = {
+    blockId: 'test_fact_dc',
+    blockType: 'prp',
+    paradigm: 'dual-canvas',
+    sequenceType: 'Factorial',
+    switchRate: 50,
+    startTask: null,
+    rso: 'disjoint',
+    t2Rule: 'switch',
+    earlyResolve: true,
+    csi: 200,
+    stimulusDuration: 300,
+    responseWindow: 2000,
+    coherence: { ch1_task: 0.8, ch1_distractor: 0, ch2_task: 0.6, ch2_distractor: 0 },
+    congruency: { conditions: ['univalent'], proportions: [1.0] },
+    iti: { type: 'fixed', value: 500 },
+    soa: { type: 'choice', params: [100, 600] },
+};
+
+const factDCTrials = generateDualCanvasBlockTrials(factDCConfig, 20);
+assert(factDCTrials.length === 20, 'Factorial dual-canvas: 20 trials');
+
+// SOA balanced
+const dcSOA100 = factDCTrials.filter(t => t.meta.soa === 100).length;
+const dcSOA600 = factDCTrials.filter(t => t.meta.soa === 600).length;
+assert(dcSOA100 === 10, `Factorial dual-canvas: 10 SOA=100, got ${dcSOA100}`);
+assert(dcSOA600 === 10, `Factorial dual-canvas: 10 SOA=600, got ${dcSOA600}`);
+
+// t2Rule=switch: all trials should have opposite tasks
+for (const t of factDCTrials) {
+    assert(t.meta.t1_task !== t.meta.t2_task, 'Factorial dual-canvas switch: T1 !== T2');
+    // With switch rule, transitions are always Switch
+    assert(t.meta.transitionType === 'Switch', 'Factorial dual-canvas switch: transition is Switch');
+}
+
+// Return shape preserved
+assert(factDCTrials[0].leftSeParams !== undefined, 'Factorial dual-canvas: has leftSeParams');
+assert(factDCTrials[0].rightSeParams !== undefined, 'Factorial dual-canvas: has rightSeParams');
+
+// No NaN/undefined
+for (const t of factDCTrials) {
+    for (const [k, v] of Object.entries(t.leftSeParams)) {
+        assert(v !== undefined && (typeof v !== 'number' || !isNaN(v)),
+            `Factorial dual-canvas: leftSeParams.${k} not NaN/undefined`);
+    }
+    for (const [k, v] of Object.entries(t.rightSeParams)) {
+        assert(v !== undefined && (typeof v !== 'number' || !isNaN(v)),
+            `Factorial dual-canvas: rightSeParams.${k} not NaN/undefined`);
+    }
+}
+
+// ============================================================
 // Summary
 console.log(`\n============================`);
 console.log(`PASSED: ${passed}`);

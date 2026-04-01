@@ -94,9 +94,9 @@ function classifyTransitions(taskSequence) {
 }
 
 function classifyDualCanvasTransitions(t1TaskSequence, t2TaskSequence) {
-    let transitions = [];
+    const transitions = [];
     for (let i = 0; i < t1TaskSequence.length; i++) {
-	transitions.push(t1TaskSequence[i] === t2TaskSequence[i] ? 'Repeat' : 'Switch');
+        transitions.push(t1TaskSequence[i] === t2TaskSequence[i] ? 'Repeat' : 'Switch');
     }
     return transitions;
 }
@@ -132,6 +132,178 @@ function generateCongruencySequence(numTrials, conditions, proportions) {
     return sequence;
 }
 
+/**
+ * Generates a fully crossed, randomly shuffled sequence of experimental factors.
+ * Pure utility function — knows nothing about experiment-specific semantics.
+ *
+ * @param {number} numTrials - Total trials in the block.
+ * @param {Object} factors - Dictionary of arrays to cross
+ *   (e.g., { transition: ['Repeat', 'Switch'], soa: [100, 600] })
+ * @returns {Array<Object>} Array of length numTrials containing crossed factor combinations.
+ */
+function generateFactorialSequence(numTrials, factors) {
+    const keys = Object.keys(factors);
+
+    if (keys.length === 0) {
+        return Array.from({ length: numTrials }, () => ({}));
+    }
+
+    const cartesianProduct = keys.reduce((acc, key) => {
+        const values = factors[key];
+        if (acc.length === 0) return values.map(v => ({ [key]: v }));
+        return acc.flatMap(obj => values.map(v => ({ ...obj, [key]: v })));
+    }, []);
+
+    const pool = [];
+    const reps = Math.floor(numTrials / cartesianProduct.length);
+    for (let i = 0; i < reps; i++) {
+        pool.push(...cartesianProduct.map(c => ({ ...c })));
+    }
+
+    const remainder = numTrials - pool.length;
+    for (let i = 0; i < remainder; i++) {
+        pool.push({ ...cartesianProduct[Math.floor(Math.random() * cartesianProduct.length)] });
+    }
+
+    // Fisher-Yates shuffle
+    for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+
+    return pool;
+}
+
+/**
+ * Converts a sequence of relational transitions into absolute task identities.
+ *
+ * @param {string[]} transitionSequence - e.g., ['First', 'Switch', 'Repeat', ...]
+ * @param {string} startTask - 'mov' or 'or'
+ * @returns {string[]} Task identity per trial
+ */
+function deriveTasksFromTransitions(transitionSequence, startTask) {
+    const taskSequence = [startTask];
+    for (let i = 1; i < transitionSequence.length; i++) {
+        const prev = taskSequence[i - 1];
+        taskSequence.push(transitionSequence[i] === 'Switch' ? switchTask(prev) : prev);
+    }
+    return taskSequence;
+}
+
+/**
+ * Phase 1: Sequence generation for all paradigms.
+ * Resolves task identities, transitions, timing, and congruency into parallel vectors.
+ *
+ * Supports two sequence generation modes:
+ * - 'Factorial': Fully crossed design with balanced factor cells.
+ *   Requires switchRate 0 (pure) or 50 (balanced Switch/Repeat).
+ * - Stochastic ('Random', 'AABB'): Existing probabilistic generation.
+ *
+ * @param {object} blockConfig - Block-level configuration
+ * @param {number} numTrials
+ * @returns {{ task1: string[], task2: string[], transition: string[],
+ *             soa: (number|null)[], iti: number[], congruency: string[] }}
+ */
+function generateSequenceVectors(blockConfig, numTrials) {
+    const sequenceData = { task1: [], task2: [], transition: [], soa: [], iti: [], congruency: [] };
+
+    // Default congruency for paradigms that don't specify it (alternating, prp-baseline)
+    const congruencyConfig = blockConfig.congruency || { conditions: ['univalent'], proportions: [1.0] };
+
+    // Resolve effective start task: dual-task paradigms use task1 field,
+    // others use startTask (which can be null for random coin flip)
+    const isDualTaskParadigm = blockConfig.paradigm === 'dual-task' || blockConfig.paradigm === 'dual-canvas';
+    const effectiveStartTask = isDualTaskParadigm
+        ? (blockConfig.task1 ?? blockConfig.startTask)
+        : blockConfig.startTask;
+
+    if (blockConfig.sequenceType === 'Factorial') {
+        if (blockConfig.switchRate !== 50 && blockConfig.switchRate !== 0) {
+            throw new Error(
+                `Factorial sequence requires switchRate 50 (balanced Switch/Repeat) or 0 (pure). Got: ${blockConfig.switchRate}`
+            );
+        }
+
+        const factors = {};
+        if (blockConfig.switchRate === 50) factors.transition = ['Repeat', 'Switch'];
+        if (blockConfig.soa?.type === 'choice') factors.soa = blockConfig.soa.params;
+        if (blockConfig.iti?.type === 'choice') factors.iti = blockConfig.iti.params;
+        if (congruencyConfig.conditions.length > 1) factors.congruency = congruencyConfig.conditions;
+
+        const crossed = generateFactorialSequence(numTrials, factors);
+
+        sequenceData.transition = crossed.map(c => c.transition || 'Repeat');
+        if (sequenceData.transition.length > 0) {
+            sequenceData.transition[0] = 'First';
+        }
+
+        const initialTask = effectiveStartTask ?? (Math.random() < 0.5 ? 'mov' : 'or');
+        sequenceData.task1 = deriveTasksFromTransitions(sequenceData.transition, initialTask);
+
+        sequenceData.soa = crossed.map(c =>
+            c.soa !== undefined ? c.soa : (blockConfig.soa ? sampleFromDistribution(blockConfig.soa) : null)
+        );
+        sequenceData.iti = crossed.map(c =>
+            c.iti !== undefined ? c.iti : sampleFromDistribution(blockConfig.iti)
+        );
+        sequenceData.congruency = crossed.map(c =>
+            c.congruency || congruencyConfig.conditions[0] || 'univalent'
+        );
+
+    } else {
+        // Stochastic generation (Random, AABB)
+        sequenceData.task1 = generateTaskSequence(
+            numTrials, blockConfig.sequenceType, blockConfig.switchRate, effectiveStartTask
+        );
+        sequenceData.transition = classifyTransitions(sequenceData.task1);
+        sequenceData.soa = Array.from({ length: numTrials }, () =>
+            blockConfig.soa ? sampleFromDistribution(blockConfig.soa) : null
+        );
+        sequenceData.iti = Array.from({ length: numTrials }, () =>
+            sampleFromDistribution(blockConfig.iti)
+        );
+        sequenceData.congruency = generateCongruencySequence(
+            numTrials, congruencyConfig.conditions, congruencyConfig.proportions
+        );
+    }
+
+    // Resolve Task 2 based on paradigm and t2Rule
+    // Default: single-canvas PRP always switches T1->T2; dual-canvas defaults to independent
+    const effectiveT2Rule = blockConfig.t2Rule
+        ?? (blockConfig.paradigm === 'dual-canvas' ? 'independent' : 'switch');
+
+    if (isDualTaskParadigm) {
+        if (effectiveT2Rule === 'same') {
+            sequenceData.task2 = [...sequenceData.task1];
+        } else if (effectiveT2Rule === 'switch') {
+            sequenceData.task2 = sequenceData.task1.map(switchTask);
+        } else if (effectiveT2Rule === 'independent') {
+            // Always Random with switchRate 50 for truly independent T2 sampling
+            sequenceData.task2 = generateTaskSequence(numTrials, 'Random', 50, null);
+        } else {
+            throw new Error(`Unknown t2Rule: '${effectiveT2Rule}'`);
+        }
+    } else if (blockConfig.paradigm === 'prp-baseline') {
+        // Asterisk is T1 (null), actual task moves to T2
+        sequenceData.task2 = [...sequenceData.task1];
+        sequenceData.task1 = Array(numTrials).fill(null);
+    } else {
+        // Single-task or alternating: no T2
+        sequenceData.task2 = Array(numTrials).fill(null);
+    }
+
+    // For dual-canvas, transitions reflect T1-vs-T2 match per trial,
+    // not sequential task changes. Note: this overwrites any factorial-crossed
+    // transition values when t2Rule is 'independent'.
+    if (blockConfig.paradigm === 'dual-canvas') {
+        sequenceData.transition = classifyDualCanvasTransitions(
+            sequenceData.task1, sequenceData.task2
+        );
+    }
+
+    return sequenceData;
+}
+
 // ============================================================
 // Direction assignment
 // ============================================================
@@ -148,7 +320,7 @@ function generateCongruencySequence(numTrials, conditions, proportions) {
  * @param {string} paradigm - 'single-task' or 'dual-task'
  * @param {string} rso - 'identical' or 'disjoint' (unused, kept for signature compat)
  * @param {{ mov: object, or: object }} [keyMaps] - key maps from block config.
- *   Direction pools are derived from the keys (e.g., {180:'a', 0:'d'} → [0, 180]).
+ *   Direction pools are derived from the keys (e.g., {180:'a', 0:'d'} -> [0, 180]).
  * @returns {{ ch1_task: number, ch1_distractor: number, ch2_task: number, ch2_distractor: number }}
  */
 function assignDirections(task, congruency, paradigm, rso, keyMaps) {
@@ -330,7 +502,7 @@ function buildTrialParams(spec) {
     //   or2_absolute  = start_or_2  + or1.end
     //
     // buildTimingParams computed offsets assuming ch1 counterparts have their
-    // full duration. But zeroing silenced pathways (coh=0 → dur=0) changes
+    // full duration. But zeroing silenced pathways (coh=0 -> dur=0) changes
     // their end times to 0. We must recompute offsets using the actual
     // post-zeroing ch1 end times so SE places ch2 stimuli correctly.
     //
@@ -356,83 +528,36 @@ function buildTrialParams(spec) {
 // ============================================================
 
 /**
- * Generates a complete array of trial objects for one experimental block.
+ * Generates trial objects for single-canvas blocks (single-task and dual-task PRP).
  *
- * @param {object} blockConfig - Block-level configuration (see plan for shape)
+ * @param {object} blockConfig - Block-level configuration
  * @param {number} numTrials - Number of trials in this block
  * @returns {{ seParams: object, meta: object }[]}
  */
 function generateBlockTrials(blockConfig, numTrials) {
     const isDualTask = blockConfig.paradigm === 'dual-task';
-
-    // --- Step 1: Generate task sequence ---
-    // For single-task/mixed: sequence determines which task per trial.
-    // For PRP with T1-T2 switching: sequence determines which task is T1
-    //   (T2 is always the other task).
-    // For PRP without switching (switchRate = 0): every trial has same T1/T2.
-    let taskSequence;
-    if (isDualTask) {
-        // PRP: generate a T1 sequence (T2 is derived as the other task)
-        taskSequence = generateTaskSequence(
-            numTrials,
-            blockConfig.sequenceType,
-            blockConfig.switchRate,
-            blockConfig.task1
-        );
-    } else {
-        // Single-task or mixed task-switching
-        taskSequence = generateTaskSequence(
-            numTrials,
-            blockConfig.sequenceType,
-            blockConfig.switchRate,
-            blockConfig.startTask
-        );
-    }
-
-    // --- Step 2: Classify transitions ---
-    const transitions = classifyTransitions(taskSequence);
-
-    // --- Step 3: Generate congruency sequence ---
-    const congruencySequence = generateCongruencySequence(
-        numTrials,
-        blockConfig.congruency.conditions,
-        blockConfig.congruency.proportions
-    );
-
-    // --- Step 4: Assemble trials ---
+    const vectors = generateSequenceVectors(blockConfig, numTrials);
     const trials = [];
 
     for (let i = 0; i < numTrials; i++) {
-        // Determine task assignment for this trial
-        let task1, task2;
-        if (isDualTask) {
-            task1 = taskSequence[i];
-            task2 = switchTask(taskSequence[i]);
-        } else {
-            task1 = taskSequence[i];
-            task2 = null;
-        }
+        const task1 = vectors.task1[i];
+        const task2 = vectors.task2[i];
+        const congruency = vectors.congruency[i];
+        const iti = vectors.iti[i];
+        // SOA is only meaningful for dual-task; force null for single-task
+        const soa = isDualTask ? vectors.soa[i] : null;
 
-        const congruency = congruencySequence[i];
-
-        // Sample per-trial timing
-        const iti = sampleFromDistribution(blockConfig.iti);
-        const soa = isDualTask ? sampleFromDistribution(blockConfig.soa) : null;
-
-        // Assign directions
         const dir = assignDirections(
-            task1,
-            congruency,
-            blockConfig.paradigm,
-            blockConfig.rso,
-            blockConfig.keyMaps
+            task1, congruency, blockConfig.paradigm, blockConfig.rso, blockConfig.keyMaps
         );
 
-        // Build the full spec object
-	const coh = blockConfig.coherence;
-	const resolvedCoherence = coh.mov !== undefined
-	    ? { ch1_task: coh[task1], ch1_distractor: 0, ch2_task: task2 ? coh[task2] : 0, ch2_distractor: 0 }
-	    : coh;
+        // Resolve coherence (task-indexed -> channel-indexed)
+        const coh = blockConfig.coherence;
+        const resolvedCoherence = coh.mov !== undefined
+            ? { ch1_task: coh[task1], ch1_distractor: 0,
+                ch2_task: task2 ? coh[task2] : 0, ch2_distractor: 0 }
+            : coh;
+
         const spec = {
             task1: task1,
             task2: task2,
@@ -445,10 +570,8 @@ function generateBlockTrials(blockConfig, numTrials) {
             dir: dir,
         };
 
-        // Build SE params
         const seParams = buildTrialParams(spec);
 
-        // Build metadata for analysis
         const meta = {
             trialNumber: i + 1,
             blockId: blockConfig.blockId,
@@ -456,7 +579,7 @@ function generateBlockTrials(blockConfig, numTrials) {
             paradigm: blockConfig.paradigm,
             t1_task: task1,
             t2_task: task2,
-            transitionType: transitions[i],
+            transitionType: vectors.transition[i],
             iti: iti,
             soa: soa,
             t1_target_dir: dir.ch1_task,
@@ -472,18 +595,18 @@ function generateBlockTrials(blockConfig, numTrials) {
 }
 
 function buildSingleCanvasSpec(task, csi, stimulusDuration, responseWindow,
-			       coherence, direction,
-			       distractorCoherence, distractorDirection) {
+                               coherence, direction,
+                               distractorCoherence, distractorDirection) {
     const spec = {
-	task1: task,
-	task2: null,
-	csi: csi,
-	dur_ch1: stimulusDuration,
-	dur_ch2: 0,
-	soa: 0,
-	responseWindow: responseWindow,
-	coherence: {ch1_task: coherence, ch1_distractor: distractorCoherence ?? 0, ch2_task: 0, ch2_distractor: 0},
-	dir: {ch1_task: direction, ch1_distractor: distractorDirection ?? 0, ch2_task: 0, ch2_distractor: 0}
+        task1: task,
+        task2: null,
+        csi: csi,
+        dur_ch1: stimulusDuration,
+        dur_ch2: 0,
+        soa: 0,
+        responseWindow: responseWindow,
+        coherence: {ch1_task: coherence, ch1_distractor: distractorCoherence ?? 0, ch2_task: 0, ch2_distractor: 0},
+        dir: {ch1_task: direction, ch1_distractor: distractorDirection ?? 0, ch2_task: 0, ch2_distractor: 0}
     };
 
     return spec;
@@ -493,14 +616,14 @@ function buildSingleCanvasSpec(task, csi, stimulusDuration, responseWindow,
 function applySOAOffset(params, offset) {
     const shifted = { ...params };
     if (offset === 0) {
-	return shifted;
+        return shifted;
     }
 
     if (params.dur_mov_1 > 0) {
-	shifted.start_mov_1 += offset;
+        shifted.start_mov_1 += offset;
     }
     if (params.dur_or_1 > 0) {
-	shifted.start_or_1 += offset;
+        shifted.start_or_1 += offset;
     }
     shifted.start_go_1 += offset;
     shifted.dur_1 += offset;
@@ -547,72 +670,71 @@ function applySOAOffset(params, offset) {
 // but would require a different response mapping scheme since participants
 // only have two fingers per hand in the current setup.
 
+/**
+ * Generates trial objects for dual-canvas PRP blocks.
+ * Each trial has independent left (T1) and right (T2) canvas parameters.
+ *
+ * @param {object} blockConfig - must include paradigm: 'dual-canvas', rso: 'disjoint'
+ * @param {number} numTrials
+ * @returns {{ leftSeParams: object, rightSeParams: object, meta: object }[]}
+ */
 function generateDualCanvasBlockTrials(blockConfig, numTrials) {
     if (blockConfig.rso !== 'disjoint') {
         throw new Error(`Dual Canvas Config requires disjoint RSO, got: ${blockConfig.rso}`);
     }
-    let t1TaskSequence, t2TaskSequence;
-    t1TaskSequence = generateTaskSequence(
-	numTrials,
-	blockConfig.sequenceType,
-	blockConfig.switchRate,
-	blockConfig.startTask
-    );
-    if (blockConfig.t2Rule === 'same') {
-	t2TaskSequence = [ ...t1TaskSequence ];
-    }
-    else if (blockConfig.t2Rule === 'switch') {
-	t2TaskSequence = t1TaskSequence.map(t => switchTask(t));
-    }
-    else if (blockConfig.t2Rule === 'independent') {
-	t2TaskSequence = generateTaskSequence(
-	    numTrials,
-	    blockConfig.sequenceType,
-	    blockConfig.switchRate,
-	    null
-	);
-    } else {
-	throw new Error(`Unknown t2Rule: '${blockConfig.t2Rule}'`);
-    }
 
-    const transitions = classifyDualCanvasTransitions(t1TaskSequence, t2TaskSequence);
+    const vectors = generateSequenceVectors(blockConfig, numTrials);
     const trials = [];
+
     for (let i = 0; i < numTrials; i++) {
-        // Sample per-trial timing
-        const iti = sampleFromDistribution(blockConfig.iti);
-        const soa = sampleFromDistribution(blockConfig.soa);
-	const leftCoherence = blockConfig.coherence[t1TaskSequence[i]] ?? blockConfig.coherence.ch1_task;
-	const rightCoherence = blockConfig.coherence[t2TaskSequence[i]] ?? blockConfig.coherence.ch1_task;
+        const t1 = vectors.task1[i];
+        const t2 = vectors.task2[i];
+        const congruency = vectors.congruency[i];
 
-	const direction_1 = Math.random() < 0.5 ? 0 : 180;
-	const direction_2 = Math.random() < 0.5 ? 0 : 180;
-	const left_spec = buildSingleCanvasSpec(t1TaskSequence[i], blockConfig.csi, blockConfig.stimulusDuration,
-	    blockConfig.responseWindow, leftCoherence, direction_1);
-	const right_spec = buildSingleCanvasSpec(t2TaskSequence[i], blockConfig.csi, blockConfig.stimulusDuration,
-	    blockConfig.responseWindow, rightCoherence, direction_2);
+        // Each canvas is a single-task display; use assignDirections per canvas.
+        // Note: keyMaps here are block-level, not canvas-aware. Correct for
+        // univalent trials but would need per-canvas keyMaps if within-canvas
+        // congruency is added later (see TODO above).
+        const dir1 = assignDirections(t1, congruency, 'single-task', blockConfig.rso, blockConfig.keyMaps);
+        const dir2 = assignDirections(t2, congruency, 'single-task', blockConfig.rso, blockConfig.keyMaps);
 
-	const leftCanvasTrialParams = buildTrialParams(left_spec);
-	const rightCanvasTrialParams = buildTrialParams(right_spec);
-	const shiftedRightCanvasTrialParams = applySOAOffset(rightCanvasTrialParams, soa);
-        // Build metadata for analysis
+        const leftTaskCoh = blockConfig.coherence[t1] ?? blockConfig.coherence.ch1_task;
+        const rightTaskCoh = blockConfig.coherence[t2] ?? blockConfig.coherence.ch1_task;
+        const distractorCoh = blockConfig.coherence.ch1_distractor ?? 0;
+
+        const left_spec = buildSingleCanvasSpec(
+            t1, blockConfig.csi, blockConfig.stimulusDuration, blockConfig.responseWindow,
+            leftTaskCoh, dir1.ch1_task, distractorCoh, dir1.ch1_distractor
+        );
+        const right_spec = buildSingleCanvasSpec(
+            t2, blockConfig.csi, blockConfig.stimulusDuration, blockConfig.responseWindow,
+            rightTaskCoh, dir2.ch1_task, distractorCoh, dir2.ch1_distractor
+        );
+
+        const leftCanvasTrialParams = buildTrialParams(left_spec);
+        const rightCanvasTrialParams = buildTrialParams(right_spec);
+        const shiftedRightCanvasTrialParams = applySOAOffset(rightCanvasTrialParams, vectors.soa[i]);
+
         const meta = {
             trialNumber: i + 1,
             blockId: blockConfig.blockId,
             blockType: blockConfig.blockType,
             paradigm: blockConfig.paradigm,
             earlyResolve: blockConfig.earlyResolve ?? false,
-            t1_task: t1TaskSequence[i],
-            t2_task: t2TaskSequence[i],
-            transitionType: transitions[i],
-            iti: iti,
-            soa: soa,
-            t1_target_dir: direction_1,
-            t1_distractor_dir: null,
-            t2_target_dir: direction_2,
-            t2_distractor_dir: null,
+            t1_task: t1,
+            t2_task: t2,
+            transitionType: vectors.transition[i],
+            iti: vectors.iti[i],
+            soa: vectors.soa[i],
+            t1_target_dir: dir1.ch1_task,
+            t1_distractor_dir: congruency === 'univalent' ? null : dir1.ch1_distractor,
+            t2_target_dir: dir2.ch1_task,
+            t2_distractor_dir: congruency === 'univalent' ? null : dir2.ch1_distractor,
         };
-	trials.push({ leftSeParams: leftCanvasTrialParams, rightSeParams: shiftedRightCanvasTrialParams, meta });
+
+        trials.push({ leftSeParams: leftCanvasTrialParams, rightSeParams: shiftedRightCanvasTrialParams, meta });
     }
+
     return trials;
 }
 
@@ -631,42 +753,43 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
  */
 function generateSidedTrials(blockConfig, numTrials) {
     const isBaseline = blockConfig.paradigm === 'prp-baseline';
-
-    let taskSequence = generateTaskSequence(
-	numTrials,
-	blockConfig.sequenceType,
-	blockConfig.switchRate,
-	blockConfig.startTask
-    );
-    const transitions = classifyTransitions(taskSequence);
-
+    const vectors = generateSequenceVectors(blockConfig, numTrials);
     const trials = [];
-    for (let i = 0; i < numTrials; i++) {
-	const soa = isBaseline ? sampleFromDistribution(blockConfig.soa) : null;
-	const iti = sampleFromDistribution(blockConfig.iti);
-	const coherence = blockConfig.coherence[taskSequence[i]] ?? blockConfig.coherence.ch1_task;
-	const direction = Math.random() < 0.5 ? 0 : 180;
-	const spec = buildSingleCanvasSpec(taskSequence[i], blockConfig.csi, blockConfig.stimulusDuration, blockConfig.responseWindow, coherence, direction);
-	const canvasTrialParams = buildTrialParams(spec);
 
-	const meta = {
-	    trialNumber: i + 1,
-	    side: isBaseline ? 'right' : ((i % 2 === 0) ? 'left' : 'right'),
-	    blockId: blockConfig.blockId,
-	    blockType: blockConfig.blockType,
-	    paradigm: blockConfig.paradigm,
-	    earlyResolve: blockConfig.earlyResolve ?? false,
-	    t1_task: isBaseline ? null : taskSequence[i],
-	    t2_task: isBaseline ? taskSequence[i] : null,
-	    transitionType: transitions[i],
-	    iti: iti,
-	    soa: soa,
-	    t1_target_dir: isBaseline ? null : direction,
-	    t1_distractor_dir: null,
-	    t2_target_dir: isBaseline ? direction : null,
-	    t2_distractor_dir: null,
-	};
-	trials.push({ seParams: canvasTrialParams, meta });
+    for (let i = 0; i < numTrials; i++) {
+        // For alternating: task is in task1, task2 is null
+        // For prp-baseline: task1 is null (asterisk), actual task is in task2
+        const displayTask = isBaseline ? vectors.task2[i] : vectors.task1[i];
+        // SOA only meaningful for prp-baseline; force null for alternating
+        const soa = isBaseline ? vectors.soa[i] : null;
+        const iti = vectors.iti[i];
+
+        const coherence = blockConfig.coherence[displayTask] ?? blockConfig.coherence.ch1_task;
+        const direction = Math.random() < 0.5 ? 0 : 180;
+        const spec = buildSingleCanvasSpec(
+            displayTask, blockConfig.csi, blockConfig.stimulusDuration,
+            blockConfig.responseWindow, coherence, direction
+        );
+        const canvasTrialParams = buildTrialParams(spec);
+
+        const meta = {
+            trialNumber: i + 1,
+            side: isBaseline ? 'right' : ((i % 2 === 0) ? 'left' : 'right'),
+            blockId: blockConfig.blockId,
+            blockType: blockConfig.blockType,
+            paradigm: blockConfig.paradigm,
+            earlyResolve: blockConfig.earlyResolve ?? false,
+            t1_task: vectors.task1[i],
+            t2_task: vectors.task2[i],
+            transitionType: vectors.transition[i],
+            iti: iti,
+            soa: soa,
+            t1_target_dir: isBaseline ? null : direction,
+            t1_distractor_dir: null,
+            t2_target_dir: isBaseline ? direction : null,
+            t2_distractor_dir: null,
+        };
+        trials.push({ seParams: canvasTrialParams, meta });
     }
     return trials;
 }
