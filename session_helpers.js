@@ -236,20 +236,20 @@ function extractAlternatingResponse(data, trial, seConfig) {
     };
 }
 
-function extractDualCanvasResponse(leftData, rightData, trial, leftSeConfig, rightSeConfig) {
-    const leftResult = extractSingleStreamResponse(leftData.keyPresses, trial.leftSeParams.start_go_1, leftSeConfig.acceptFirstResponse);
-    const rightResult = extractSingleStreamResponse(rightData.keyPresses, trial.rightSeParams.start_go_1, rightSeConfig.acceptFirstResponse);
+function extractDualCanvasResponse(t1Data, t2Data, t1GoOnset, t2GoOnset, t1Config, t2Config) {
+    const t1Result = extractSingleStreamResponse(t1Data.keyPresses, t1GoOnset, t1Config.acceptFirstResponse);
+    const t2Result = extractSingleStreamResponse(t2Data.keyPresses, t2GoOnset, t2Config.acceptFirstResponse);
 
     let responseOrder = null;
-    if (leftResult.rt_raw !== null && rightResult.rt_raw !== null) {
-	responseOrder = (rightResult.rt_raw - leftResult.rt_raw > 0) ? 'T1-first' : 'T2-first';
+    if (t1Result.rt_raw !== null && t2Result.rt_raw !== null) {
+	responseOrder = (t2Result.rt_raw - t1Result.rt_raw > 0) ? 'T1-first' : 'T2-first';
     }
 
     return {
-	rt1: leftResult.rt, rt1_raw: leftResult.rt_raw, accuracy1: leftResult.accuracy,
-	rt2: rightResult.rt, rt2_raw: rightResult.rt_raw, accuracy2: rightResult.accuracy,
+	rt1: t1Result.rt, rt1_raw: t1Result.rt_raw, accuracy1: t1Result.accuracy,
+	rt2: t2Result.rt, rt2_raw: t2Result.rt_raw, accuracy2: t2Result.accuracy,
 	responseOrder,
-	rawKeyPresses: JSON.stringify({ left: leftData.keyPresses, right: rightData.keyPresses }),
+	rawKeyPresses: JSON.stringify({ t1: t1Data.keyPresses, t2: t2Data.keyPresses }),
     };
 }
 

@@ -249,6 +249,24 @@
                 infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Keys: A = left, D = right.';
             }
 
+            // Inject t1Side from URL param into all block configs
+            const t1Side = new URLSearchParams(window.location.search).get('t1Side') || 'left';
+            if (t1Side === 'right') {
+                blocks = blocks.map(b => {
+                    let text = b.instructions;
+                    if (text) {
+                        // Swap spatial and motor references for right-first layout
+                        text = text.replace(/LEFT/g, '_TMP_R_').replace(/RIGHT/g, 'LEFT').replace(/_TMP_R_/g, 'RIGHT')
+                                   .replace(/Left/g, '_TMP_R2_').replace(/Right/g, 'Left').replace(/_TMP_R2_/g, 'Right')
+                                   .replace(/left/g, '_TMP_R3_').replace(/right/g, 'left').replace(/_TMP_R3_/g, 'right')
+                                   .replace(/A\/D/g, '_TMP_K_').replace(/J\/L/g, 'A/D').replace(/_TMP_K_/g, 'J/L');
+                    }
+                    return { ...b, instructions: text, blockConfig: { ...b.blockConfig, t1Side } };
+                });
+            } else {
+                blocks = blocks.map(b => ({ ...b, blockConfig: { ...b.blockConfig, t1Side } }));
+            }
+
             if (abridgedCb.checked) {
                 blocks = blocks.map(b => ({
                     ...b,

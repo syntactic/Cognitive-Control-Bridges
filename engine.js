@@ -683,6 +683,7 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
         throw new Error(`Dual Canvas Config requires disjoint RSO, got: ${blockConfig.rso}`);
     }
 
+    const t1Side = blockConfig.t1Side ?? 'left';
     const vectors = generateSequenceVectors(blockConfig, numTrials);
     const trials = [];
 
@@ -698,28 +699,33 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
         const dir1 = assignDirections(t1, congruency, 'single-task', blockConfig.rso, blockConfig.keyMaps);
         const dir2 = assignDirections(t2, congruency, 'single-task', blockConfig.rso, blockConfig.keyMaps);
 
-        const leftTaskCoh = blockConfig.coherence[t1] ?? blockConfig.coherence.ch1_task;
-        const rightTaskCoh = blockConfig.coherence[t2] ?? blockConfig.coherence.ch1_task;
+        const t1Coh = blockConfig.coherence[t1] ?? blockConfig.coherence.ch1_task;
+        const t2Coh = blockConfig.coherence[t2] ?? blockConfig.coherence.ch1_task;
         const distractorCoh = blockConfig.coherence.ch1_distractor ?? 0;
 
-        const left_spec = buildSingleCanvasSpec(
+        const t1Spec = buildSingleCanvasSpec(
             t1, blockConfig.csi, blockConfig.stimulusDuration, blockConfig.responseWindow,
-            leftTaskCoh, dir1.ch1_task, distractorCoh, dir1.ch1_distractor
+            t1Coh, dir1.ch1_task, distractorCoh, dir1.ch1_distractor
         );
-        const right_spec = buildSingleCanvasSpec(
+        const t2Spec = buildSingleCanvasSpec(
             t2, blockConfig.csi, blockConfig.stimulusDuration, blockConfig.responseWindow,
-            rightTaskCoh, dir2.ch1_task, distractorCoh, dir2.ch1_distractor
+            t2Coh, dir2.ch1_task, distractorCoh, dir2.ch1_distractor
         );
 
-        const leftCanvasTrialParams = buildTrialParams(left_spec);
-        const rightCanvasTrialParams = buildTrialParams(right_spec);
-        const shiftedRightCanvasTrialParams = applySOAOffset(rightCanvasTrialParams, vectors.soa[i]);
+        const t1Params = buildTrialParams(t1Spec);
+        const t2Params = buildTrialParams(t2Spec);
+        const shiftedT2Params = applySOAOffset(t2Params, vectors.soa[i]);
+
+        // Route temporal roles (T1/T2) to physical canvases based on t1Side
+        const leftSeParams = t1Side === 'left' ? t1Params : shiftedT2Params;
+        const rightSeParams = t1Side === 'left' ? shiftedT2Params : t1Params;
 
         const meta = {
             trialNumber: i + 1,
             blockId: blockConfig.blockId,
             blockType: blockConfig.blockType,
             paradigm: blockConfig.paradigm,
+            t1Side: t1Side,
             earlyResolve: blockConfig.earlyResolve ?? false,
             t1_task: t1,
             t2_task: t2,
@@ -732,7 +738,7 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
             t2_distractor_dir: congruency === 'univalent' ? null : dir2.ch1_distractor,
         };
 
-        trials.push({ leftSeParams: leftCanvasTrialParams, rightSeParams: shiftedRightCanvasTrialParams, meta });
+        trials.push({ leftSeParams, rightSeParams, meta });
     }
 
     return trials;
@@ -753,6 +759,8 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
  */
 function generateSidedTrials(blockConfig, numTrials) {
     const isBaseline = blockConfig.paradigm === 'prp-baseline';
+    const t1Side = blockConfig.t1Side ?? 'left';
+    const oppositeSide = t1Side === 'left' ? 'right' : 'left';
     const vectors = generateSequenceVectors(blockConfig, numTrials);
     const trials = [];
 
@@ -774,7 +782,10 @@ function generateSidedTrials(blockConfig, numTrials) {
 
         const meta = {
             trialNumber: i + 1,
-            side: isBaseline ? 'right' : ((i % 2 === 0) ? 'left' : 'right'),
+            // Baseline: task on opposite side of asterisk (asterisk = T1 side)
+            // Alternating: starting side = t1Side, then alternates
+            side: isBaseline ? oppositeSide : ((i % 2 === 0) ? t1Side : oppositeSide),
+            t1Side: t1Side,
             blockId: blockConfig.blockId,
             blockType: blockConfig.blockType,
             paradigm: blockConfig.paradigm,

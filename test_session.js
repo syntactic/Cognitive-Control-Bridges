@@ -140,26 +140,25 @@ assert(rcNoEr.earlyResolve === false, 'right config gets earlyResolve false');
 
 // ============================================================
 // extractDualCanvasResponse tests
+// New signature: (t1Data, t2Data, t1GoOnset, t2GoOnset, t1Config, t2Config)
 // ============================================================
 
 section('extractDualCanvasResponse — both correct on first press');
 
-const trial1 = {
-    leftSeParams: { start_go_1: 200 },
-    rightSeParams: { start_go_1: 600 },  // includes SOA offset
-};
+const t1GoOnset = 200;
+const t2GoOnset = 600;  // includes SOA offset
 
 const result1 = extractDualCanvasResponse(
     { keyPresses: [{ key: 'a', time: 500, isCorrect: true }] },
     { keyPresses: [{ key: 'j', time: 900, isCorrect: true }] },
-    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
+    t1GoOnset, t2GoOnset, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
-assert(result1.accuracy1 === 'correct', 'left: correct on first press');
-assert(result1.accuracy2 === 'correct', 'right: correct on first press');
-assert(result1.rt1_raw === 500, 'left: rt1_raw = 500');
-assert(result1.rt2_raw === 900, 'right: rt2_raw = 900');
-assert(result1.rt1 === 300, 'left: rt1 = 500 - 200 = 300');
-assert(result1.rt2 === 300, 'right: rt2 = 900 - 600 = 300');
+assert(result1.accuracy1 === 'correct', 'T1: correct on first press');
+assert(result1.accuracy2 === 'correct', 'T2: correct on first press');
+assert(result1.rt1_raw === 500, 'T1: rt1_raw = 500');
+assert(result1.rt2_raw === 900, 'T2: rt2_raw = 900');
+assert(result1.rt1 === 300, 'T1: rt1 = 500 - 200 = 300');
+assert(result1.rt2 === 300, 'T2: rt2 = 900 - 600 = 300');
 assert(result1.responseOrder === 'T1-first', 'T1 responded first');
 
 // ============================================================
@@ -172,12 +171,12 @@ const result2 = extractDualCanvasResponse(
         { key: 'a', time: 550, isCorrect: true },
     ]},
     { keyPresses: [{ key: 'j', time: 900, isCorrect: true }] },
-    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
+    t1GoOnset, t2GoOnset, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
-assert(result2.accuracy1 === 'corrected', 'left: corrected after error');
-assert(result2.accuracy2 === 'correct', 'right: correct on first press');
-assert(result2.rt1_raw === 550, 'left: rt1_raw from correct press');
-assert(result2.rt1 === 350, 'left: rt1 = 550 - 200 = 350');
+assert(result2.accuracy1 === 'corrected', 'T1: corrected after error');
+assert(result2.accuracy2 === 'correct', 'T2: correct on first press');
+assert(result2.rt1_raw === 550, 'T1: rt1_raw from correct press');
+assert(result2.rt1 === 350, 'T1: rt1 = 550 - 200 = 350');
 
 // ============================================================
 
@@ -189,12 +188,12 @@ const result3 = extractDualCanvasResponse(
         { key: 'd', time: 600, isCorrect: false },
     ]},
     { keyPresses: [{ key: 'l', time: 900, isCorrect: true }] },
-    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
+    t1GoOnset, t2GoOnset, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
-assert(result3.accuracy1 === 'error', 'left: error (only wrong keys)');
-assert(result3.rt1_raw === null, 'left: no rt1_raw on error');
-assert(result3.rt1 === null, 'left: no rt1 on error');
-assert(result3.accuracy2 === 'correct', 'right: still correct');
+assert(result3.accuracy1 === 'error', 'T1: error (only wrong keys)');
+assert(result3.rt1_raw === null, 'T1: no rt1_raw on error');
+assert(result3.rt1 === null, 'T1: no rt1 on error');
+assert(result3.accuracy2 === 'correct', 'T2: still correct');
 assert(result3.responseOrder === null, 'no responseOrder when one is missed');
 
 // ============================================================
@@ -204,11 +203,11 @@ section('extractDualCanvasResponse — miss (no keypresses)');
 const result4 = extractDualCanvasResponse(
     { keyPresses: [] },
     { keyPresses: [{ key: 'j', time: 800, isCorrect: true }] },
-    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
+    t1GoOnset, t2GoOnset, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
-assert(result4.accuracy1 === 'miss', 'left: miss (no keypresses)');
-assert(result4.accuracy2 === 'correct', 'right: correct');
-assert(result4.rt1 === null, 'left: no rt1 on miss');
+assert(result4.accuracy1 === 'miss', 'T1: miss (no keypresses)');
+assert(result4.accuracy2 === 'correct', 'T2: correct');
+assert(result4.rt1 === null, 'T1: no rt1 on miss');
 assert(result4.responseOrder === null, 'no responseOrder when one is missed');
 
 // ============================================================
@@ -218,10 +217,10 @@ section('extractDualCanvasResponse — both miss');
 const result5 = extractDualCanvasResponse(
     { keyPresses: [] },
     { keyPresses: [] },
-    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
+    t1GoOnset, t2GoOnset, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
-assert(result5.accuracy1 === 'miss', 'left: miss');
-assert(result5.accuracy2 === 'miss', 'right: miss');
+assert(result5.accuracy1 === 'miss', 'T1: miss');
+assert(result5.accuracy2 === 'miss', 'T2: miss');
 assert(result5.rt1 === null, 'no rt1');
 assert(result5.rt2 === null, 'no rt2');
 assert(result5.responseOrder === null, 'no responseOrder');
@@ -233,7 +232,7 @@ section('extractDualCanvasResponse — response reversal (T2 first)');
 const result6 = extractDualCanvasResponse(
     { keyPresses: [{ key: 'a', time: 1000, isCorrect: true }] },
     { keyPresses: [{ key: 'j', time: 700, isCorrect: true }] },
-    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
+    t1GoOnset, t2GoOnset, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
 assert(result6.responseOrder === 'T2-first', 'T2 responded before T1');
 assert(result6.rt1_raw === 1000, 'rt1_raw is 1000');
@@ -246,7 +245,7 @@ section('extractDualCanvasResponse — simultaneous responses');
 const result7 = extractDualCanvasResponse(
     { keyPresses: [{ key: 'a', time: 800, isCorrect: true }] },
     { keyPresses: [{ key: 'j', time: 800, isCorrect: true }] },
-    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
+    t1GoOnset, t2GoOnset, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
 // Equal timestamps: rt2_raw - rt1_raw = 0, which is NOT > 0, so T2-first
 assert(result7.responseOrder === 'T2-first', 'equal timestamps -> T2-first by convention');
@@ -258,27 +257,23 @@ section('extractDualCanvasResponse — rawKeyPresses format');
 const result8 = extractDualCanvasResponse(
     { keyPresses: [{ key: 'a', time: 500, isCorrect: true }] },
     { keyPresses: [{ key: 'j', time: 900, isCorrect: true }] },
-    trial1, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
+    t1GoOnset, t2GoOnset, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
 const parsed = JSON.parse(result8.rawKeyPresses);
-assert(parsed.left !== undefined, 'rawKeyPresses has left');
-assert(parsed.right !== undefined, 'rawKeyPresses has right');
-assert(parsed.left.length === 1, 'left has 1 keypress');
-assert(parsed.right.length === 1, 'right has 1 keypress');
+assert(parsed.t1 !== undefined, 'rawKeyPresses has t1');
+assert(parsed.t2 !== undefined, 'rawKeyPresses has t2');
+assert(parsed.t1.length === 1, 't1 has 1 keypress');
+assert(parsed.t2.length === 1, 't2 has 1 keypress');
 
 // ============================================================
 
 section('extractDualCanvasResponse — RT at timestamp 0');
 
 // Edge case: response at exactly time 0 (should not be treated as null)
-const trialZero = {
-    leftSeParams: { start_go_1: 0 },
-    rightSeParams: { start_go_1: 0 },
-};
 const result9 = extractDualCanvasResponse(
     { keyPresses: [{ key: 'a', time: 0, isCorrect: true }] },
     { keyPresses: [{ key: 'j', time: 0, isCorrect: true }] },
-    trialZero, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
+    0, 0, NO_ACCEPT_FIRST, NO_ACCEPT_FIRST
 );
 assert(result9.rt1_raw === 0, 'rt1_raw is 0 (not null)');
 assert(result9.rt2_raw === 0, 'rt2_raw is 0 (not null)');
@@ -926,11 +921,11 @@ const dcAfrRes = extractDualCanvasResponse(
         { key: 'a', time: 600, isCorrect: true },
     ]},
     { keyPresses: [{ key: 'j', time: 900, isCorrect: true }] },
-    trial1, ACCEPT_FIRST, ACCEPT_FIRST
+    t1GoOnset, t2GoOnset, ACCEPT_FIRST, ACCEPT_FIRST
 );
-assert(dcAfrRes.accuracy1 === 'error', 'dc acceptFirst: left error on first press');
-assert(dcAfrRes.rt1_raw === 400, 'dc acceptFirst: left rt_raw from wrong press');
-assert(dcAfrRes.accuracy2 === 'correct', 'dc acceptFirst: right correct');
+assert(dcAfrRes.accuracy1 === 'error', 'dc acceptFirst: T1 error on first press');
+assert(dcAfrRes.rt1_raw === 400, 'dc acceptFirst: T1 rt_raw from wrong press');
+assert(dcAfrRes.accuracy2 === 'correct', 'dc acceptFirst: T2 correct');
 
 // ============================================================
 // feedback and acceptFirstResponse builder tests

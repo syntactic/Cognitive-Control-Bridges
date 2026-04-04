@@ -1012,6 +1012,118 @@ for (const t of blTrials) {
 }
 
 // ============================================================
+// t1Side counterbalancing tests
+// ============================================================
+
+section('generateSidedTrials — prp-baseline default t1Side is left');
+
+for (const t of blTrials) {
+    assert(t.meta.t1Side === 'left', `default t1Side is left, got ${t.meta.t1Side}`);
+    assert(t.meta.side === 'right', `default baseline task side is right, got ${t.meta.side}`);
+}
+
+// ============================================================
+section('generateSidedTrials — prp-baseline with t1Side=right');
+
+const baselineRightConfig = { ...baselineConfig, blockId: 'test_bl_right', t1Side: 'right' };
+const blRightTrials = generateSidedTrials(baselineRightConfig, 20);
+
+for (const t of blRightTrials) {
+    assert(t.meta.t1Side === 'right', `t1Side is right, got ${t.meta.t1Side}`);
+    assert(t.meta.side === 'left', `task side is left (opposite of t1Side), got ${t.meta.side}`);
+    assert(t.meta.t1_task === null, 't1_task is null (asterisk)');
+    assert(t.meta.t2_task === 'mov', `t2_task is mov, got ${t.meta.t2_task}`);
+}
+
+// ============================================================
+section('generateSidedTrials — alternating default t1Side is left');
+
+for (const t of altTrials) {
+    assert(t.meta.t1Side === 'left', `default t1Side is left, got ${t.meta.t1Side}`);
+}
+// First trial should be on left (t1Side default)
+assert(altTrials[0].meta.side === 'left', `first trial side is left, got ${altTrials[0].meta.side}`);
+assert(altTrials[1].meta.side === 'right', `second trial side is right, got ${altTrials[1].meta.side}`);
+
+// ============================================================
+section('generateSidedTrials — alternating with t1Side=right');
+
+const altRightConfig = { ...alternatingConfig, blockId: 'test_alt_right', t1Side: 'right' };
+const altRightTrials = generateSidedTrials(altRightConfig, 10);
+
+for (const t of altRightTrials) {
+    assert(t.meta.t1Side === 'right', `t1Side is right, got ${t.meta.t1Side}`);
+}
+// First trial should be on right (t1Side='right')
+assert(altRightTrials[0].meta.side === 'right', `first trial side is right, got ${altRightTrials[0].meta.side}`);
+assert(altRightTrials[1].meta.side === 'left', `second trial side is left, got ${altRightTrials[1].meta.side}`);
+// Verify alternation continues
+for (let i = 0; i < altRightTrials.length; i++) {
+    const expectedSide = (i % 2 === 0) ? 'right' : 'left';
+    assert(altRightTrials[i].meta.side === expectedSide,
+        `trial ${i+1}: side is ${expectedSide}, got ${altRightTrials[i].meta.side}`);
+}
+
+// ============================================================
+section('generateDualCanvasBlockTrials — default t1Side is left');
+
+// Use the existing dual-canvas config from later in the test file
+const dcDefaultConfig = {
+    blockId: 'test_dc_default',
+    blockType: 'prp',
+    paradigm: 'dual-canvas',
+    sequenceType: 'Random',
+    switchRate: 50,
+    startTask: null,
+    rso: 'disjoint',
+    earlyResolve: true,
+    csi: 200,
+    stimulusDuration: 300,
+    responseWindow: 2000,
+    coherence: { ch1_task: 0.8, ch1_distractor: 0, ch2_task: 0, ch2_distractor: 0 },
+    congruency: { conditions: ['univalent'], proportions: [1.0] },
+    iti: { type: 'fixed', value: 500 },
+    soa: { type: 'fixed', value: 600 },
+};
+
+const dcDefaultTrials = generateDualCanvasBlockTrials(dcDefaultConfig, 10);
+for (const t of dcDefaultTrials) {
+    assert(t.meta.t1Side === 'left', `default t1Side is left, got ${t.meta.t1Side}`);
+}
+
+// ============================================================
+section('generateDualCanvasBlockTrials — t1Side=right swaps canvas params');
+
+const dcRightConfig = { ...dcDefaultConfig, blockId: 'test_dc_right', t1Side: 'right' };
+const dcRightTrials = generateDualCanvasBlockTrials(dcRightConfig, 10);
+
+for (const t of dcRightTrials) {
+    assert(t.meta.t1Side === 'right', `t1Side is right, got ${t.meta.t1Side}`);
+    // T1 params should be on the right canvas (no SOA shift)
+    // T2 params should be on the left canvas (with SOA shift)
+    // The right canvas (T1) should have start_go_1 = csi = 200
+    assert(t.rightSeParams.start_go_1 === 200,
+        `T1 on right: start_go_1 = 200, got ${t.rightSeParams.start_go_1}`);
+    // The left canvas (T2) should have start_go_1 = csi + soa = 200 + 600 = 800
+    // (applySOAOffset shifts start_go_1 by soa)
+    assert(t.leftSeParams.start_go_1 === 800,
+        `T2 on left: start_go_1 = 800 (200 + 600 SOA), got ${t.leftSeParams.start_go_1}`);
+}
+
+// ============================================================
+section('generateDualCanvasBlockTrials — t1Side=left vs right have same tasks');
+
+// With the same seed-independent checks: both should have t1_task and t2_task in meta
+for (const t of dcDefaultTrials) {
+    assert(t.meta.t1_task !== null, 'default: t1_task present');
+    assert(t.meta.t2_task !== null, 'default: t2_task present');
+}
+for (const t of dcRightTrials) {
+    assert(t.meta.t1_task !== null, 'right: t1_task present');
+    assert(t.meta.t2_task !== null, 'right: t2_task present');
+}
+
+// ============================================================
 // EXPANDED COVERAGE
 // ============================================================
 

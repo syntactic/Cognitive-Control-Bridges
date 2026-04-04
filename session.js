@@ -125,18 +125,23 @@ const Session = (() => {
 	};
     }
 
-    async function runBaselinePRPTrial(trial, rightConfig, leftParent, rightParent) {
+    async function runBaselinePRPTrial(trial, taskConfig, leftParent, rightParent) {
 	await sleep(trial.meta.iti);
+	const taskSide = trial.meta.side;
+	const asteriskParent = taskSide === 'right' ? leftParent : rightParent;
+	const taskParent = taskSide === 'right' ? rightParent : leftParent;
+	const canvasId = 'canvas' + (taskSide === 'right' ? 'Right' : 'Left');
+
 	const placeholder = document.createElement('div');
 	placeholder.style.cssText = 'width:100%; min-height:580px; display:flex; align-items:center; justify-content:center; font-size:6em; color:#888; background:#000;';
 	placeholder.textContent = '*';
-	leftParent.appendChild(placeholder);
+	asteriskParent.appendChild(placeholder);
 	await sleep(trial.meta.soa);
 
-	const data = await seBlock([trial.seParams], 0, rightConfig, false, rightConfig.feedback, 'canvasRight', rightParent);
-	await seEndBlock('canvasRight');
-	leftParent.innerHTML = '';
-	const result = extractAlternatingResponse(data, trial, rightConfig);
+	const data = await seBlock([trial.seParams], 0, taskConfig, false, taskConfig.feedback, canvasId, taskParent);
+	await seEndBlock(canvasId);
+	asteriskParent.innerHTML = '';
+	const result = extractAlternatingResponse(data, trial, taskConfig);
 	// Remap response to T2 slot: asterisk is T1 (no response), actual task is T2
 	return {
 	    ...trial.meta,
@@ -149,7 +154,10 @@ const Session = (() => {
 
     async function runDualCanvasTrial(trial, leftConfig, rightConfig, prevResponseTime) {
         await sleep(trial.meta.iti);
-	const { leftParent, rightParent } = setupDualCanvasDOM();
+	const t1Side = trial.meta.t1Side ?? 'left';
+	const leftLabel = t1Side === 'left' ? 'T1 (respond with left hand)' : 'T2 (respond with left hand)';
+	const rightLabel = t1Side === 'left' ? 'T2 (respond with right hand)' : 'T1 (respond with right hand)';
+	const { leftParent, rightParent } = setupDualCanvasDOM(leftLabel, rightLabel);
 
 	const leftPromise = seBlock([trial.leftSeParams], 0, leftConfig, false, leftConfig.feedback, 'canvasLeft', leftParent);
 	const rightPromise = seBlock([trial.rightSeParams], 0, rightConfig, false, rightConfig.feedback, 'canvasRight', rightParent);
@@ -157,7 +165,16 @@ const Session = (() => {
 
 	await seEndBlock('canvasLeft');
 	await seEndBlock('canvasRight');
-	const result = extractDualCanvasResponse(leftData, rightData, trial, leftConfig, rightConfig);
+
+	// Map physical canvas data to temporal roles (T1/T2)
+	const t1Data = t1Side === 'left' ? leftData : rightData;
+	const t2Data = t1Side === 'left' ? rightData : leftData;
+	const t1Config = t1Side === 'left' ? leftConfig : rightConfig;
+	const t2Config = t1Side === 'left' ? rightConfig : leftConfig;
+	const t1GoOnset = trial[t1Side === 'left' ? 'leftSeParams' : 'rightSeParams'].start_go_1;
+	const t2GoOnset = trial[t1Side === 'left' ? 'rightSeParams' : 'leftSeParams'].start_go_1;
+
+	const result = extractDualCanvasResponse(t1Data, t2Data, t1GoOnset, t2GoOnset, t1Config, t2Config);
 	return {
 	    ...trial.meta,
 	    ...result,
@@ -174,6 +191,7 @@ const Session = (() => {
 	const feedback = blockConfig.feedback ?? true;
 	const acceptFirstResponse = blockConfig.acceptFirstResponse ?? false;
 	const canvasType = blockConfig.paradigm ?? 'single-canvas';
+	const t1Side = blockConfig.t1Side ?? 'left';
 	let leftParent, rightParent;
 	if (canvasType === 'dual-canvas') {
 	    trials = generateDualCanvasBlockTrials(blockConfig, numTrials);
@@ -181,11 +199,15 @@ const Session = (() => {
 	} else if (canvasType === 'alternating') {
 	    trials = generateSidedTrials(blockConfig, numTrials);
 	    canvasContainer.classList.toggle('dual-canvas-mode', true);
-	    ({ leftParent, rightParent } = setupDualCanvasDOM());
+	    ({ leftParent, rightParent } = setupDualCanvasDOM('Respond with left hand', 'Respond with right hand'));
 	} else if (canvasType === 'prp-baseline') {
 	    trials = generateSidedTrials(blockConfig, numTrials);
 	    canvasContainer.classList.toggle('dual-canvas-mode', true);
-	    ({ leftParent, rightParent } = setupDualCanvasDOM('S1 (no response needed)', 'Respond with right hand: J/L'));
+	    if (t1Side === 'left') {
+		({ leftParent, rightParent } = setupDualCanvasDOM('S1 (no response needed)', 'Respond with right hand: J/L'));
+	    } else {
+		({ leftParent, rightParent } = setupDualCanvasDOM('Respond with left hand: A/D', 'S1 (no response needed)'));
+	    }
 	} else {
 	    trials = generateBlockTrials(blockConfig, numTrials);
 	    seConfig = buildSEConfig(blockConfig.rso, blockConfig.earlyResolve, feedback, acceptFirstResponse, blockConfig.keyMaps);
@@ -216,7 +238,10 @@ const Session = (() => {
 		trials[i].seParams["coh_" + task_1 + "_1"] = newCoherence;
 	    }
 	    if (canvasType === 'dual-canvas') {
-		const { leftConfig, rightConfig } = buildDualCanvasSEConfigs(trials[i].meta.t1_task, trials[i].meta.t2_task, trials[i].meta.earlyResolve, feedback, acceptFirstResponse, computeDualCanvasSize());
+		const trialT1Side = trials[i].meta.t1Side ?? 'left';
+		const leftTask = trialT1Side === 'left' ? trials[i].meta.t1_task : trials[i].meta.t2_task;
+		const rightTask = trialT1Side === 'left' ? trials[i].meta.t2_task : trials[i].meta.t1_task;
+		const { leftConfig, rightConfig } = buildDualCanvasSEConfigs(leftTask, rightTask, trials[i].meta.earlyResolve, feedback, acceptFirstResponse, computeDualCanvasSize());
 		trialData = await runDualCanvasTrial(trials[i], leftConfig, rightConfig, prevResponseTime);
 	    } else if (canvasType === 'alternating') {
 		const config = buildAlternatingSEConfig(trials[i].meta.t1_task, trials[i].meta.side, trials[i].meta.earlyResolve, feedback, acceptFirstResponse, computeDualCanvasSize());
@@ -327,7 +352,7 @@ const Session = (() => {
 	const columns = [
 	    'blockOrder', 'blockId', 'blockType', 'paradigm', 'isPractice',
 	    'trialNumber', 't1_task', 't2_task', 'transitionType',
-	    'iti', 'soa', 'side', 'earlyResolve',
+	    'iti', 'soa', 'side', 't1Side', 'earlyResolve',
 	    't1_target_dir', 't1_distractor_dir',
 	    't2_target_dir', 't2_distractor_dir',
 	    't1_target_coherence', 't2_target_coherence',
