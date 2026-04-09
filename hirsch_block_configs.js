@@ -127,11 +127,11 @@ const hirschDualCanvasPRP = {
 const HIRSCH_FAITHFUL_SESSION = [
     // --- Part 1: Task Switching ---
     // Practice + pure baselines
-    { blockConfig: hirschAlternatingPureMov, numTrials: 20, isPractice: true, runQuest: true,
+    { blockConfig: hirschAlternatingPureMov, numTrials: 20, isPractice: true, runQuest: { priorMean: 0.4, priorSD: 0.2 },
       instructions: 'Practice pure block: MOVEMENT only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
     { blockConfig: hirschAlternatingPureMov, numTrials: 41, useQuest: true,
       instructions: 'Pure block: MOVEMENT only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingPureOr, numTrials: 20, isPractice: true, runQuest: true,
+    { blockConfig: hirschAlternatingPureOr, numTrials: 20, isPractice: true, runQuest: { priorMean: 0.6, priorSD: 0.2 },
       instructions: 'Practice pure block: ORIENTATION only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
     { blockConfig: hirschAlternatingPureOr, numTrials: 41, useQuest: true,
       instructions: 'Pure block: ORIENTATION only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
@@ -227,9 +227,9 @@ const HIRSCH_PRP_DEMO = [
 ];
 
 const HIRSCH_QUEST_DEMO = [
-    { blockConfig: hirschAlternatingPureMov, numTrials: 20, isPractice: true, runQuest: true,
+    { blockConfig: hirschAlternatingPureMov, numTrials: 20, isPractice: true, runQuest: { priorMean: 0.35, priorSD: 0.2 },
       instructions: 'QUEST demo: MOVEMENT.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingPureOr, numTrials: 20, isPractice: true, runQuest: true,
+    { blockConfig: hirschAlternatingPureOr, numTrials: 20, isPractice: true, runQuest: { priorMean: 0.6, priorSD: 0.25 }, 
       instructions: 'QUEST demo: ORIENTATION.\n\nPress any key.' },
     { blockConfig: hirschAlternatingMixed, numTrials: 10, useQuest: true,
       instructions: 'Mixed block with QUEST thresholds.\n\nPress any key.' },

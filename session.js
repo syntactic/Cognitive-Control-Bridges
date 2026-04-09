@@ -222,7 +222,13 @@ const Session = (() => {
 	let quest;
 	let newCoherence;
 	if (blockDef.runQuest) {
-	    quest = createQuest(0.5, 0.2);
+	    let priorMean = 0.5;
+	    let priorSD = 0.2;
+	    if (typeof(blockDef.runQuest) === 'object') {
+		priorMean = blockDef.runQuest.priorMean ?? priorMean;
+		priorSD = blockDef.runQuest.priorSD ?? priorSD;
+	    }
+	    quest = createQuest(priorMean, priorSD);
 	}
         let prevResponseTime = null;
 	let trialData;
@@ -230,12 +236,25 @@ const Session = (() => {
             if (!isRunning) break;
             // Update status display
             updateStatus(blockConfig.blockId, i + 1, trials.length, blockOrder);
-	    const task_1 = trials[i].seParams.task_1;
-	    const task_2 = trials[i].seParams.task_2;
+	    const task_1 = trials[i].meta.t1_task;
+	    const task_2 = trials[i].meta.t2_task;
+
+	    // Resolve SE param objects: dual-canvas has leftSeParams/rightSeParams,
+	    // all other paradigms have a single seParams.
+	    let t1Params, t2Params;
+	    if (canvasType === 'dual-canvas') {
+		const trialT1Side = trials[i].meta.t1Side ?? 'left';
+		t1Params = trialT1Side === 'left' ? trials[i].leftSeParams : trials[i].rightSeParams;
+		t2Params = trialT1Side === 'left' ? trials[i].rightSeParams : trials[i].leftSeParams;
+	    } else {
+		t1Params = trials[i].seParams;
+		t2Params = trials[i].seParams;
+	    }
+
 	    // override coherence if we're running Quest
 	    if (blockDef.runQuest) {
 		newCoherence = Math.min(quest.getNextIntensity(), 0.9);
-		trials[i].seParams["coh_" + task_1 + "_1"] = newCoherence;
+		t1Params["coh_" + task_1 + "_1"] = newCoherence;
 	    }
 	    if (canvasType === 'dual-canvas') {
 		const trialT1Side = trials[i].meta.t1Side ?? 'left';
@@ -255,10 +274,13 @@ const Session = (() => {
             trialData.blockOrder = blockOrder;
             trialData.isPractice = blockDef.isPractice || false;
 	    if (task_1) {
-		trialData.t1_target_coherence = trials[i].seParams["coh_" + task_1 + "_1"];
+		trialData.t1_target_coherence = t1Params["coh_" + task_1 + "_1"];
 	    }
 	    if (task_2) {
-		trialData.t2_target_coherence = trials[i].seParams["coh_" + task_2 + "_2"];
+		// Single-canvas: T2 is on channel 2 (_2 suffix).
+		// Dual-canvas: each canvas is independent, so T2 is on its own channel 1 (_1 suffix).
+		const t2Suffix = canvasType === 'dual-canvas' ? "_1" : "_2";
+		trialData.t2_target_coherence = t2Params["coh_" + task_2 + t2Suffix];
 	    }
             prevResponseTime = performance.now();
 	    if (blockDef.runQuest) {
@@ -294,7 +316,7 @@ const Session = (() => {
         // Clear container
         canvasContainer.innerHTML = '';
 
-	const questCoherences = { mov: 0.5, or: 0.5}; // some defaults
+	const questCoherences = { mov: 0.4, or: 0.6}; // some defaults
         for (let b = 0; b < sessionDef.length; b++) {
             if (!isRunning) break;
             const questResult = await runBlock(sessionDef[b], b + 1);
