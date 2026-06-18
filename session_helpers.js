@@ -5,10 +5,28 @@
 // Key mapping constants
 // ============================================================
 
-// Horizontal 2-direction presets
+// Horizontal 2-direction presets (parallel / spatially-compatible S-R)
 const LEFT_HAND_KEYS = { 180: 'a', 0: 'd' };
 const RIGHT_HAND_KEYS = { 180: 'j', 0: 'l' };
 const DUMMY_KEYS = { 180: '!', 0: '!' };
+
+// Orthogonal 2-direction presets: VERTICAL stimulus directions (90=up, 270=down)
+// mapped onto the HORIZONTAL a/d, j/l keys. This deliberately removes any spatial
+// correspondence between stimulus and response. Contrast with NATURAL_WASD below,
+// which is the parallel (spatially-compatible) vertical mapping (up='w', down='s').
+const LEFT_HAND_KEYS_ORTHOGONAL = { 90: 'a', 270: 'd' };
+const RIGHT_HAND_KEYS_ORTHOGONAL = { 90: 'j', 270: 'l' };
+
+/**
+ * Selects the left/right hand key-map presets for a given stimulus-response mapping.
+ * @param {string} mapping - 'orthogonal' (vertical stimuli, horizontal keys) or
+ *   anything else (default 'parallel': horizontal stimuli, horizontal keys).
+ */
+function handKeysForMapping(mapping) {
+    return mapping === 'orthogonal'
+        ? { left: LEFT_HAND_KEYS_ORTHOGONAL, right: RIGHT_HAND_KEYS_ORTHOGONAL }
+        : { left: LEFT_HAND_KEYS, right: RIGHT_HAND_KEYS };
+}
 
 // Full 4-direction presets (spatially intuitive)
 const NATURAL_WASD = { 0: 'd', 90: 'w', 180: 'a', 270: 's' };
@@ -73,17 +91,18 @@ function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps
  * @param {boolean} earlyResolve - whether the trial resolves on response
  * @param {number} size - canvas size (fraction of viewport)
  */
-function buildDualCanvasSEConfigs(leftTask, rightTask, earlyResolve, feedback, acceptFirstResponse, size) {
+function buildDualCanvasSEConfigs(leftTask, rightTask, earlyResolve, feedback, acceptFirstResponse, size, mapping) {
+    const { left: leftKeys, right: rightKeys } = handKeysForMapping(mapping);
     let leftConfig, rightConfig;
     if (leftTask === 'mov') {
-	leftConfig = { movementKeyMap: { ...LEFT_HAND_KEYS }, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve };
+	leftConfig = { movementKeyMap: { ...leftKeys }, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve };
     } else {
-	leftConfig = { orientationKeyMap: { ...LEFT_HAND_KEYS }, movementKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve };
+	leftConfig = { orientationKeyMap: { ...leftKeys }, movementKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve };
     }
     if (rightTask === 'mov') {
-	rightConfig = { movementKeyMap: { ...RIGHT_HAND_KEYS }, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve };
+	rightConfig = { movementKeyMap: { ...rightKeys }, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve };
     } else {
-	rightConfig = { orientationKeyMap: { ...RIGHT_HAND_KEYS }, movementKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve };
+	rightConfig = { orientationKeyMap: { ...rightKeys }, movementKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve };
     }
     return { leftConfig, rightConfig };
 }
@@ -97,12 +116,13 @@ function buildDualCanvasSEConfigs(leftTask, rightTask, earlyResolve, feedback, a
  * @param {boolean} earlyResolve - whether the trial resolves on response
  * @param {number} size - canvas size (fraction of viewport)
  */
-function buildAlternatingSEConfig(task, side, earlyResolve, feedback, acceptFirstResponse, size) {
-    const horizontalMapping = side === 'left' ? { ...LEFT_HAND_KEYS } : { ...RIGHT_HAND_KEYS };
+function buildAlternatingSEConfig(task, side, earlyResolve, feedback, acceptFirstResponse, size, mapping) {
+    const handKeys = handKeysForMapping(mapping);
+    const sideMapping = side === 'left' ? { ...handKeys.left } : { ...handKeys.right };
     if (task === 'mov') {
-	return { movementKeyMap: horizontalMapping, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve };
+	return { movementKeyMap: sideMapping, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve };
     }
-    return { movementKeyMap: { ...DUMMY_KEYS }, orientationKeyMap: horizontalMapping, size, acceptFirstResponse, feedback, earlyResolve };
+    return { movementKeyMap: { ...DUMMY_KEYS }, orientationKeyMap: sideMapping, size, acceptFirstResponse, feedback, earlyResolve };
 }
 
 // ============================================================

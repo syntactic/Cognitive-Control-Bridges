@@ -323,8 +323,10 @@ function generateSequenceVectors(blockConfig, numTrials) {
  *   Direction pools are derived from the keys (e.g., {180:'a', 0:'d'} -> [0, 180]).
  * @returns {{ ch1_task: number, ch1_distractor: number, ch2_task: number, ch2_distractor: number }}
  */
-function assignDirections(task, congruency, paradigm, rso, keyMaps) {
-    const defaultDirs = [0, 180];
+function assignDirections(task, congruency, paradigm, rso, keyMaps, mapping = 'parallel') {
+    // 'orthogonal' mapping uses vertical stimulus directions (90=up, 270=down);
+    // the default ('parallel') uses horizontal directions (0=right, 180=left).
+    const defaultDirs = mapping === 'orthogonal' ? [90, 270] : [0, 180];
     const taskDirPool = keyMaps ? Object.keys(keyMaps[task]).map(Number) : defaultDirs;
 
     function randomFrom(pool) {
@@ -358,7 +360,7 @@ function assignDirections(task, congruency, paradigm, rso, keyMaps) {
         // Without keyMaps: default to [90, 270] for backward compat.
         const neutralPool = keyMaps
             ? Object.keys(keyMaps[switchTask(task)]).map(Number)
-            : [90, 270];
+            : (mapping === 'orthogonal' ? [0, 180] : [90, 270]);
         distractorDir = randomFrom(neutralPool);
     }
     // 'univalent': distractorDir stays 0, coherence silences the pathway
@@ -548,7 +550,7 @@ function generateBlockTrials(blockConfig, numTrials) {
         const soa = isDualTask ? vectors.soa[i] : null;
 
         const dir = assignDirections(
-            task1, congruency, blockConfig.paradigm, blockConfig.rso, blockConfig.keyMaps
+            task1, congruency, blockConfig.paradigm, blockConfig.rso, blockConfig.keyMaps, blockConfig.mapping
         );
 
         // Resolve coherence (task-indexed -> channel-indexed)
@@ -696,8 +698,8 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
         // Note: keyMaps here are block-level, not canvas-aware. Correct for
         // univalent trials but would need per-canvas keyMaps if within-canvas
         // congruency is added later (see TODO above).
-        const dir1 = assignDirections(t1, congruency, 'single-task', blockConfig.rso, blockConfig.keyMaps);
-        const dir2 = assignDirections(t2, congruency, 'single-task', blockConfig.rso, blockConfig.keyMaps);
+        const dir1 = assignDirections(t1, congruency, 'single-task', blockConfig.rso, blockConfig.keyMaps, blockConfig.mapping);
+        const dir2 = assignDirections(t2, congruency, 'single-task', blockConfig.rso, blockConfig.keyMaps, blockConfig.mapping);
 
         const t1Coh = blockConfig.coherence[t1] ?? blockConfig.coherence.ch1_task;
         const t2Coh = blockConfig.coherence[t2] ?? blockConfig.coherence.ch1_task;
@@ -773,7 +775,10 @@ function generateSidedTrials(blockConfig, numTrials) {
         const iti = vectors.iti[i];
 
         const coherence = blockConfig.coherence[displayTask] ?? blockConfig.coherence.ch1_task;
-        const direction = Math.random() < 0.5 ? 0 : 180;
+        // 'orthogonal' mapping uses vertical stimulus directions (90=up, 270=down);
+        // default uses horizontal (0=right, 180=left).
+        const dirPool = blockConfig.mapping === 'orthogonal' ? [90, 270] : [0, 180];
+        const direction = dirPool[Math.floor(Math.random() * dirPool.length)];
         const spec = buildSingleCanvasSpec(
             displayTask, blockConfig.csi, blockConfig.stimulusDuration,
             blockConfig.responseWindow, coherence, direction

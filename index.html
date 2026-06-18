@@ -135,8 +135,12 @@
             </optgroup>
             <optgroup label="Hirsch Replication">
                 <option value="hirsch_faithful">Full Replication</option>
+                <option value="hirsch_faithful_orthogonal">Full Replication (Orthogonal Mapping)</option>
                 <option value="hirsch_part1">Part 1: Task Switching</option>
                 <option value="hirsch_part2">Part 2: Dual-Canvas PRP</option>
+            </optgroup>
+            <optgroup label="Bug Testing">
+                <option value="timing_bug_soa">T2 Timing Bug (SOA sweep)</option>
             </optgroup>
             <optgroup label="Hirsch Quick Tests">
                 <option value="hirsch_alt_pure">Alternating Pure</option>
@@ -174,6 +178,7 @@
     <script src="demo_block_configs.js"></script>
     <script src="hirsch_block_configs.js"></script>
     <script src="switch-frequency.js"></script>
+    <script src="timing_bug_test.js"></script>
     <script src="session_helpers.js"></script>
     <script src="session.js"></script>
 
@@ -216,8 +221,15 @@
                     blocks = SF_BIVALENT_SESSION;
                     break;
                 // Hirsch replication
+                // Bug testing
+                case 'timing_bug_soa':
+                    blocks = TIMING_BUG_SESSION;
+                    break;
                 case 'hirsch_faithful':
                     blocks = HIRSCH_FAITHFUL_SESSION;
+                    break;
+                case 'hirsch_faithful_orthogonal':
+                    blocks = HIRSCH_FAITHFUL_ORTHOGONAL_SESSION;
                     break;
                 case 'hirsch_part1':
                     blocks = HIRSCH_TASK_SWITCHING_SESSION;
@@ -247,8 +259,11 @@
 
             const isDualCanvas = blocks.some(b =>
                 ['dual-canvas', 'alternating', 'prp-baseline'].includes(b.blockConfig.paradigm));
+            const isOrthogonal = blocks.some(b => b.blockConfig.mapping === 'orthogonal');
             const infoDiv = document.querySelector('.info');
-            if (isDualCanvas) {
+            if (isOrthogonal) {
+                infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Left canvas: A = up, D = down<br>Right canvas: J = up, L = down';
+            } else if (isDualCanvas) {
                 infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Left task controls: A = left, D = right<br>Right task controls: J = left, L = right';
             } else {
                 infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Keys: A = left, D = right.';
@@ -260,11 +275,20 @@
                 blocks = blocks.map(b => {
                     let text = b.instructions;
                     if (text) {
-                        // Swap spatial and motor references for right-first layout
+                        // Swap spatial and motor references for right-first layout.
+                        // Each side word is swapped together with its key labels so
+                        // hand-follows-side associations stay correct (left canvas = a/d,
+                        // right canvas = j/l) — only which side is mentioned first changes.
                         text = text.replace(/LEFT/g, '_TMP_R_').replace(/RIGHT/g, 'LEFT').replace(/_TMP_R_/g, 'RIGHT')
                                    .replace(/Left/g, '_TMP_R2_').replace(/Right/g, 'Left').replace(/_TMP_R2_/g, 'Right')
                                    .replace(/left/g, '_TMP_R3_').replace(/right/g, 'left').replace(/_TMP_R3_/g, 'right')
-                                   .replace(/A\/D/g, '_TMP_K_').replace(/J\/L/g, 'A/D').replace(/_TMP_K_/g, 'J/L');
+                                   // Parallel design: horizontal key pairs.
+                                   .replace(/A\/D/g, '_TMP_K_').replace(/J\/L/g, 'A/D').replace(/_TMP_K_/g, 'J/L')
+                                   // Orthogonal design: up/down key labels (a/d <-> j/l).
+                                   .replace(/A = up/g, '_TMP_KU_').replace(/J = up/g, 'A = up').replace(/_TMP_KU_/g, 'J = up')
+                                   .replace(/D = down/g, '_TMP_KD_').replace(/L = down/g, 'D = down').replace(/_TMP_KD_/g, 'L = down')
+                                   .replace(/A \(/g, '_TMP_KP1_').replace(/J \(/g, 'A (').replace(/_TMP_KP1_/g, 'J (')
+                                   .replace(/D \(/g, '_TMP_KP2_').replace(/L \(/g, 'D (').replace(/_TMP_KP2_/g, 'L (');
                     }
                     return { ...b, instructions: text, blockConfig: { ...b.blockConfig, t1Side } };
                 });
