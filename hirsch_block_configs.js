@@ -227,11 +227,11 @@ const HIRSCH_FAITHFUL_SESSION = [
 const HIRSCH_FAITHFUL_ORTHOGONAL_SESSION = [
     // --- Part 1: Task Switching ---
     // Practice + pure baselines
-    { blockConfig: hirschAlternatingPureMovOrtho, numTrials: 20, isPractice: true, runQuest: { priorMean: 0.4, priorSD: 0.2 },
+    { blockConfig: hirschAlternatingPureMovOrtho, numTrials: 30, isPractice: true, runQuest: { priorMean: 0.5, priorSD: 0.2 },
       instructions: 'Practice pure block: MOVEMENT only.\nJudge whether the objects move UP or DOWN.\nLeft canvas: A = up, D = down.\nRight canvas: J = up, L = down.\n\nPress any key.' },
     { blockConfig: hirschAlternatingPureMovOrtho, numTrials: 41, useQuest: true,
       instructions: 'Pure block: MOVEMENT only.\nJudge whether the objects move UP or DOWN.\nLeft canvas: A = up, D = down.\nRight canvas: J = up, L = down.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingPureOrOrtho, numTrials: 20, isPractice: true, runQuest: { priorMean: 0.6, priorSD: 0.2 },
+    { blockConfig: hirschAlternatingPureOrOrtho, numTrials: 30, isPractice: true, runQuest: { priorMean: 0.7, priorSD: 0.2 },
       instructions: 'Practice pure block: ORIENTATION only.\nJudge whether the triangles point UP or DOWN.\nLeft canvas: A = up, D = down.\nRight canvas: J = up, L = down.\n\nPress any key.' },
     { blockConfig: hirschAlternatingPureOrOrtho, numTrials: 41, useQuest: true,
       instructions: 'Pure block: ORIENTATION only.\nJudge whether the triangles point UP or DOWN.\nLeft canvas: A = up, D = down.\nRight canvas: J = up, L = down.\n\nPress any key.' },
