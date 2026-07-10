@@ -317,7 +317,9 @@
             container.focus();
 
             try {
-                await Session.runSession(sessionDef, container);
+                // Stimulus type: concrete fish sprites by default; ?stimulus=abstract for circles/triangles.
+                const stimulus = new URLSearchParams(window.location.search).get('stimulus') || 'fish';
+                await Session.runSession(sessionDef, container, { stimulus });
             } catch (e) {
                 console.error('Session error:', e);
                 document.getElementById('session-status').textContent = `Error: ${e.message}`;

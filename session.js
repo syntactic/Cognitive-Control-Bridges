@@ -9,7 +9,25 @@ const Session = (() => {
     let canvasContainer = null;
 
     // SE package references
-    const seBlock = superExperiment.block;
+    let spriteConfig = null; // populated by loadSprites() when sprite mode is on
+    async function loadSprites() {
+        const base = 'node_modules/super-experiment/res/';
+        const img     = await superExperiment.loadImage(base + 'fish_2.png');
+        const imgDist = await superExperiment.loadImage(base + 'fish_forward.png');
+        spriteConfig = {
+            img, imgDist,
+            imgFramesX: 4, imgFramesY: 2,
+            imgDistFramesX: 4, imgDistFramesY: 2,
+            objName: 'sideways-facing fish',
+            distName: 'forward-facing fish',
+            allName: 'fish',
+        };
+    }
+
+    const _seBlock = superExperiment.block;
+    // Merge sprite keys into every trial's config, whichever builder produced it.
+    const seBlock = (seq, regen, config, ...rest) =>
+        _seBlock(seq, regen, { ...config, ...(spriteConfig || {}) }, ...rest);
     const seEndBlock = superExperiment.endBlock;
 
     function computeDualCanvasSize() {
@@ -307,7 +325,7 @@ const Session = (() => {
     /**
      * Run a complete session (multiple blocks).
      */
-    async function runSession(sessionDef, containerEl) {
+    async function runSession(sessionDef, containerEl, options = {}) {
         canvasContainer = containerEl;
         currentSessionDef = sessionDef;
         allTrialData = [];
@@ -315,6 +333,14 @@ const Session = (() => {
 
         // Clear container
         canvasContainer.innerHTML = '';
+
+        // Concrete (sprite) stimuli are the default. Request the abstract circles/triangles
+        // path explicitly with { stimulus: 'abstract' } (wired to ?stimulus=abstract in index.html).
+        // Load the sprite sheets once, before any trial runs, because init_oobs() reads
+        // img.naturalWidth the moment a block starts.
+        if (options.stimulus !== 'abstract') {
+            await loadSprites();
+        }
 
 	const questCoherences = { mov: 0.4, or: 0.6}; // some defaults
         for (let b = 0; b < sessionDef.length; b++) {
