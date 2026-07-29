@@ -2076,6 +2076,99 @@ for (const t of factDCTrials) {
 }
 
 // ============================================================
+section('pickCoherenceValue — all lookup shapes');
+assert(pickCoherenceValue(0.5, null, null) === 0.5, 'scalar');
+assert(pickCoherenceValue(0.5, 'mov', 'easy') === 0.5, 'scalar ignores task/level');
+assert(pickCoherenceValue({ mov: 0.8, or: 0.3 }, 'mov', null) === 0.8, 'task-keyed mov');
+assert(pickCoherenceValue({ mov: 0.8, or: 0.3 }, 'or', null) === 0.3, 'task-keyed or');
+assert(pickCoherenceValue({ low: 0.25, mid: 0.45, high: 0.7 }, null, 'mid') === 0.45, 'level-keyed');
+assert(pickCoherenceValue({ low: 0.25, mid: 0.45, high: 0.7 }, 'mov', 'high') === 0.7,
+    'level-keyed falls through when task not a key');
+assert(pickCoherenceValue({ mov: { easy: 0.8, hard: 0.3 }, or: { easy: 0.8, hard: 0.3 } }, 'mov', 'hard') === 0.3,
+    'task-then-level');
+
+// ============================================================
+section('resolveCoherence — three config formats');
+// 1. channel-indexed used as-is
+const rcChannel = resolveCoherence({ ch1_task: 0.8, ch1_distractor: 0, ch2_task: 0.6, ch2_distractor: 0 },
+    'mov', 'or', true, null, null);
+assert(rcChannel.ch1_task === 0.8 && rcChannel.ch2_task === 0.6, 'channel-indexed passthrough');
+// 2. target/distractor, single-task bivalent
+const rcTD = resolveCoherence({ target: { mov: 0.8, or: 0.3 }, distractor: 0.5 },
+    'mov', null, false, null, null);
+assert(rcTD.ch1_task === 0.8 && rcTD.ch1_distractor === 0.5 && rcTD.ch2_task === 0,
+    'target/distractor single-task');
+// 2b. leveled target + distractor
+const rcLvl = resolveCoherence({ target: { low: 0.25, mid: 0.45, high: 0.7 }, distractor: { low: 0.25, mid: 0.45, high: 0.7 } },
+    'mov', null, false, 'mid', 'high');
+assert(rcLvl.ch1_task === 0.45 && rcLvl.ch1_distractor === 0.7, 'leveled target/distractor');
+// 3. legacy task-indexed { mov, or }
+const rcLegacy = resolveCoherence({ mov: 0.3, or: 0.7 }, 'mov', 'or', true, null, null);
+assert(rcLegacy.ch1_task === 0.3 && rcLegacy.ch2_task === 0.7 && rcLegacy.ch1_distractor === 0,
+    'legacy task-indexed');
+
+// ============================================================
+section('generateSequenceVectors — levelFactors crossed and balanced');
+const lfConfig = {
+    paradigm: 'single-task', sequenceType: 'Factorial', switchRate: 50, startTask: 'mov',
+    csi: 0, stimulusDuration: 100, responseWindow: 100,
+    iti: { type: 'fixed', value: 0 },
+    congruency: { conditions: ['congruent', 'incongruent'], proportions: [0.5, 0.5] },
+    levelFactors: { target: ['easy', 'hard'] },
+    keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'a', 0: 'd' } },
+    coherence: { target: { mov: { easy: 0.8, hard: 0.3 }, or: { easy: 0.8, hard: 0.3 } }, distractor: 0.5 },
+};
+const lfVec = generateSequenceVectors(lfConfig, 64);
+assert(lfVec.targetLevel && lfVec.targetLevel.length === 64, 'targetLevel vector length');
+assert(lfVec.targetLevel.every(l => l === 'easy' || l === 'hard'), 'targetLevel values valid');
+const nEasy = lfVec.targetLevel.filter(l => l === 'easy').length;
+assert(nEasy === 32, `targetLevel balanced 32/32 (got ${nEasy} easy)`);
+
+// ============================================================
+section('generateBlockTrials — coherence level maps to value, distractor bivalent');
+const lfTrials = generateBlockTrials(lfConfig, 64);
+for (const t of lfTrials) {
+    const task = t.meta.t1_task;
+    const expected = t.meta.target_coh_level === 'easy' ? 0.8 : 0.3;
+    assert(t.seParams['coh_' + task + '_1'] === expected,
+        `level ${t.meta.target_coh_level} -> coh ${expected} for ${task}`);
+    // bivalent: the other dimension carries the distractor coherence and is visible
+    const distDim = task === 'mov' ? 'or' : 'mov';
+    assert(t.seParams['coh_' + distDim + '_1'] === 0.5, 'distractor coherence 0.5');
+    assert(t.seParams['dur_' + distDim + '_1'] > 0, 'distractor pathway visible (dur>0)');
+    assert(t.meta.t1_distractor_coherence === 0.5, 'meta.t1_distractor_coherence recorded');
+}
+
+// ============================================================
+section('generateBlockTrials — crossed target x distractor levels (Stroop crossed)');
+const scConfig = {
+    paradigm: 'single-task', sequenceType: 'Factorial', switchRate: 0, startTask: 'mov', task1: 'mov',
+    csi: 0, stimulusDuration: 100, responseWindow: 100, iti: { type: 'fixed', value: 0 },
+    congruency: { conditions: ['congruent', 'incongruent'], proportions: [0.5, 0.5] },
+    levelFactors: { target: ['low', 'mid', 'high'], distractor: ['low', 'mid', 'high'] },
+    keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'a', 0: 'd' } },
+    coherence: { target: { low: 0.25, mid: 0.45, high: 0.7 }, distractor: { low: 0.25, mid: 0.45, high: 0.7 } },
+};
+const scTrials = generateBlockTrials(scConfig, 18);
+const levelMap = { low: 0.25, mid: 0.45, high: 0.7 };
+for (const t of scTrials) {
+    assert(t.seParams.coh_mov_1 === levelMap[t.meta.target_coh_level], 'target level -> coh');
+    assert(t.seParams.coh_or_1 === levelMap[t.meta.distractor_coh_level], 'distractor level -> coh');
+}
+const scCells = new Set(scTrials.map(t => t.meta.target_coh_level + 'x' + t.meta.distractor_coh_level));
+assert(scCells.size === 9, `all 9 target x distractor cells present (got ${scCells.size})`);
+
+// ============================================================
+section('assignDirections — dual-task cross-task congruency');
+const dtKeyMaps = { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } };
+for (let i = 0; i < 50; i++) {
+    const c = assignDirections('mov', 'congruent', 'dual-task', 'disjoint', dtKeyMaps);
+    assert(c.ch1_task === c.ch2_task, 'congruent: T2 target same side as T1');
+    const ic = assignDirections('mov', 'incongruent', 'dual-task', 'disjoint', dtKeyMaps);
+    assert(ic.ch1_task !== ic.ch2_task, 'incongruent: T2 target opposite side of T1');
+}
+
+// ============================================================
 // Summary
 console.log(`\n============================`);
 console.log(`PASSED: ${passed}`);

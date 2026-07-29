@@ -403,7 +403,8 @@ const Session = (() => {
 	    'iti', 'soa', 'side', 't1Side', 'earlyResolve',
 	    't1_target_dir', 't1_distractor_dir',
 	    't2_target_dir', 't2_distractor_dir',
-	    't1_target_coherence', 't2_target_coherence',
+	    'target_coh_level', 'distractor_coh_level',
+	    't1_target_coherence', 't1_distractor_coherence', 't2_target_coherence',
 	    'rt1', 'accuracy1', 'rt2', 'accuracy2',
 	    'responseOrder', 'rt1_raw', 'rt2_raw', 'rawKeyPresses',
 	];

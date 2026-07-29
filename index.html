@@ -128,6 +128,13 @@
                 <option value="demo_mixed_only">Single-Canvas Mixed only</option>
                 <option value="demo_dual_same">Dual-Canvas Same Task</option>
             </optgroup>
+            <optgroup label="Canonical Paradigms">
+                <option value="cp_prp">PRP / Dual-Task (SOA)</option>
+                <option value="cp_taskswitch">Task Switching (basic)</option>
+                <option value="cp_taskswitch_asym">Task Switching (asymmetric)</option>
+                <option value="cp_stroop">Stroop / Interference (basic)</option>
+                <option value="cp_stroop_crossed">Stroop (crossed target × distractor)</option>
+            </optgroup>
             <optgroup label="Switch Frequency">
                 <option value="sf_univalent">Univalent (pure switch costs)</option>
                 <option value="sf_neutral">Neutral (orthogonal dimensions)</option>
@@ -178,6 +185,7 @@
     <script src="demo_block_configs.js"></script>
     <script src="hirsch_block_configs.js"></script>
     <script src="switch-frequency.js"></script>
+    <script src="canonical_paradigms.js"></script>
     <script src="timing_bug_test.js"></script>
     <script src="session_helpers.js"></script>
     <script src="session.js"></script>
@@ -209,6 +217,22 @@
                     break;
                 case 'demo_dual_same':
                     blocks = DEMO_DUAL_CANVAS_SAME_SESSION;
+                    break;
+                // Canonical paradigms
+                case 'cp_prp':
+                    blocks = CP_PRP_SESSION;
+                    break;
+                case 'cp_taskswitch':
+                    blocks = CP_TASKSWITCH_SESSION;
+                    break;
+                case 'cp_taskswitch_asym':
+                    blocks = CP_TASKSWITCH_ASYM_SESSION;
+                    break;
+                case 'cp_stroop':
+                    blocks = CP_STROOP_SESSION;
+                    break;
+                case 'cp_stroop_crossed':
+                    blocks = CP_STROOP_CROSSED_SESSION;
                     break;
                 // Switch frequency
                 case 'sf_univalent':

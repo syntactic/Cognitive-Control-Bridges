@@ -210,6 +210,12 @@ function generateSequenceVectors(blockConfig, numTrials) {
     // Default congruency for paradigms that don't specify it (alternating, prp-baseline)
     const congruencyConfig = blockConfig.congruency || { conditions: ['univalent'], proportions: [1.0] };
 
+    // Coherence-level factors (e.g. { target: ['easy','hard'], distractor: ['low','mid','high'] }).
+    // Emitted as targetLevel[]/distractorLevel[] vectors; resolveCoherence maps them to values.
+    const levelFactors = blockConfig.levelFactors || {};
+    const hasTargetLevels = Array.isArray(levelFactors.target) && levelFactors.target.length > 0;
+    const hasDistractorLevels = Array.isArray(levelFactors.distractor) && levelFactors.distractor.length > 0;
+
     // Resolve effective start task: dual-task paradigms use task1 field,
     // others use startTask (which can be null for random coin flip)
     const isDualTaskParadigm = blockConfig.paradigm === 'dual-task' || blockConfig.paradigm === 'dual-canvas';
@@ -229,6 +235,8 @@ function generateSequenceVectors(blockConfig, numTrials) {
         if (blockConfig.soa?.type === 'choice') factors.soa = blockConfig.soa.params;
         if (blockConfig.iti?.type === 'choice') factors.iti = blockConfig.iti.params;
         if (congruencyConfig.conditions.length > 1) factors.congruency = congruencyConfig.conditions;
+        if (hasTargetLevels) factors.targetLevel = levelFactors.target;
+        if (hasDistractorLevels) factors.distractorLevel = levelFactors.distractor;
 
         const crossed = generateFactorialSequence(numTrials, factors);
 
@@ -249,6 +257,12 @@ function generateSequenceVectors(blockConfig, numTrials) {
         sequenceData.congruency = crossed.map(c =>
             c.congruency || congruencyConfig.conditions[0] || 'univalent'
         );
+        if (hasTargetLevels) {
+            sequenceData.targetLevel = crossed.map(c => c.targetLevel ?? levelFactors.target[0]);
+        }
+        if (hasDistractorLevels) {
+            sequenceData.distractorLevel = crossed.map(c => c.distractorLevel ?? levelFactors.distractor[0]);
+        }
 
     } else {
         // Stochastic generation (Random, AABB)
@@ -265,6 +279,15 @@ function generateSequenceVectors(blockConfig, numTrials) {
         sequenceData.congruency = generateCongruencySequence(
             numTrials, congruencyConfig.conditions, congruencyConfig.proportions
         );
+        // Balanced (equal-proportion) sampling of coherence levels.
+        if (hasTargetLevels) {
+            const p = levelFactors.target.map(() => 1 / levelFactors.target.length);
+            sequenceData.targetLevel = generateCongruencySequence(numTrials, levelFactors.target, p);
+        }
+        if (hasDistractorLevels) {
+            const p = levelFactors.distractor.map(() => 1 / levelFactors.distractor.length);
+            sequenceData.distractorLevel = generateCongruencySequence(numTrials, levelFactors.distractor, p);
+        }
     }
 
     // Resolve Task 2 based on paradigm and t2Rule
@@ -338,7 +361,19 @@ function assignDirections(task, congruency, paradigm, rso, keyMaps, mapping = 'p
             ? Object.keys(keyMaps[switchTask(task)]).map(Number)
             : defaultDirs;
         const ch1Dir = randomFrom(taskDirPool);
-        const ch2Dir = randomFrom(otherDirPool);
+        // Cross-task congruency: the T2 target either indicates the SAME response
+        // side as T1 (congruent) or the OPPOSITE side (incongruent). Direction
+        // pools are sorted ascending by degree, so matching indices = matching side.
+        // 'univalent'/'neutral' (or any other label) fall back to independent sampling.
+        const ch1Idx = taskDirPool.indexOf(ch1Dir);
+        let ch2Dir;
+        if (congruency === 'congruent') {
+            ch2Dir = otherDirPool[ch1Idx] ?? otherDirPool[0];
+        } else if (congruency === 'incongruent') {
+            ch2Dir = otherDirPool[(ch1Idx + 1) % otherDirPool.length];
+        } else {
+            ch2Dir = randomFrom(otherDirPool);
+        }
         return {
             ch1_task: ch1Dir,
             ch1_distractor: 0,  // no within-channel distractors in dual-task
@@ -526,6 +561,70 @@ function buildTrialParams(spec) {
 }
 
 // ============================================================
+// Coherence resolution (per-trial, from blockConfig.coherence)
+// ============================================================
+
+/**
+ * Look up a coherence value from a spec that may be a scalar, task-keyed,
+ * level-keyed, or task-then-level-keyed object.
+ *   scalar:              0.5
+ *   task-keyed:          { mov: 0.65, or: 0.35 }
+ *   level-keyed:         { low: 0.25, mid: 0.45, high: 0.7 }
+ *   task-then-level:     { mov: { easy: 0.65, hard: 0.35 }, or: {...} }
+ */
+function pickCoherenceValue(spec, task, level) {
+    if (spec === undefined || spec === null) return 0;
+    if (typeof spec === 'number') return spec;
+    if (task && spec[task] !== undefined) {
+        return pickCoherenceByLevel(spec[task], level);
+    }
+    return pickCoherenceByLevel(spec, level);
+}
+
+function pickCoherenceByLevel(obj, level) {
+    if (typeof obj === 'number') return obj;
+    if (level !== undefined && level !== null && obj[level] !== undefined) return obj[level];
+    const vals = Object.values(obj);
+    return typeof vals[0] === 'number' ? vals[0] : 0;
+}
+
+/**
+ * Resolve a trial's coherence into channel-indexed SE fields. Three config
+ * formats are checked in order (all backward-compatible):
+ *   1. Channel-indexed { ch1_task, ch1_distractor, ch2_task, ch2_distractor } — used as-is.
+ *   2. Explicit { target, distractor } — target/distractor each accepted by
+ *      pickCoherenceValue (scalar | task-keyed | level-keyed | task-then-level).
+ *      Enables bivalent single-task, per-task (asymmetric), and leveled coherence.
+ *   3. Legacy task-indexed { mov, or } — target per task, univalent (distractor 0).
+ *
+ * @returns {{ ch1_task, ch1_distractor, ch2_task, ch2_distractor }}
+ */
+function resolveCoherence(coherenceConfig, task1, task2, isDualTask, targetLevel, distractorLevel) {
+    if (coherenceConfig.ch1_task !== undefined) {
+        return coherenceConfig;
+    }
+    if (coherenceConfig.target !== undefined) {
+        return {
+            ch1_task: pickCoherenceValue(coherenceConfig.target, task1, targetLevel),
+            ch1_distractor: coherenceConfig.distractor !== undefined
+                ? pickCoherenceValue(coherenceConfig.distractor, null, distractorLevel)
+                : 0,
+            ch2_task: (isDualTask && task2)
+                ? pickCoherenceValue(coherenceConfig.target, task2, targetLevel)
+                : 0,
+            ch2_distractor: 0,
+        };
+    }
+    // legacy task-indexed { mov, or }
+    return {
+        ch1_task: coherenceConfig[task1],
+        ch1_distractor: 0,
+        ch2_task: (isDualTask && task2) ? coherenceConfig[task2] : 0,
+        ch2_distractor: 0,
+    };
+}
+
+// ============================================================
 // Block trial generation
 // ============================================================
 
@@ -553,12 +652,14 @@ function generateBlockTrials(blockConfig, numTrials) {
             task1, congruency, blockConfig.paradigm, blockConfig.rso, blockConfig.keyMaps, blockConfig.mapping
         );
 
-        // Resolve coherence (task-indexed -> channel-indexed)
-        const coh = blockConfig.coherence;
-        const resolvedCoherence = coh.mov !== undefined
-            ? { ch1_task: coh[task1], ch1_distractor: 0,
-                ch2_task: task2 ? coh[task2] : 0, ch2_distractor: 0 }
-            : coh;
+        // Resolve coherence (see resolveCoherence for supported formats).
+        // Coherence levels (easy/hard, low/mid/high) are per-trial factors when the
+        // block declares levelFactors; null otherwise.
+        const targetLevel = vectors.targetLevel ? vectors.targetLevel[i] : null;
+        const distractorLevel = vectors.distractorLevel ? vectors.distractorLevel[i] : null;
+        const resolvedCoherence = resolveCoherence(
+            blockConfig.coherence, task1, task2, isDualTask, targetLevel, distractorLevel
+        );
 
         const spec = {
             task1: task1,
@@ -588,6 +689,11 @@ function generateBlockTrials(blockConfig, numTrials) {
             t1_distractor_dir: congruency === 'univalent' ? null : dir.ch1_distractor,
             t2_target_dir: isDualTask ? dir.ch2_task : null,
             t2_distractor_dir: null,
+            // Coherence-level factors (null unless the block declares levelFactors).
+            target_coh_level: targetLevel,
+            distractor_coh_level: distractorLevel,
+            // Distractor coherence recorded for bivalent single-task (Stroop) analysis.
+            t1_distractor_coherence: resolvedCoherence.ch1_distractor || null,
         };
 
         trials.push({ seParams, meta });
