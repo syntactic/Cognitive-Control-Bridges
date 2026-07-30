@@ -2169,6 +2169,124 @@ for (let i = 0; i < 50; i++) {
 }
 
 // ============================================================
+// SweetPea CSV loader + injection tests (block-scoped to avoid name clashes).
+{
+section('loadSequenceVectors — switching CSV parse -> vectors');
+const tsCsv = [
+    'block_id,condition,trial_index,task,task_transition,response_transition,congruency,target_coh_level,target_dir',
+    'cp_taskswitch,A,0,mov,First,First,congruent,easy,left',
+    'cp_taskswitch,A,1,or,Switch,Repeat,incongruent,hard,left',
+    'cp_taskswitch,A,2,or,Repeat,Switch,congruent,easy,right',
+    'cp_taskswitch,A,3,mov,Switch,Switch,incongruent,hard,left',
+].join('\n');
+const tsCfg = {
+    paradigm: 'single-task', rso: 'identical',
+    keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'a', 0: 'd' } },
+    iti: { type: 'fixed', value: 0 },
+    csi: 0, stimulusDuration: 100, responseWindow: 100,
+    coherence: {
+        target: { mov: { easy: 0.8, hard: 0.3 }, or: { easy: 0.8, hard: 0.3 } },
+        distractor: 0.5,
+    },
+};
+const tsVec = loadSequenceVectors(tsCsv, tsCfg);
+assert(tsVec.task1.length === 4, 'loader: 4 rows');
+assert(JSON.stringify(tsVec.task1) === JSON.stringify(['mov', 'or', 'or', 'mov']), 'loader: task1 sequence');
+assert(JSON.stringify(tsVec.transition) === JSON.stringify(['First', 'Switch', 'Repeat', 'Switch']), 'loader: transition (first forced to First)');
+assert(JSON.stringify(tsVec.congruency) === JSON.stringify(['congruent', 'incongruent', 'congruent', 'incongruent']), 'loader: congruency');
+// left -> 180, right -> 0
+assert(JSON.stringify(tsVec.targetDir) === JSON.stringify([180, 180, 0, 180]), 'loader: target_dir label -> degrees');
+assert(JSON.stringify(tsVec.targetLevel) === JSON.stringify(['easy', 'hard', 'easy', 'hard']), 'loader: targetLevel');
+assert(tsVec.distractorLevel === undefined, 'loader: no distractorLevel column -> undefined');
+assert(tsVec.task2.every(t => t === null), 'loader: single-task -> task2 null');
+assert(tsVec.soa.every(s => s === null), 'loader: no soa column -> null');
+assert(tsVec.iti.every(i => i === 0), 'loader: iti sampled client-side (fixed 0)');
+
+// ============================================================
+section('loadSequenceVectors — bad input rejection');
+function throwsOn(csv, cfg, label) {
+    let threw = false;
+    try { loadSequenceVectors(csv, cfg); } catch (e) { threw = true; }
+    assert(threw, label);
+}
+throwsOn('block_id,congruency,target_dir\ncp,congruent,left', tsCfg, 'missing task column throws');
+throwsOn('task,target_dir\nmov,left', tsCfg, 'missing congruency column throws');
+throwsOn('task,congruency\nmov,congruent', tsCfg, 'missing target_dir column throws');
+throwsOn('task,congruency,target_dir\nxyz,congruent,left', tsCfg, 'unknown task throws');
+throwsOn('task,congruency,target_dir\nmov,sideways,left', tsCfg, 'unknown congruency throws');
+throwsOn('task,congruency,target_dir\nmov,congruent,up', tsCfg, 'unknown target_dir throws');
+throwsOn('task,task_transition,congruency,target_dir\nmov,First,congruent,left\nor,Wobble,incongruent,right', tsCfg, 'unknown transition throws');
+
+// ============================================================
+section('assignDirections — injected target direction');
+const idKeyMaps = { mov: { 180: 'a', 0: 'd' }, or: { 180: 'a', 0: 'd' } };
+const injC = assignDirections('mov', 'congruent', 'single-task', 'identical', idKeyMaps, 'parallel', 180);
+assert(injC.ch1_task === 180, 'injected target dir (180) honored');
+assert(injC.ch1_distractor === 180, 'congruent: distractor matches injected target');
+const injI = assignDirections('mov', 'incongruent', 'single-task', 'identical', idKeyMaps, 'parallel', 0);
+assert(injI.ch1_task === 0, 'injected target dir (0) honored');
+assert(injI.ch1_distractor === 180, 'incongruent: distractor opposite injected target');
+// dual-task injection: injected sets T1 target; T2 derived from congruency
+const injDT = assignDirections('mov', 'congruent', 'dual-task', 'disjoint',
+    { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } }, 'parallel', 180);
+assert(injDT.ch1_task === 180, 'dual-task: injected T1 target honored');
+assert(injDT.ch1_task === injDT.ch2_task, 'dual-task congruent: T2 same side as injected T1');
+// no injection -> still randomizes across draws (behaviour unchanged)
+const noInj = new Set();
+for (let i = 0; i < 60; i++) noInj.add(assignDirections('mov', 'univalent', 'single-task', 'identical', idKeyMaps).ch1_task);
+assert(noInj.size === 2, 'no injection: target dir still randomized (both 0 and 180 seen)');
+
+// ============================================================
+section('integration — loaded CSV drives directions/coherence (balance preserved)');
+const tsTrials = generateBlockTrials(tsCfg, tsVec.task1.length, tsVec);
+assert(tsTrials.length === 4, 'integration: trial count from vectors');
+for (let i = 0; i < tsTrials.length; i++) {
+    // SweetPea-owned target direction must survive end-to-end (no re-randomization)
+    assert(tsTrials[i].meta.t1_target_dir === tsVec.targetDir[i], `integration: target_dir[${i}] honored`);
+    // coherence resolves from the CSV's level
+    const expectedCoh = tsVec.targetLevel[i] === 'easy' ? 0.8 : 0.3;
+    const task = tsVec.task1[i];
+    assert(tsTrials[i].seParams['coh_' + task + '_1'] === expectedCoh, `integration: coherence from level[${i}]`);
+    // distractor direction derived from target_dir + congruency
+    if (tsVec.congruency[i] === 'congruent') {
+        assert(tsTrials[i].meta.t1_distractor_dir === tsVec.targetDir[i], `integration: congruent distractor[${i}]`);
+    } else {
+        assert(tsTrials[i].meta.t1_distractor_dir === (tsVec.targetDir[i] + 180) % 360, `integration: incongruent distractor[${i}]`);
+    }
+}
+// The whole point: with the identical keymap, correct response == f(target_dir).
+// Confirm the loaded target-dir counts survive (2 left-target easy, etc. as in CSV).
+const dirCounts = tsTrials.reduce((acc, t) => { acc[t.meta.t1_target_dir] = (acc[t.meta.t1_target_dir] || 0) + 1; return acc; }, {});
+assert(dirCounts[180] === 3 && dirCounts[0] === 1, 'integration: exact target-dir counts preserved from CSV');
+
+// ============================================================
+section('integration — PRP CSV (dual-task, soa + t2 derivation)');
+const prpCsv = [
+    'block_id,condition,trial_index,task,soa_level,congruency,target_dir',
+    'cp_prp,A,0,mov,100,congruent,left',
+    'cp_prp,A,1,or,300,incongruent,right',
+    'cp_prp,A,2,mov,600,congruent,right',
+].join('\n');
+const prpCfg = {
+    paradigm: 'dual-task', rso: 'disjoint', t2Rule: 'switch',
+    keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } },
+    iti: { type: 'fixed', value: 0 },
+    csi: 0, stimulusDuration: 100, responseWindow: 100,
+    coherence: { target: { mov: 0.8, or: 0.8 }, distractor: 0 },
+};
+const prpVec = loadSequenceVectors(prpCsv, prpCfg);
+assert(JSON.stringify(prpVec.task1) === JSON.stringify(['mov', 'or', 'mov']), 'PRP loader: T1 tasks');
+assert(JSON.stringify(prpVec.task2) === JSON.stringify(['or', 'mov', 'or']), 'PRP loader: T2 = other task (switch)');
+assert(JSON.stringify(prpVec.soa) === JSON.stringify([100, 300, 600]), 'PRP loader: soa levels parsed');
+assert(JSON.stringify(prpVec.targetDir) === JSON.stringify([180, 0, 0]), 'PRP loader: T1 target dirs');
+const prpTrials = generateBlockTrials(prpCfg, prpVec.task1.length, prpVec);
+assert(prpTrials[0].meta.soa === 100 && prpTrials[2].meta.soa === 600, 'PRP integration: soa in meta');
+assert(prpTrials[0].meta.t1_target_dir === 180, 'PRP integration: T1 dir from CSV');
+assert(prpTrials[0].meta.t2_target_dir === 180, 'PRP integration: congruent T2 same side as T1');
+assert(prpTrials[1].meta.t1_target_dir === 0 && prpTrials[1].meta.t2_target_dir === 180, 'PRP integration: incongruent T2 opposite');
+}
+
+// ============================================================
 // Summary
 console.log(`\n============================`);
 console.log(`PASSED: ${passed}`);

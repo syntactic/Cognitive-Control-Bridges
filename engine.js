@@ -328,6 +328,143 @@ function generateSequenceVectors(blockConfig, numTrials) {
 }
 
 // ============================================================
+// CSV sequence loader (SweetPea-generated counterbalanced sequences)
+// ============================================================
+
+/**
+ * Minimal CSV parser for the flat, unquoted sequence CSVs SweetPea emits.
+ * Returns an array of row objects keyed by header. No quoted-field handling
+ * is needed (our columns are plain tokens), but empty cells are preserved as ''.
+ */
+function parseSequenceCSV(csvText) {
+    const lines = csvText.replace(/\r\n/g, '\n').split('\n').filter(l => l.trim().length > 0);
+    if (lines.length < 2) {
+        throw new Error('loadSequenceVectors: CSV has no data rows');
+    }
+    const header = lines[0].split(',').map(s => s.trim());
+    return lines.slice(1).map(line => {
+        const cells = line.split(',').map(s => s.trim());
+        const row = {};
+        header.forEach((h, i) => { row[h] = cells[i] !== undefined ? cells[i] : ''; });
+        return row;
+    });
+}
+
+/** left -> 180, right -> 0 (parallel mapping; canonical paradigms are parallel). */
+function targetLabelToDegrees(label) {
+    if (label === 'left') return 180;
+    if (label === 'right') return 0;
+    throw new Error(`loadSequenceVectors: unknown target_dir '${label}' (expected left|right)`);
+}
+
+/**
+ * Parse a SweetPea-generated CSV block into the SAME parallel-vector object that
+ * generateSequenceVectors produces, PLUS a targetDir[] vector (degrees). This is
+ * the swap-in sequence source for the counterbalanced canonical paradigms.
+ *
+ * SweetPea owns: task, task_transition, congruency, soa_level, target/distractor
+ * coherence LEVELS, and target_dir. The client still owns the level->value
+ * encoding (coherence numbers, degrees, keys) and incidental randomness (ITI).
+ *
+ * Validates columns and level vocabularies; throws LOUDLY on anything unexpected
+ * so a malformed or wrong-paradigm CSV can never silently run.
+ *
+ * @param {string} csvText - raw CSV text (one row per trial)
+ * @param {object} blockConfig - the block whose paradigm/t2Rule/iti drive derivation
+ * @returns {{ task1, task2, transition, soa, iti, congruency, targetDir,
+ *             targetLevel?, distractorLevel? }}
+ */
+function loadSequenceVectors(csvText, blockConfig) {
+    const rows = parseSequenceCSV(csvText);
+    const n = rows.length;
+
+    // --- Column validation ---
+    const cols = new Set(Object.keys(rows[0]));
+    const hasTaskCol = cols.has('task');
+    if (!hasTaskCol) throw new Error("loadSequenceVectors: missing required 'task' column");
+    if (!cols.has('congruency')) throw new Error("loadSequenceVectors: missing required 'congruency' column");
+    if (!cols.has('target_dir')) throw new Error("loadSequenceVectors: missing required 'target_dir' column");
+
+    const hasTaskTransition = cols.has('task_transition');
+    const hasSoa = cols.has('soa_level');
+    const hasTargetLevel = cols.has('target_coh_level');
+    const hasDistractorLevel = cols.has('distractor_coh_level');
+
+    const validTasks = new Set(['mov', 'or']);
+    const validCongruency = new Set(['congruent', 'incongruent', 'neutral', 'univalent']);
+    const validTransition = new Set(['First', 'Repeat', 'Switch']);
+
+    const vectors = {
+        task1: [], task2: [], transition: [], soa: [], iti: [],
+        congruency: [], targetDir: [],
+    };
+    if (hasTargetLevel) vectors.targetLevel = [];
+    if (hasDistractorLevel) vectors.distractorLevel = [];
+
+    for (let i = 0; i < n; i++) {
+        const r = rows[i];
+
+        const task = r.task;
+        if (!validTasks.has(task)) {
+            throw new Error(`loadSequenceVectors: row ${i} unknown task '${task}'`);
+        }
+        vectors.task1.push(task);
+
+        if (!validCongruency.has(r.congruency)) {
+            throw new Error(`loadSequenceVectors: row ${i} unknown congruency '${r.congruency}'`);
+        }
+        vectors.congruency.push(r.congruency);
+
+        vectors.targetDir.push(targetLabelToDegrees(r.target_dir));
+
+        if (hasTaskTransition) {
+            const t = i === 0 ? 'First' : r.task_transition;
+            if (!validTransition.has(t)) {
+                throw new Error(`loadSequenceVectors: row ${i} unknown task_transition '${t}'`);
+            }
+            vectors.transition.push(t);
+        }
+
+        vectors.soa.push(hasSoa ? Number(r.soa_level) : null);
+        // ITI is incidental jitter — sampled client-side, never counterbalanced.
+        vectors.iti.push(sampleFromDistribution(blockConfig.iti));
+
+        if (hasTargetLevel) vectors.targetLevel.push(r.target_coh_level);
+        if (hasDistractorLevel) vectors.distractorLevel.push(r.distractor_coh_level);
+    }
+
+    // Transition: use SweetPea's column when present, else classify from task1.
+    if (!hasTaskTransition) {
+        vectors.transition = classifyTransitions(vectors.task1);
+    }
+
+    // Task 2 derivation — mirror generateSequenceVectors so the downstream
+    // assemblers are unchanged.
+    const isDualTaskParadigm = blockConfig.paradigm === 'dual-task' || blockConfig.paradigm === 'dual-canvas';
+    const effectiveT2Rule = blockConfig.t2Rule
+        ?? (blockConfig.paradigm === 'dual-canvas' ? 'independent' : 'switch');
+
+    if (isDualTaskParadigm) {
+        if (effectiveT2Rule === 'same') {
+            vectors.task2 = [...vectors.task1];
+        } else if (effectiveT2Rule === 'switch') {
+            vectors.task2 = vectors.task1.map(switchTask);
+        } else if (effectiveT2Rule === 'independent') {
+            vectors.task2 = generateTaskSequence(n, 'Random', 50, null);
+        } else {
+            throw new Error(`loadSequenceVectors: unknown t2Rule '${effectiveT2Rule}'`);
+        }
+    } else if (blockConfig.paradigm === 'prp-baseline') {
+        vectors.task2 = [...vectors.task1];
+        vectors.task1 = Array(n).fill(null);
+    } else {
+        vectors.task2 = Array(n).fill(null);
+    }
+
+    return vectors;
+}
+
+// ============================================================
 // Direction assignment
 // ============================================================
 
@@ -344,9 +481,15 @@ function generateSequenceVectors(blockConfig, numTrials) {
  * @param {string} rso - 'identical' or 'disjoint' (unused, kept for signature compat)
  * @param {{ mov: object, or: object }} [keyMaps] - key maps from block config.
  *   Direction pools are derived from the keys (e.g., {180:'a', 0:'d'} -> [0, 180]).
+ * @param {number|null} [injectedTargetDir] - when provided (e.g. from a
+ *   SweetPea CSV via loadSequenceVectors), this exact degree value is used as
+ *   the target (ch1) direction instead of a fresh random draw. The distractor /
+ *   T2 direction is still derived from it + congruency. When null (the default,
+ *   used by the interim generator and all existing paradigms), the target
+ *   direction is drawn at random as before — behaviour is unchanged.
  * @returns {{ ch1_task: number, ch1_distractor: number, ch2_task: number, ch2_distractor: number }}
  */
-function assignDirections(task, congruency, paradigm, rso, keyMaps, mapping = 'parallel') {
+function assignDirections(task, congruency, paradigm, rso, keyMaps, mapping = 'parallel', injectedTargetDir = null) {
     // 'orthogonal' mapping uses vertical stimulus directions (90=up, 270=down);
     // the default ('parallel') uses horizontal directions (0=right, 180=left).
     const defaultDirs = mapping === 'orthogonal' ? [90, 270] : [0, 180];
@@ -355,12 +498,14 @@ function assignDirections(task, congruency, paradigm, rso, keyMaps, mapping = 'p
     function randomFrom(pool) {
         return pool[Math.floor(Math.random() * pool.length)];
     }
+    // SweetPea owns target direction when injected; otherwise randomize.
+    const pickTarget = () => injectedTargetDir != null ? injectedTargetDir : randomFrom(taskDirPool);
 
     if (paradigm === 'dual-task') {
         const otherDirPool = keyMaps
             ? Object.keys(keyMaps[switchTask(task)]).map(Number)
             : defaultDirs;
-        const ch1Dir = randomFrom(taskDirPool);
+        const ch1Dir = pickTarget();
         // Cross-task congruency: the T2 target either indicates the SAME response
         // side as T1 (congruent) or the OPPOSITE side (incongruent). Direction
         // pools are sorted ascending by degree, so matching indices = matching side.
@@ -383,7 +528,7 @@ function assignDirections(task, congruency, paradigm, rso, keyMaps, mapping = 'p
     }
 
     // Single-task
-    const primaryDir = randomFrom(taskDirPool);
+    const primaryDir = pickTarget();
     let distractorDir = 0;
 
     if (congruency === 'congruent') {
@@ -633,14 +778,21 @@ function resolveCoherence(coherenceConfig, task1, task2, isDualTask, targetLevel
  *
  * @param {object} blockConfig - Block-level configuration
  * @param {number} numTrials - Number of trials in this block
+ * @param {object|null} preloadedVectors - when provided (e.g. from
+ *   loadSequenceVectors on a SweetPea CSV), these sequence vectors are used
+ *   verbatim instead of generating them. The block length is taken from the
+ *   vectors. A preloaded targetDir[] is injected into assignDirections so
+ *   SweetPea owns the target direction. When null (default), the interim
+ *   generator runs and behaviour is unchanged.
  * @returns {{ seParams: object, meta: object }[]}
  */
-function generateBlockTrials(blockConfig, numTrials) {
+function generateBlockTrials(blockConfig, numTrials, preloadedVectors = null) {
     const isDualTask = blockConfig.paradigm === 'dual-task';
-    const vectors = generateSequenceVectors(blockConfig, numTrials);
+    const vectors = preloadedVectors || generateSequenceVectors(blockConfig, numTrials);
+    const n = preloadedVectors ? vectors.task1.length : numTrials;
     const trials = [];
 
-    for (let i = 0; i < numTrials; i++) {
+    for (let i = 0; i < n; i++) {
         const task1 = vectors.task1[i];
         const task2 = vectors.task2[i];
         const congruency = vectors.congruency[i];
@@ -648,8 +800,11 @@ function generateBlockTrials(blockConfig, numTrials) {
         // SOA is only meaningful for dual-task; force null for single-task
         const soa = isDualTask ? vectors.soa[i] : null;
 
+        // SweetPea-owned target direction when a CSV was loaded; null otherwise.
+        const injectedTargetDir = vectors.targetDir ? vectors.targetDir[i] : null;
         const dir = assignDirections(
-            task1, congruency, blockConfig.paradigm, blockConfig.rso, blockConfig.keyMaps, blockConfig.mapping
+            task1, congruency, blockConfig.paradigm, blockConfig.rso, blockConfig.keyMaps,
+            blockConfig.mapping, injectedTargetDir
         );
 
         // Resolve coherence (see resolveCoherence for supported formats).

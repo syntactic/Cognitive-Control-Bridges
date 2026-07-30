@@ -281,6 +281,17 @@
                     return null;
             }
 
+            // SweetPea counterbalanced sequences: opt in per participant via
+            // ?participant=NN&condition=A|B. Without these params the canonical
+            // paradigms use the interim JS generator (default/fallback).
+            const cpIds = ['cp_prp', 'cp_taskswitch', 'cp_taskswitch_asym', 'cp_stroop', 'cp_stroop_crossed'];
+            const urlParams = new URLSearchParams(window.location.search);
+            const participant = urlParams.get('participant');
+            const condition = (urlParams.get('condition') || 'A').toUpperCase();
+            if (participant && cpIds.includes(id)) {
+                blocks = cpApplySweetPea(blocks, participant, condition);
+            }
+
             const isDualCanvas = blocks.some(b =>
                 ['dual-canvas', 'alternating', 'prp-baseline'].includes(b.blockConfig.paradigm));
             const isOrthogonal = blocks.some(b => b.blockConfig.mapping === 'orthogonal');
@@ -343,7 +354,7 @@
             try {
                 // Stimulus type: concrete fish sprites by default; ?stimulus=abstract for circles/triangles.
                 const stimulus = new URLSearchParams(window.location.search).get('stimulus') || 'fish';
-                await Session.runSession(sessionDef, container, { stimulus });
+                await Session.runSession(sessionDef, container, { stimulus, abridged: abridgedCb.checked });
             } catch (e) {
                 console.error('Session error:', e);
                 document.getElementById('session-status').textContent = `Error: ${e.message}`;

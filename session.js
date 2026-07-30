@@ -227,7 +227,10 @@ const Session = (() => {
 		({ leftParent, rightParent } = setupDualCanvasDOM('Respond with left hand: A/D', 'S1 (no response needed)'));
 	    }
 	} else {
-	    trials = generateBlockTrials(blockConfig, numTrials);
+	    // SweetPea-backed blocks carry pre-fetched, counterbalanced vectors
+	    // (populated in runSession). Fall back to the interim generator otherwise.
+	    const preVec = blockDef._vectors || null;
+	    trials = generateBlockTrials(blockConfig, preVec ? preVec.task1.length : numTrials, preVec);
 	    seConfig = buildSEConfig(blockConfig.rso, blockConfig.earlyResolve, feedback, acceptFirstResponse, blockConfig.keyMaps);
 	    canvasContainer.classList.toggle('dual-canvas-mode', false);
 	}
@@ -322,6 +325,39 @@ const Session = (() => {
 	}
     }
 
+    /** Slice every array in a sequence-vector object to the first `keep` rows. */
+    function sliceVectors(vectors, keep) {
+        const out = {};
+        for (const key of Object.keys(vectors)) {
+            out[key] = Array.isArray(vectors[key]) ? vectors[key].slice(0, keep) : vectors[key];
+        }
+        return out;
+    }
+
+    /**
+     * Fetch and parse the SweetPea CSV for each block that declares a
+     * `sequenceSource`, attaching the parsed vectors as `blockDef._vectors`.
+     * Abridged mode keeps only the first ceil(N/10) rows (fast smoke test —
+     * this DOES break the counterbalancing, so never analyze abridged data).
+     */
+    async function preloadSequences(sessionDef, options) {
+        for (const blockDef of sessionDef) {
+            const src = blockDef.blockConfig && blockDef.blockConfig.sequenceSource;
+            if (!src) { blockDef._vectors = null; continue; }
+            const resp = await fetch(src);
+            if (!resp.ok) {
+                throw new Error(`Failed to fetch sequence CSV '${src}' (HTTP ${resp.status})`);
+            }
+            const text = await resp.text();
+            let vectors = loadSequenceVectors(text, blockDef.blockConfig);
+            if (options.abridged) {
+                const keep = Math.max(1, Math.ceil(vectors.task1.length / 10));
+                vectors = sliceVectors(vectors, keep);
+            }
+            blockDef._vectors = vectors;
+        }
+    }
+
     /**
      * Run a complete session (multiple blocks).
      */
@@ -333,6 +369,12 @@ const Session = (() => {
 
         // Clear container
         canvasContainer.innerHTML = '';
+
+        // Pre-fetch SweetPea-generated sequence CSVs for any block that declares
+        // a `sequenceSource`. Done up front (runSession is async) so runBlock can
+        // stay synchronous about trial generation. Blocks without a sequenceSource
+        // fall back to the interim generator — nothing here touches them.
+        await preloadSequences(sessionDef, options);
 
         // Concrete (sprite) stimuli are the default. Request the abstract circles/triangles
         // path explicitly with { stimulus: 'abstract' } (wired to ?stimulus=abstract in index.html).

@@ -197,6 +197,54 @@ const cpStroopCrossed = {
 };
 
 // ============================================================
+// SweetPea CSV wiring (participant/condition -> sequenceSource)
+// ============================================================
+// By DEFAULT the canonical sessions use the interim JS generator (above). When
+// the page is opened with ?participant=NN&condition=A|B, index.html calls
+// cpApplySweetPea() to swap each block onto its pre-generated, counterbalanced
+// SweetPea CSV (sequences/<blockId>_<condition>_p<NN>.csv). The generator stays
+// the fallback so demos and the other paradigms are untouched.
+//
+// Between-subjects assignment (which task is easy in asym switching; which
+// dimension is the target in Stroop) is baked into the CSV, so the client stays
+// agnostic. The only coherence config that must change for CSV mode is the
+// asymmetric switcher: its CSV emits an already-resolved target_coh_level
+// (easy on the easy task), so we swap its per-task table for a level-keyed one.
+
+const CP_CSV_COHERENCE_OVERRIDES = {
+    cp_taskswitch_asym: {
+        target: { easy: CP_EASY, hard: CP_HARD },
+        distractor: CP_DISTRACTOR,
+    },
+};
+
+function cpSequencePath(blockId, condition, participant) {
+    const nn = String(participant).padStart(2, '0');
+    return `sequences/${blockId}_${condition}_p${nn}.csv`;
+}
+
+/**
+ * Return a copy of a canonical session array with each block pointed at its
+ * SweetPea CSV. Pure; does not mutate the input configs.
+ *
+ * @param {Array} sessionArray - e.g. CP_TASKSWITCH_SESSION
+ * @param {number|string} participant - participant id (>=1)
+ * @param {string} condition - 'A' or 'B'
+ */
+function cpApplySweetPea(sessionArray, participant, condition) {
+    return sessionArray.map(blockDef => {
+        const blockId = blockDef.blockConfig.blockId;
+        const override = CP_CSV_COHERENCE_OVERRIDES[blockId];
+        const blockConfig = {
+            ...blockDef.blockConfig,
+            sequenceSource: cpSequencePath(blockId, condition, participant),
+            ...(override ? { coherence: override } : {}),
+        };
+        return { ...blockDef, blockConfig };
+    });
+}
+
+// ============================================================
 // Instructions
 // ============================================================
 
