@@ -72,6 +72,44 @@ const Session = (() => {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+    // --- Inter-trial interval bookkeeping -------------------------------
+    //
+    // Wall-clock (performance.now()) of the event the current ITI is measured
+    // FROM: the participant's response on an earlyResolve trial, otherwise the
+    // end of the trial's timeline. Null before the first trial of a block.
+    //
+    // Sleeping `iti` ms starting from wherever the teardown happened to finish
+    // overshot the configured interval every time — by the resolve delay (the
+    // trial keeps running after the response), plus a frame of detection lag,
+    // plus canvas teardown and creation. Hirsch's nominal 100 ms RSI was landing
+    // near 280 ms. Anchoring the sleep to the response and waiting until the
+    // deadline absorbs all of that.
+    let itiAnchor = null;
+
+    /**
+     * Wait until `iti` ms have elapsed since the anchor. Returns the interval
+     * actually achieved, which exceeds `iti` only when teardown overran it.
+     */
+    async function waitITI(iti) {
+        const anchor = itiAnchor ?? performance.now();
+        const remaining = anchor + iti - performance.now();
+        if (remaining > 0) {
+            await sleep(remaining);
+        }
+        return performance.now() - anchor;
+    }
+
+    /**
+     * Record where the next ITI starts counting from. An earlyResolve trial's
+     * timeline ends RESOLVE_DELAY ms after the response, so the response itself
+     * is that far in the past by the time we get here.
+     */
+    function markITIAnchor(config, result) {
+        const responded = result.rt1_raw !== null || result.rt2_raw !== null;
+        const resolvedOnResponse = Boolean(config.earlyResolve) && responded;
+        itiAnchor = performance.now() - (resolvedOnResponse ? RESOLVE_DELAY : 0);
+    }
+
     /**
      * Show an instruction/break screen and wait for a keypress to continue.
      */
@@ -101,7 +139,7 @@ const Session = (() => {
      */
     async function runTrial(trial, seConfig, prevResponseTime) {
         // --- ITI ---
-        await sleep(trial.meta.iti);
+        const itiAchieved = await waitITI(trial.meta.iti);
 
         // --- Run SE block (single trial) ---
         const data = await seBlock(
@@ -119,14 +157,16 @@ const Session = (() => {
 
         // --- Extract RT and accuracy ---
         const result = extractResponse(data, trial, seConfig);
+        markITIAnchor(seConfig, result);
         return {
             ...trial.meta,
             ...result,
+            iti_achieved: itiAchieved,
         };
     }
 
     async function runAlternatingTrial(trial, config, leftParent, rightParent) {
-	await sleep(trial.meta.iti);
+	const itiAchieved = await waitITI(trial.meta.iti);
 	const side = trial.meta.side;
 	let data;
 	if (side === 'left') {
@@ -137,41 +177,54 @@ const Session = (() => {
 	    await seEndBlock('canvasRight');
 	}
 	const result = extractAlternatingResponse(data, trial, config);
+	markITIAnchor(config, result);
 	return {
 	    ...trial.meta,
-	    ...result
+	    ...result,
+	    iti_achieved: itiAchieved,
 	};
     }
 
     async function runBaselinePRPTrial(trial, taskConfig, leftParent, rightParent) {
-	await sleep(trial.meta.iti);
+	const itiAchieved = await waitITI(trial.meta.iti);
 	const taskSide = trial.meta.side;
 	const asteriskParent = taskSide === 'right' ? leftParent : rightParent;
 	const taskParent = taskSide === 'right' ? rightParent : leftParent;
 	const canvasId = 'canvas' + (taskSide === 'right' ? 'Right' : 'Left');
 
+	// S1 (the asterisk) and the task canvas both go up at trial onset. The SOA
+	// lives INSIDE the task canvas's timeline (applySOAOffset in
+	// generateSidedTrials), so it is delivered with frame accuracy and the two
+	// canvases are on screen together — exactly the layout the dual-canvas PRP
+	// condition presents. Previously this slept setTimeout(soa) and only THEN
+	// created the task canvas, which made the baseline SOA wall-clock-jittery
+	// and gave the baseline a canvas pop-in that real PRP trials do not have,
+	// contaminating the single-task RT reference this condition exists to
+	// provide.
 	const placeholder = document.createElement('div');
 	placeholder.style.cssText = 'width:100%; min-height:580px; display:flex; align-items:center; justify-content:center; font-size:6em; color:#888; background:#000;';
 	placeholder.textContent = '*';
 	asteriskParent.appendChild(placeholder);
-	await sleep(trial.meta.soa);
 
 	const data = await seBlock([trial.seParams], 0, taskConfig, false, taskConfig.feedback, canvasId, taskParent);
 	await seEndBlock(canvasId);
 	asteriskParent.innerHTML = '';
 	const result = extractAlternatingResponse(data, trial, taskConfig);
+	markITIAnchor(taskConfig, result);
 	// Remap response to T2 slot: asterisk is T1 (no response), actual task is T2
 	return {
 	    ...trial.meta,
-	    rt1: null, rt1_raw: null, accuracy1: null,
+	    rt1: null, rt1_raw: null, accuracy1: null, anticipations1: null,
 	    rt2: result.rt1, rt2_raw: result.rt1_raw, accuracy2: result.accuracy1,
+	    anticipations2: result.anticipations1,
 	    responseOrder: null,
 	    rawKeyPresses: result.rawKeyPresses,
+	    iti_achieved: itiAchieved,
 	};
     }
 
     async function runDualCanvasTrial(trial, leftConfig, rightConfig, prevResponseTime) {
-        await sleep(trial.meta.iti);
+        const itiAchieved = await waitITI(trial.meta.iti);
 	const t1Side = trial.meta.t1Side ?? 'left';
 	const leftLabel = t1Side === 'left' ? 'T1 (respond with left hand)' : 'T2 (respond with left hand)';
 	const rightLabel = t1Side === 'left' ? 'T2 (respond with right hand)' : 'T1 (respond with right hand)';
@@ -189,13 +242,16 @@ const Session = (() => {
 	const t2Data = t1Side === 'left' ? rightData : leftData;
 	const t1Config = t1Side === 'left' ? leftConfig : rightConfig;
 	const t2Config = t1Side === 'left' ? rightConfig : leftConfig;
-	const t1GoOnset = trial[t1Side === 'left' ? 'leftSeParams' : 'rightSeParams'].start_go_1;
-	const t2GoOnset = trial[t1Side === 'left' ? 'rightSeParams' : 'leftSeParams'].start_go_1;
 
-	const result = extractDualCanvasResponse(t1Data, t2Data, t1GoOnset, t2GoOnset, t1Config, t2Config);
+	// RT is measured from the imperative stimulus, not from start_go_1 — the
+	// go signal now opens with the cue, csi ms earlier.
+	const result = extractDualCanvasResponse(
+	    t1Data, t2Data, trial.meta.t1_stim_onset, trial.meta.t2_stim_onset, t1Config, t2Config);
+	markITIAnchor(t1Config, result);
 	return {
 	    ...trial.meta,
 	    ...result,
+	    iti_achieved: itiAchieved,
 	};
     }
 
@@ -239,6 +295,11 @@ const Session = (() => {
         if (instructions) {
             await showInstructions(instructions);
         }
+
+        // The instruction screen breaks the trial rhythm, so the first trial of
+        // a block measures its ITI from here rather than from the last trial of
+        // the previous block.
+        itiAnchor = null;
 
 	let quest;
 	let newCoherence;
@@ -442,12 +503,14 @@ const Session = (() => {
 	const columns = [
 	    'blockOrder', 'blockId', 'blockType', 'paradigm', 'isPractice',
 	    'trialNumber', 't1_task', 't2_task', 'transitionType',
-	    'iti', 'soa', 'side', 't1Side', 'earlyResolve',
+	    'iti', 'iti_achieved', 'soa', 'side', 't1Side', 'earlyResolve',
+	    't1_stim_onset', 't2_stim_onset',
 	    't1_target_dir', 't1_distractor_dir',
 	    't2_target_dir', 't2_distractor_dir',
 	    'target_coh_level', 'distractor_coh_level',
 	    't1_target_coherence', 't1_distractor_coherence', 't2_target_coherence',
 	    'rt1', 'accuracy1', 'rt2', 'accuracy2',
+	    'anticipations1', 'anticipations2',
 	    'responseOrder', 'rt1_raw', 'rt2_raw', 'rawKeyPresses',
 	];
 

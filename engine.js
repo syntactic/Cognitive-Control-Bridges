@@ -610,11 +610,22 @@ function buildDirectionParams(spec) {
 function buildTimingParams(spec) {
     const timingParams = {};
 
-    // Channel 1 cue and go signal (absolute timing)
+    // Cue and go signal SHARE AN ONSET. This is not a stylistic choice: the SE
+    // package draws the cue border with a zero-alpha colour whenever the matching
+    // go signal is inactive (game.js draw(), '#fb00' / '#0af0'), so a cue that
+    // starts before its go signal is drawn but invisible. Starting go_1 at the
+    // cue rather than at the stimulus is what makes the CSI a real, *visible*
+    // preparation interval instead of csi ms of blank screen.
+    //
+    // Their ENDS still differ, and should: the cue lasts as long as the stimulus,
+    // while the go window lasts responseWindow ms measured from stimulus onset.
+    //
+    // (Same convention as convert.py in the thesis repo, which sets
+    // effective_start_go1 = effective_start_cue1 for every condition.)
     timingParams.start_1 = 0;
     timingParams.dur_1 = spec.csi + spec.dur_ch1;
-    timingParams.start_go_1 = spec.csi;
-    timingParams.dur_go_1 = spec.responseWindow;
+    timingParams.start_go_1 = 0;
+    timingParams.dur_go_1 = spec.csi + spec.responseWindow;
 
     // Channel 1 stimulus — both pathways get same timing here.
     // buildTrialParams zeros out pathways with coh=0 after routing,
@@ -625,11 +636,15 @@ function buildTimingParams(spec) {
     timingParams.dur_or_1 = spec.dur_ch1;
 
     if (spec.task2 !== null) {
-        // Channel 2 cue and go signal (absolute timing, assuming csi2 = 0)
-        timingParams.start_2 = spec.csi + spec.soa;
-        timingParams.dur_2 = spec.dur_ch2;
-        timingParams.start_go_2 = spec.csi + spec.soa;
-        timingParams.dur_go_2 = spec.responseWindow;
+        // Channel 2 gets the SAME csi as channel 1: its cue+go open at soa and
+        // its stimulus follows csi later, at csi + soa. That keeps the stimulus
+        // SOA equal to spec.soa (the definition of SOA) while giving T2 the same
+        // preparation interval as T1. Previously cue2 opened at csi + soa, i.e.
+        // simultaneously with S2, so T1 nominally had a CSI and T2 had none.
+        timingParams.start_2 = spec.soa;
+        timingParams.dur_2 = spec.csi + spec.dur_ch2;
+        timingParams.start_go_2 = spec.soa;
+        timingParams.dur_go_2 = spec.csi + spec.responseWindow;
 
         // Channel 2 stimulus — relative offset because of SE chaining
         // absolute ch2 onset = csi + soa
@@ -840,6 +855,11 @@ function generateBlockTrials(blockConfig, numTrials, preloadedVectors = null) {
             transitionType: vectors.transition[i],
             iti: iti,
             soa: soa,
+            earlyResolve: blockConfig.earlyResolve ?? false,
+            // Onset of each imperative stimulus, in canvas-local ms. This is the
+            // zero point for RT — NOT start_go_1, which now opens with the cue.
+            t1_stim_onset: blockConfig.csi,
+            t2_stim_onset: isDualTask ? blockConfig.csi + soa : null,
             t1_target_dir: dir.ch1_task,
             t1_distractor_dir: congruency === 'univalent' ? null : dir.ch1_distractor,
             t2_target_dir: isDualTask ? dir.ch2_task : null,
@@ -876,20 +896,32 @@ function buildSingleCanvasSpec(task, csi, stimulusDuration, responseWindow,
 }
 
 
+/**
+ * Delay an entire single-canvas trial by `offset` ms, preserving its internal
+ * structure. Used to place the later task of a side-by-side PRP trial (the T2
+ * canvas, and the task canvas of a PRP baseline trial).
+ *
+ * Every onset moves together — cue, go signal and stimulus — so the delayed
+ * task keeps exactly the same CSI as the undelayed one. Durations are NOT
+ * touched. The previous version left start_1 at 0 and stretched dur_1 instead,
+ * which silently turned the delayed canvas's CSI into csi + offset.
+ */
 function applySOAOffset(params, offset) {
     const shifted = { ...params };
     if (offset === 0) {
         return shifted;
     }
 
+    // Silenced pathways are pinned at start 0 / duration 0 and must stay there,
+    // otherwise buildTrialParams' channel-2 chaining is thrown off.
     if (params.dur_mov_1 > 0) {
         shifted.start_mov_1 += offset;
     }
     if (params.dur_or_1 > 0) {
         shifted.start_or_1 += offset;
     }
+    shifted.start_1 += offset;
     shifted.start_go_1 += offset;
-    shifted.dur_1 += offset;
 
     return shifted;
 }
@@ -995,6 +1027,11 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
             transitionType: vectors.transition[i],
             iti: vectors.iti[i],
             soa: vectors.soa[i],
+            // Each canvas runs its own SE block, so both onsets are expressed in
+            // that canvas's local ms. T2's canvas is delayed wholesale by the SOA
+            // (applySOAOffset above), so its stimulus lands at csi + soa.
+            t1_stim_onset: blockConfig.csi,
+            t2_stim_onset: blockConfig.csi + vectors.soa[i],
             t1_target_dir: dir1.ch1_task,
             t1_distractor_dir: congruency === 'univalent' ? null : dir1.ch1_distractor,
             t2_target_dir: dir2.ch1_task,
@@ -1044,7 +1081,17 @@ function generateSidedTrials(blockConfig, numTrials) {
             displayTask, blockConfig.csi, blockConfig.stimulusDuration,
             blockConfig.responseWindow, coherence, direction
         );
-        const canvasTrialParams = buildTrialParams(spec);
+        // PRP baseline: S1 is a static asterisk on the other side, shown at trial
+        // onset, and the task canvas follows one SOA later. That delay is applied
+        // INSIDE the SE timeline, exactly as the dual-canvas T2 canvas does it,
+        // so both conditions deliver the SOA with frame accuracy and both have
+        // their canvases on screen from trial onset. (It used to be a
+        // setTimeout(soa) in session.js followed by creating the canvas, which
+        // made the baseline's SOA wall-clock-jittery and gave it a canvas
+        // pop-in that the dual-canvas condition does not have.)
+        const canvasTrialParams = isBaseline
+            ? applySOAOffset(buildTrialParams(spec), soa)
+            : buildTrialParams(spec);
 
         const meta = {
             trialNumber: i + 1,
@@ -1061,6 +1108,11 @@ function generateSidedTrials(blockConfig, numTrials) {
             transitionType: vectors.transition[i],
             iti: iti,
             soa: soa,
+            // Alternating: the single task is T1, onsetting at csi.
+            // Baseline: the asterisk is T1 (no stimulus onset, no response) and
+            // the real task is T2, delayed by the SOA inside the timeline.
+            t1_stim_onset: isBaseline ? null : blockConfig.csi,
+            t2_stim_onset: isBaseline ? blockConfig.csi + soa : null,
             t1_target_dir: isBaseline ? null : direction,
             t1_distractor_dir: null,
             t2_target_dir: isBaseline ? direction : null,

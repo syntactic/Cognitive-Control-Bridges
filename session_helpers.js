@@ -5,6 +5,12 @@
 // Key mapping constants
 // ============================================================
 
+// How long the SE library keeps a trial alive after an earlyResolve response,
+// in ms — enough for the feedback flash to land. Passed into every SE config so
+// the library and the ITI bookkeeping in session.js cannot drift apart: the
+// runner subtracts this to recover the moment the participant actually responded.
+const RESOLVE_DELAY = 150;
+
 // Horizontal 2-direction presets (parallel / spatially-compatible S-R)
 const LEFT_HAND_KEYS = { 180: 'a', 0: 'd' };
 const RIGHT_HAND_KEYS = { 180: 'j', 0: 'l' };
@@ -55,6 +61,7 @@ function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps
             movementKeyMap: { ...keyMaps.mov },
             orientationKeyMap: { ...keyMaps.or },
             size: 0.75,
+            resolveDelay: RESOLVE_DELAY,
 	    acceptFirstResponse,
 	    feedback,
             earlyResolve
@@ -65,6 +72,7 @@ function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps
             movementKeyMap: { ...LEFT_HAND_KEYS },
             orientationKeyMap: { ...RIGHT_HAND_KEYS },
             size: 0.75,
+            resolveDelay: RESOLVE_DELAY,
 	    acceptFirstResponse,
 	    feedback,
             earlyResolve
@@ -75,6 +83,7 @@ function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps
         movementKeyMap: { ...LEFT_HAND_KEYS },
         orientationKeyMap: { ...LEFT_HAND_KEYS },
         size: 0.75,
+        resolveDelay: RESOLVE_DELAY,
 	acceptFirstResponse,
 	feedback,
         earlyResolve
@@ -95,14 +104,14 @@ function buildDualCanvasSEConfigs(leftTask, rightTask, earlyResolve, feedback, a
     const { left: leftKeys, right: rightKeys } = handKeysForMapping(mapping);
     let leftConfig, rightConfig;
     if (leftTask === 'mov') {
-	leftConfig = { movementKeyMap: { ...leftKeys }, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve };
+	leftConfig = { movementKeyMap: { ...leftKeys }, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
     } else {
-	leftConfig = { orientationKeyMap: { ...leftKeys }, movementKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve };
+	leftConfig = { orientationKeyMap: { ...leftKeys }, movementKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
     }
     if (rightTask === 'mov') {
-	rightConfig = { movementKeyMap: { ...rightKeys }, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve };
+	rightConfig = { movementKeyMap: { ...rightKeys }, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
     } else {
-	rightConfig = { orientationKeyMap: { ...rightKeys }, movementKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve };
+	rightConfig = { orientationKeyMap: { ...rightKeys }, movementKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
     }
     return { leftConfig, rightConfig };
 }
@@ -120,9 +129,9 @@ function buildAlternatingSEConfig(task, side, earlyResolve, feedback, acceptFirs
     const handKeys = handKeysForMapping(mapping);
     const sideMapping = side === 'left' ? { ...handKeys.left } : { ...handKeys.right };
     if (task === 'mov') {
-	return { movementKeyMap: sideMapping, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve };
+	return { movementKeyMap: sideMapping, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
     }
-    return { movementKeyMap: { ...DUMMY_KEYS }, orientationKeyMap: sideMapping, size, acceptFirstResponse, feedback, earlyResolve };
+    return { movementKeyMap: { ...DUMMY_KEYS }, orientationKeyMap: sideMapping, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
 }
 
 // ============================================================
@@ -154,25 +163,41 @@ function buildKeyTaskMap(seConfig, trial) {
  * This is the shared core logic used by all response extractors.
  *
  * Walks through keypresses in order:
+ *   - Presses landing before the imperative stimulus → counted as anticipations
+ *     and skipped (they cannot be a response to a stimulus that is not on screen)
  *   - First correct press → record RT, classify as 'correct' or 'corrected'
  *   - Incorrect presses before a correct → track as errors
  *   - No correct press found → 'error' (if any presses) or 'miss' (if none)
  *
+ * Skipping anticipations matters most under acceptFirstResponse, which otherwise
+ * takes the very first keypress no matter when it arrived: on a dual-canvas trial
+ * the T2 canvas sits blank for one SOA, so a twitch during that window was being
+ * recorded as the T2 response with a NEGATIVE rt, and the participant's real
+ * response was then thrown away.
+ *
  * @param {Array} keyPresses - array of { key, time, isCorrect }
- * @param {number} goSignalOnset - onset time of the go signal (for RT computation)
- * @returns {{ rt: number|null, rt_raw: number|null, accuracy: string, consumedCount: number }}
+ * @param {number} stimulusOnset - onset of the imperative stimulus, in the same
+ *   canvas-local ms as kp.time. This is the RT zero point. It is deliberately NOT
+ *   the go-signal onset: since the CSI fix, the go signal opens with the cue,
+ *   csi ms before the stimulus.
+ * @returns {{ rt, rt_raw, accuracy, consumedCount, anticipations }}
  *   consumedCount: how many keypresses were processed (up to and including the
  *   first correct). Used by the identical-RSO path to split the stream for T2.
  */
-function extractSingleStreamResponse(keyPresses, goSignalOnset, acceptFirstResponse) {
+function extractSingleStreamResponse(keyPresses, stimulusOnset, acceptFirstResponse) {
     let rt_raw = null;
     let accuracy = 'miss';
     let hadError = false;
     let consumedCount = 0;
+    let anticipations = 0;
 
     for (let i = 0; i < keyPresses.length; i++) {
 	const kp = keyPresses[i];
 	consumedCount = i + 1;
+	if (kp.time < stimulusOnset) {
+	    anticipations++;
+	    continue;
+	}
 	if (kp.isCorrect) {
 	    rt_raw = kp.time;
 	    accuracy = hadError ? 'corrected' : 'correct';
@@ -187,8 +212,8 @@ function extractSingleStreamResponse(keyPresses, goSignalOnset, acceptFirstRespo
 	}
     }
 
-    const rt = rt_raw !== null ? rt_raw - goSignalOnset : null;
-    return { rt, rt_raw, accuracy, consumedCount };
+    const rt = rt_raw !== null ? rt_raw - stimulusOnset : null;
+    return { rt, rt_raw, accuracy, consumedCount, anticipations };
 }
 
 /**
@@ -216,18 +241,21 @@ function extractResponse(data, trial, seConfig) {
 
     let t1Result, t2Result;
 
+    const t1Onset = trial.meta.t1_stim_onset;
+    const t2Onset = trial.meta.t2_stim_onset;
+
     if (keyMap) {
 	// Disjoint RSO: split keypresses by key set, extract independently
 	const t1Presses = keyPresses.filter(kp => keyMap.task1Keys.includes(kp.key));
 	const t2Presses = keyPresses.filter(kp => keyMap.task2Keys.includes(kp.key));
-	t1Result = extractSingleStreamResponse(t1Presses, trial.seParams.start_go_1, seConfig.acceptFirstResponse);
-	t2Result = extractSingleStreamResponse(t2Presses, trial.seParams.start_go_2, seConfig.acceptFirstResponse);
+	t1Result = extractSingleStreamResponse(t1Presses, t1Onset, seConfig.acceptFirstResponse);
+	t2Result = extractSingleStreamResponse(t2Presses, t2Onset, seConfig.acceptFirstResponse);
     } else {
 	// Identical RSO or single-task: temporal ordering
-	t1Result = extractSingleStreamResponse(keyPresses, trial.seParams.start_go_1, seConfig.acceptFirstResponse);
+	t1Result = extractSingleStreamResponse(keyPresses, t1Onset, seConfig.acceptFirstResponse);
 	if (isDualTask) {
 	    const remaining = keyPresses.slice(t1Result.consumedCount);
-	    t2Result = extractSingleStreamResponse(remaining, trial.seParams.start_go_2, seConfig.acceptFirstResponse);
+	    t2Result = extractSingleStreamResponse(remaining, t2Onset, seConfig.acceptFirstResponse);
 	}
     }
 
@@ -235,9 +263,11 @@ function extractResponse(data, trial, seConfig) {
 	rt1_raw: t1Result.rt_raw,
 	rt1: t1Result.rt,
 	accuracy1: t1Result.accuracy,
+	anticipations1: t1Result.anticipations,
 	rt2_raw: isDualTask ? (t2Result.rt_raw ?? null) : null,
 	rt2: isDualTask ? (t2Result.rt ?? null) : null,
 	accuracy2: isDualTask ? (t2Result.accuracy ?? 'miss') : null,
+	anticipations2: isDualTask ? (t2Result.anticipations ?? 0) : null,
 	responseOrder: (isDualTask && t1Result.rt_raw !== null && t2Result.rt_raw !== null)
 	    ? (t1Result.rt_raw <= t2Result.rt_raw ? 'T1-first' : 'T2-first')
 	    : null,
@@ -245,20 +275,29 @@ function extractResponse(data, trial, seConfig) {
     };
 }
 
+/**
+ * Single-stream paradigms (alternating task switching, PRP baseline). Only one
+ * task is on screen, but which ROLE it plays differs: alternating shows T1,
+ * while the baseline's T1 is the asterisk and the responded-to task is T2.
+ * runBaselinePRPTrial remaps the slots afterwards; here we just need whichever
+ * onset is non-null.
+ */
 function extractAlternatingResponse(data, trial, seConfig) {
-    const result = extractSingleStreamResponse(data.keyPresses, trial.seParams.start_go_1, seConfig.acceptFirstResponse);
+    const onset = trial.meta.t1_stim_onset ?? trial.meta.t2_stim_onset;
+    const result = extractSingleStreamResponse(data.keyPresses, onset, seConfig.acceptFirstResponse);
     return {
 	rt1: result.rt,
 	rt1_raw: result.rt_raw,
 	accuracy1: result.accuracy,
-	rt2: null, rt2_raw: null, accuracy2: null,
+	anticipations1: result.anticipations,
+	rt2: null, rt2_raw: null, accuracy2: null, anticipations2: null,
 	rawKeyPresses: JSON.stringify(data.keyPresses),
     };
 }
 
-function extractDualCanvasResponse(t1Data, t2Data, t1GoOnset, t2GoOnset, t1Config, t2Config) {
-    const t1Result = extractSingleStreamResponse(t1Data.keyPresses, t1GoOnset, t1Config.acceptFirstResponse);
-    const t2Result = extractSingleStreamResponse(t2Data.keyPresses, t2GoOnset, t2Config.acceptFirstResponse);
+function extractDualCanvasResponse(t1Data, t2Data, t1StimOnset, t2StimOnset, t1Config, t2Config) {
+    const t1Result = extractSingleStreamResponse(t1Data.keyPresses, t1StimOnset, t1Config.acceptFirstResponse);
+    const t2Result = extractSingleStreamResponse(t2Data.keyPresses, t2StimOnset, t2Config.acceptFirstResponse);
 
     let responseOrder = null;
     if (t1Result.rt_raw !== null && t2Result.rt_raw !== null) {
@@ -268,6 +307,8 @@ function extractDualCanvasResponse(t1Data, t2Data, t1GoOnset, t2GoOnset, t1Confi
     return {
 	rt1: t1Result.rt, rt1_raw: t1Result.rt_raw, accuracy1: t1Result.accuracy,
 	rt2: t2Result.rt, rt2_raw: t2Result.rt_raw, accuracy2: t2Result.accuracy,
+	anticipations1: t1Result.anticipations,
+	anticipations2: t2Result.anticipations,
 	responseOrder,
 	rawKeyPresses: JSON.stringify({ t1: t1Data.keyPresses, t2: t2Data.keyPresses }),
     };

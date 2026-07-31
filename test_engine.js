@@ -155,7 +155,11 @@ assert(singleParams.task_1 === 'mov', 'task_1 set');
 assert(singleParams.task_2 === null, 'task_2 null for single-task');
 assert(singleParams.start_1 === 0, 'cue starts at 0');
 assert(singleParams.dur_1 === 500, 'cue duration = csi + dur_ch1');
-assert(singleParams.start_go_1 === 200, 'go signal at csi');
+// Go signal opens WITH the cue, not with the stimulus: SE draws the cue border
+// transparent unless its go signal is active, so this is what makes the CSI a
+// visible preparation interval instead of csi ms of blank screen.
+assert(singleParams.start_go_1 === 0, 'go signal opens with the cue');
+assert(singleParams.dur_go_1 === 2200, 'go window = csi + responseWindow, so it still closes responseWindow after the stimulus');
 assert(singleParams.start_mov_1 === 200, 'stimulus at csi');
 assert(singleParams.dur_mov_1 === 300, 'stimulus duration');
 assert(singleParams.coh_mov_1 === 0.8, 'movement coherence routed');
@@ -219,9 +223,12 @@ assert(dualParams.dur_or_2 === 300, 'ch2 or duration preserved');
 // Silenced pathway (mov2): coh=0 → duration zeroed
 assert(dualParams.dur_mov_2 === 0, 'ch2 mov silenced: duration zeroed');
 assert(dualParams.start_mov_2 === 0, 'ch2 mov silenced: start zeroed');
-// Channel 2 cue is absolute
-assert(dualParams.start_2 === 300, `ch2 cue absolute: got ${dualParams.start_2}`);
-assert(dualParams.start_go_2 === 300, `ch2 go absolute: got ${dualParams.start_go_2}`);
+// Channel 2 cue is absolute, and opens one csi BEFORE S2 (at soa), mirroring
+// channel 1. S2 itself still lands at csi + soa, so the stimulus SOA is spec.soa.
+assert(dualParams.start_2 === 100, `ch2 cue absolute: got ${dualParams.start_2}`);
+assert(dualParams.start_go_2 === 100, `ch2 go absolute: got ${dualParams.start_go_2}`);
+assert(dualParams.dur_2 === 500, 'ch2 cue duration = csi + dur_ch2');
+assert(dualParams.dur_go_2 === 2200, 'ch2 go window = csi + responseWindow');
 
 // ============================================================
 section('buildTrialParams — dual-task with swapped tasks (T1=or, T2=mov)');
@@ -481,8 +488,15 @@ assert(shiftedSingleCanvasBivalent.start_or_1 === 250, 'correctled shifted orien
 assert(bivalentTrialParams.start_or_1 === 100, 'original orientation unshifted');
 assert(shiftedSingleCanvasBivalent.dur_or_1 === 1000, 'preserved orientation duration');
 assert(shiftedSingleCanvasBivalent.coh_or_1 === 0.5, 'preserved orientation coherence');
-assert(shiftedSingleCanvasBivalent.start_go_1 === 250, 'shifted go start');
-assert(shiftedSingleCanvasBivalent.dur_1 === 1250, 'shifted cue duration: 1100 + 150');
+// Every onset moves together and no duration changes, so the delayed task keeps
+// exactly the CSI it started with (it used to stretch dur_1 and leave start_1 at
+// 0, which silently turned the delayed canvas's CSI into csi + offset).
+assert(shiftedSingleCanvasBivalent.start_go_1 === 150, 'shifted go start');
+assert(shiftedSingleCanvasBivalent.start_1 === 150, 'shifted cue start');
+assert(shiftedSingleCanvasBivalent.dur_1 === 1100, 'cue duration unchanged by the shift');
+assert(shiftedSingleCanvasBivalent.start_mov_1 - shiftedSingleCanvasBivalent.start_1
+       === bivalentTrialParams.start_mov_1 - bivalentTrialParams.start_1,
+       'CSI preserved across the shift');
 
 // Silenced pathways should not be shifted
 const univalentTrialParams = buildTrialParams(singleCanvasUnivalent);
@@ -508,7 +522,7 @@ assert(zeroOffsetCopy.dur_1 === bivalentTrialParams.dur_1,
 
 // Original not mutated after all shifts above
 assert(bivalentTrialParams.start_mov_1 === 100, 'original still unmodified after multiple shifts');
-assert(bivalentTrialParams.start_go_1 === 100, 'original go signal still unmodified');
+assert(bivalentTrialParams.start_go_1 === 0, 'original go signal still unmodified');
 
 // ============================================================
 section('classifyDualCanvasTransitions');
@@ -622,17 +636,25 @@ const dualCanvasFixedSOAConfig = {
 
 const soaTrials = generateDualCanvasBlockTrials(dualCanvasFixedSOAConfig, 5);
 for (const t of soaTrials) {
-    // Left canvas: go signal at csi (200)
-    assert(t.leftSeParams.start_go_1 === 200,
-        `SOA: left go signal at csi=200, got ${t.leftSeParams.start_go_1}`);
-    // Right canvas: go signal shifted by SOA (200 + 400 = 600)
-    assert(t.rightSeParams.start_go_1 === 600,
-        `SOA: right go signal at csi+soa=600, got ${t.rightSeParams.start_go_1}`);
-    // Right canvas: cue duration extended by SOA
-    assert(t.rightSeParams.dur_1 === dualCanvasFixedSOAConfig.csi + dualCanvasFixedSOAConfig.stimulusDuration + 400,
-        `SOA: right cue duration extended by SOA`);
-    // Meta records the SOA
+    // Left canvas (T1): cue+go open at trial onset, stimulus follows at csi.
+    assert(t.leftSeParams.start_go_1 === 0,
+        `SOA: left go signal opens with the cue, got ${t.leftSeParams.start_go_1}`);
+    assert(t.leftSeParams.start_mov_1 === 200 || t.leftSeParams.start_or_1 === 200,
+        'SOA: left stimulus at csi=200');
+    // Right canvas (T2): the whole task is displaced by the SOA, cue included,
+    // so its cue+go open at 400 and its stimulus lands at csi + soa = 600.
+    assert(t.rightSeParams.start_go_1 === 400,
+        `SOA: right go signal at soa=400, got ${t.rightSeParams.start_go_1}`);
+    assert(t.rightSeParams.start_1 === 400,
+        `SOA: right cue start shifted to soa=400, got ${t.rightSeParams.start_1}`);
+    assert(t.rightSeParams.dur_1 === dualCanvasFixedSOAConfig.csi + dualCanvasFixedSOAConfig.stimulusDuration,
+        `SOA: right cue duration NOT stretched by the shift`);
+    assert(t.rightSeParams.start_mov_1 === 600 || t.rightSeParams.start_or_1 === 600,
+        'SOA: right stimulus at csi + soa = 600');
+    // Meta records the SOA and the RT zero points
     assert(t.meta.soa === 400, 'SOA: meta records soa=400');
+    assert(t.meta.t1_stim_onset === 200, 'SOA: T1 stimulus onset recorded');
+    assert(t.meta.t2_stim_onset === 600, 'SOA: T2 stimulus onset recorded');
 }
 
 // ============================================================
@@ -835,9 +857,11 @@ for (const t of altTrials) {
     assert(t.seParams.dur_2 === 0, 'dur_2 is 0');
     assert(t.seParams.task_2 === null, 'task_2 is null');
 
-    // Go signal at csi
-    assert(t.seParams.start_go_1 === 200,
-        `go signal at csi=200, got ${t.seParams.start_go_1}`);
+    // Alternating has no SOA, so the cue+go open at trial onset.
+    assert(t.seParams.start_go_1 === 0,
+        `go signal opens with the cue, got ${t.seParams.start_go_1}`);
+    assert(t.meta.t1_stim_onset === 200, 'alternating: T1 stimulus onset = csi');
+    assert(t.meta.t2_stim_onset === null, 'alternating: no T2');
 }
 
 // ============================================================
@@ -988,8 +1012,14 @@ for (const t of blTrials) {
     assert(t.seParams.dur_go_2 === 0, 'dur_go_2 is 0');
     assert(t.seParams.dur_2 === 0, 'dur_2 is 0');
     assert(t.seParams.task_2 === null, 'task_2 is null');
-    assert(t.seParams.start_go_1 === 200,
-        `go signal at csi=200, got ${t.seParams.start_go_1}`);
+    // PRP baseline: the whole task canvas is displaced by the SOA inside the SE
+    // timeline (the asterisk is S1 and goes up at trial onset), so cue+go open
+    // at soa and the stimulus lands at csi + soa.
+    assert(t.seParams.start_go_1 === t.meta.soa,
+        `go signal at soa, got ${t.seParams.start_go_1} for soa=${t.meta.soa}`);
+    assert(t.seParams.start_1 === t.meta.soa, 'baseline: cue start shifted by SOA');
+    assert(t.meta.t1_stim_onset === null, 'baseline: T1 is the asterisk, no stimulus onset');
+    assert(t.meta.t2_stim_onset === 200 + t.meta.soa, 'baseline: T2 stimulus onset = csi + soa');
 }
 
 // ============================================================
@@ -1101,13 +1131,15 @@ for (const t of dcRightTrials) {
     assert(t.meta.t1Side === 'right', `t1Side is right, got ${t.meta.t1Side}`);
     // T1 params should be on the right canvas (no SOA shift)
     // T2 params should be on the left canvas (with SOA shift)
-    // The right canvas (T1) should have start_go_1 = csi = 200
-    assert(t.rightSeParams.start_go_1 === 200,
-        `T1 on right: start_go_1 = 200, got ${t.rightSeParams.start_go_1}`);
-    // The left canvas (T2) should have start_go_1 = csi + soa = 200 + 600 = 800
-    // (applySOAOffset shifts start_go_1 by soa)
-    assert(t.leftSeParams.start_go_1 === 800,
-        `T2 on left: start_go_1 = 800 (200 + 600 SOA), got ${t.leftSeParams.start_go_1}`);
+    // T1 (right canvas): cue+go open at trial onset, undelayed.
+    assert(t.rightSeParams.start_go_1 === 0,
+        `T1 on right: start_go_1 = 0, got ${t.rightSeParams.start_go_1}`);
+    // T2 (left canvas): displaced wholesale by the SOA, so cue+go open at 600.
+    assert(t.leftSeParams.start_go_1 === 600,
+        `T2 on left: start_go_1 = 600 (SOA), got ${t.leftSeParams.start_go_1}`);
+    // Roles, not sides, drive the recorded RT zero points.
+    assert(t.meta.t1_stim_onset === 200, 't1Side=right: T1 stimulus onset = csi');
+    assert(t.meta.t2_stim_onset === 800, 't1Side=right: T2 stimulus onset = csi + soa');
 }
 
 // ============================================================
@@ -1251,16 +1283,17 @@ section('applySOAOffset — negative offset');
 const negShifted = applySOAOffset(bivalentTrialParams, -50);
 assert(negShifted.start_mov_1 === 50, 'negative offset: start_mov_1 = 100 + (-50) = 50');
 assert(negShifted.start_or_1 === 50, 'negative offset: start_or_1 = 100 + (-50) = 50');
-assert(negShifted.start_go_1 === 50, 'negative offset: start_go_1 = 100 + (-50) = 50');
-assert(negShifted.dur_1 === 1050, 'negative offset: dur_1 = 1100 + (-50) = 1050');
+assert(negShifted.start_go_1 === -50, 'negative offset: start_go_1 = 0 + (-50) = -50');
+assert(negShifted.start_1 === -50, 'negative offset: start_1 = 0 + (-50) = -50');
+assert(negShifted.dur_1 === 1100, 'negative offset: dur_1 unchanged');
 
 // ============================================================
 section('applySOAOffset — large offset');
 
 const largeShifted = applySOAOffset(bivalentTrialParams, 1000);
 assert(largeShifted.start_mov_1 === 1100, 'large offset: start_mov_1 = 100 + 1000');
-assert(largeShifted.start_go_1 === 1100, 'large offset: start_go_1 = 100 + 1000');
-assert(largeShifted.dur_1 === 2100, 'large offset: dur_1 = 1100 + 1000');
+assert(largeShifted.start_go_1 === 1000, 'large offset: start_go_1 = 0 + 1000');
+assert(largeShifted.dur_1 === 1100, 'large offset: dur_1 unchanged');
 
 // ============================================================
 section('buildTrialParams — dual-task: task1=or, task2=mov, bivalent ch1');
@@ -1407,8 +1440,9 @@ const soaZeroParams = buildTrialParams(soaZeroSpec);
 // desired = csi + soa = 200 + 0 = 200
 assert(soaZeroParams.start_or_2 === 200,
     `soa=0: or2 offset = 200 (absolute), got ${soaZeroParams.start_or_2}`);
-assert(soaZeroParams.start_go_2 === 200, `soa=0: go2 at csi`);
-assert(soaZeroParams.start_2 === 200, `soa=0: cue2 at csi`);
+// With soa=0 both channels' cues open together at 0, and both stimuli land at csi.
+assert(soaZeroParams.start_go_2 === 0, `soa=0: go2 opens with cue2 at 0`);
+assert(soaZeroParams.start_2 === 0, `soa=0: cue2 at 0`);
 
 // ============================================================
 // NEW: generateFactorialSequence

@@ -359,8 +359,11 @@ assert(altSz.size === 0.37, 'config gets passed size');
 // extractAlternatingResponse tests
 // ============================================================
 
+// RT is measured from the imperative stimulus, which meta now carries. (It used
+// to come from seParams.start_go_1, but the go signal opens with the cue.)
 const altTrial = {
-    seParams: { start_go_1: 200 },
+    seParams: {},
+    meta: { t1_stim_onset: 200, t2_stim_onset: null },
 };
 
 section('extractAlternatingResponse — correct on first press');
@@ -512,8 +515,8 @@ assert(keyMap3 === null, 'identical RSO: returns null');
 section('extractResponse — single-task correct');
 
 const stTrial = {
-    seParams: { start_go_1: 200, start_go_2: 0 },
-    meta: { paradigm: 'single-task', t1_task: 'mov' },
+    seParams: {},
+    meta: { paradigm: 'single-task', t1_task: 'mov', t1_stim_onset: 200, t2_stim_onset: null },
 };
 const stRes1 = extractResponse(
     { keyPresses: [{ key: 'a', time: 500, isCorrect: true }] },
@@ -567,8 +570,8 @@ assert(stRes4.rt1_raw === null, 'single-task miss: no rt1_raw');
 section('extractResponse — disjoint RSO dual-task: normal order');
 
 const dtTrial = {
-    seParams: { start_go_1: 200, start_go_2: 400 },
-    meta: { paradigm: 'dual-task', t1_task: 'mov', t2_task: 'or' },
+    seParams: {},
+    meta: { paradigm: 'dual-task', t1_task: 'mov', t2_task: 'or', t1_stim_onset: 200, t2_stim_onset: 400 },
 };
 const dtRes1 = extractResponse(
     { keyPresses: [
@@ -650,8 +653,8 @@ assert(dtRes5.responseOrder === null, 'disjoint both miss: no responseOrder');
 section('extractResponse — identical RSO dual-task: temporal ordering');
 
 const dtIdenticalTrial = {
-    seParams: { start_go_1: 200, start_go_2: 400 },
-    meta: { paradigm: 'dual-task', t1_task: 'mov', t2_task: 'or' },
+    seParams: {},
+    meta: { paradigm: 'dual-task', t1_task: 'mov', t2_task: 'or', t1_stim_onset: 200, t2_stim_onset: 400 },
 };
 const dtIdRes1 = extractResponse(
     { keyPresses: [
@@ -721,7 +724,8 @@ assert(dtIdRes4.rt2 === null, 'identical all errors: rt2 null');
 section('extractAlternatingResponse — response at time 0');
 
 const altTrialZero = {
-    seParams: { start_go_1: 0 },
+    seParams: {},
+    meta: { t1_stim_onset: 0, t2_stim_onset: null },
 };
 const altResZero = extractAlternatingResponse(
     { keyPresses: [{ key: 'a', time: 0, isCorrect: true }] },
@@ -730,6 +734,59 @@ const altResZero = extractAlternatingResponse(
 assert(altResZero.rt1_raw === 0, 'time 0: rt1_raw is 0 (not null)');
 assert(altResZero.rt1 === 0, 'time 0: rt1 is 0');
 assert(altResZero.accuracy1 === 'correct', 'time 0: correct');
+
+// ============================================================
+section('extractSingleStreamResponse — anticipations before stimulus onset');
+
+// The regression this guards: acceptFirstResponse used to take the very first
+// keypress no matter when it arrived. On a dual-canvas trial the T2 canvas is
+// blank for one whole SOA, so a twitch in that window became the T2 response
+// with a NEGATIVE rt, and the participant's real answer was discarded.
+const antEarly = extractSingleStreamResponse(
+    [{ key: 'j', time: 300, isCorrect: false },
+     { key: 'l', time: 900, isCorrect: true }],
+    600, true
+);
+assert(antEarly.anticipations === 1, 'pre-stimulus press counted as an anticipation');
+assert(antEarly.rt_raw === 900, 'acceptFirstResponse skips the anticipation and takes the real press');
+assert(antEarly.rt === 300, 'rt measured from the stimulus, not the anticipation');
+assert(antEarly.accuracy === 'correct', 'anticipation does not mark the trial an error');
+
+// Same stream without acceptFirstResponse: the anticipation must not count as an
+// error either, so accuracy stays 'correct' rather than 'corrected'.
+const antStrict = extractSingleStreamResponse(
+    [{ key: 'j', time: 300, isCorrect: false },
+     { key: 'l', time: 900, isCorrect: true }],
+    600, false
+);
+assert(antStrict.anticipations === 1, 'strict mode also counts the anticipation');
+assert(antStrict.accuracy === 'correct', 'strict mode: anticipation is not a within-window error');
+
+// A genuine post-stimulus error still behaves exactly as before.
+const antRealError = extractSingleStreamResponse(
+    [{ key: 'j', time: 700, isCorrect: false },
+     { key: 'l', time: 900, isCorrect: true }],
+    600, false
+);
+assert(antRealError.anticipations === 0, 'post-stimulus press is not an anticipation');
+assert(antRealError.accuracy === 'corrected', 'post-stimulus error still yields corrected');
+
+// Nothing but anticipations = no response at all.
+const antOnly = extractSingleStreamResponse(
+    [{ key: 'j', time: 100, isCorrect: false }], 600, true
+);
+assert(antOnly.anticipations === 1, 'lone anticipation counted');
+assert(antOnly.rt_raw === null, 'lone anticipation leaves rt null');
+assert(antOnly.accuracy === 'miss', 'lone anticipation scores as a miss, not an error');
+
+// RTs can never come out negative now.
+for (const onset of [0, 200, 600]) {
+    const r = extractSingleStreamResponse(
+        [{ key: 'a', time: 50, isCorrect: true }, { key: 'a', time: 5000, isCorrect: true }],
+        onset, true
+    );
+    assert(r.rt === null || r.rt >= 0, `no negative rt for stimulus onset ${onset}`);
+}
 
 // ============================================================
 
