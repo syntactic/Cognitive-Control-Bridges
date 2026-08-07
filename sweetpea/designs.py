@@ -184,20 +184,20 @@ def build_taskswitch_asym(n_trials=96, condition="A"):
 # ==================================================================
 # 1. PRP / dual-task  --  cp_prp
 # ==================================================================
-# Crossing: t1_task x soa x cross_congruency x t1_target_dir = 24 cells.
+# Crossing: soa x cross_congruency x t1_target_dir = 12 cells.
 # t2 is the OTHER task (client derives via t2Rule='switch'); t2_target_dir is
 # derived from cross-congruency (client's dual-task assignDirections). No
 # transition window here, so the crossing is clean (no preamble).
 
 def build_prp(n_trials=96, condition="A", soa_levels=(100, 300, 600)):
-    t1_task = Factor("task", ["mov", "or"])
+    target_task = "mov" if condition == "A" else "or"
     soa = Factor("soa", list(soa_levels))
     cross_congruency = Factor("congruency", ["congruent", "incongruent"])
     t1_target_dir = Factor("target_dir", ["left", "right"])
 
-    design = [t1_task, soa, cross_congruency, t1_target_dir]
-    crossing = [t1_task, soa, cross_congruency, t1_target_dir]
-    constraints = [AtMostKInARow(3, t1_task), MinimumTrials(n_trials)]
+    design = [soa, cross_congruency, t1_target_dir]
+    crossing = [soa, cross_congruency, t1_target_dir]
+    constraints = [MinimumTrials(n_trials)]
     block = CrossBlock(design, crossing, constraints)
 
     def to_rows(trials):
@@ -207,7 +207,7 @@ def build_prp(n_trials=96, condition="A", soa_levels=(100, 300, 600)):
                 "block_id": "cp_prp",
                 "condition": condition,
                 "trial_index": i,
-                "task": t["task"],            # T1 task; T2 derived client-side
+                "task": target_task,            # T1 task; T2 derived client-side
                 "soa_level": t["soa"],
                 "congruency": t["congruency"],  # cross-task congruency
                 "target_dir": t["target_dir"],  # T1 target dir; T2 derived

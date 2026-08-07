@@ -40,7 +40,6 @@ const CP_STROOP_LEVELS = {               // crossed-coherence Stroop levels
 // PRP SOA levels (ms) — D3. 3-4 short SOAs; tunable.
 const CP_PRP_SOA_LEVELS = [100, 300, 600];
 
-// Default switch rate for switching paradigms — D4 (50 => balanced Repeat/Switch).
 const CP_SWITCH_RATE = 50;
 
 // D5 participant-counterbalanced choices:
@@ -64,7 +63,7 @@ const CP_DISJOINT_KEY_MAPS = {
 // ============================================================
 
 const CP_DEFAULTS = {
-    csi: 200,                 // ms cue-stimulus interval
+    csi: 0,                 // ms cue-stimulus interval
     stimulusDuration: 2500,   // ms
     responseWindow: 2500,     // ms
     iti: { type: 'uniform', value: 500, params: [400, 600] },
@@ -87,7 +86,7 @@ const cpPRP = {
     task1: 'mov',
     t2Rule: 'switch',         // T2 is always the OTHER task (mov->or / or->mov)
     sequenceType: 'Factorial',
-    switchRate: 50,           // balances which task is T1 across trials
+    switchRate: 0,
     startTask: null,
     // Fixed, comparable coherence for both tasks (per-task tunable if needed).
     coherence: { target: { mov: CP_EASY, or: CP_EASY }, distractor: 0 },

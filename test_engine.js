@@ -1852,12 +1852,15 @@ const gsvFactFallback = generateSequenceVectors({
     startTask: 'mov',
     soa: { type: 'fixed', value: 200 },  // fixed, so not crossed
     iti: { type: 'choice', params: [100, 600] },  // choice, so crossed
-}, 10);
+}, 12);
 // SOA should be sampled from fixed distribution (all 200)
 assert(gsvFactFallback.soa.every(s => s === 200),
     'Factorial fallback: fixed SOA all 200');
-// ITI should be crossed (balanced)
-assert(gsvFactFallback.iti.filter(v => v === 100).length === 5,
+// ITI should be crossed (balanced). numTrials must be divisible by the cell
+// count (2 transitions x 2 ITIs = 4): generateFactorialSequence fills any
+// remainder with RANDOM cells, so 10 trials gave 4 + Binomial(2, .5) ITI=100
+// rows and this assertion failed on ~50% of runs.
+assert(gsvFactFallback.iti.filter(v => v === 100).length === 6,
     'Factorial fallback: ITI 100 balanced');
 
 // ============================================================
