@@ -438,3 +438,47 @@ function createQuest(priorMean, priorSD) {
 	getFinalEstimate
     };
 }
+
+const TRAINING_CAP = 48; // hard cap on trials per training stage
+
+/**
+ * Returns true if the participant currently meets the rolling-window
+ * advancement criterion (14/16 correct), given everything run so far.
+ * Before `windowSize` trials exist there's nothing to evaluate, so it
+ * should return false
+ *
+ * @param {boolean[]} correctnessHistory - one entry per trial run in this
+ *   stage so far, in order; true = counted as correct for advancement
+ * @param {number} windowSize - rolling window size (D8 default: 16)
+ * @param {number} threshold - correct responses needed within the window (D8 default: 14)
+ * @returns {boolean}
+ */
+function meetsAdvancementCriterion(correctnessHistory, windowSize = 16, threshold = 14) {
+    if (correctnessHistory.length < windowSize) {
+	return false;
+    }
+    const numCorrect = correctnessHistory.slice(-windowSize).filter(Boolean).length;
+    return numCorrect >= threshold;
+}
+
+/**
+ * Whether a trial counts as "correct" for training-stage advancement
+ * (input to meetsAdvancementCriterion's correctnessHistory). 'correct' and
+ * 'corrected' both count; 'error'/'miss' do not. A trial with two responses
+ * (accuracy2 present) only counts if BOTH are correct.
+ *
+ * @param {object} trialData - merged trial result, as pushed to allTrialData
+ *   (has accuracy1 always; accuracy2 only for two-response stages, else null)
+ * @returns {boolean}
+ */
+function isTrialCorrectForAdvancement(trialData) {
+    let correct = true;
+    if (trialData.accuracy1 != null) {
+	correct = correct & trialData.accuracy1.startsWith('correct');
+    }
+    if (trialData.accuracy2 != null) {
+	correct = correct & trialData.accuracy2.startsWith('correct');
+    }
+    return correct;
+}
+

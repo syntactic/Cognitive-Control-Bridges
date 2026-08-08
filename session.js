@@ -259,7 +259,8 @@ const Session = (() => {
      * Run a complete block of trials.
      */
     async function runBlock(blockDef, blockOrder) {
-        const { blockConfig, numTrials, instructions } = blockDef;
+        const { blockConfig, instructions } = blockDef;
+	const numTrials = blockDef.isTraining ? TRAINING_CAP : blockDef.numTrials;
 	let trials;
 	let seConfig;
 	const feedback = blockConfig.feedback ?? true;
@@ -314,7 +315,8 @@ const Session = (() => {
 	}
         let prevResponseTime = null;
 	let trialData;
-        for (let i = 0; i < trials.length; i++) {
+	let blockOutcomes = [];
+        for (let i = 0; i < trials.length && (!blockDef.isTraining || !meetsAdvancementCriterion(blockOutcomes)); i++) {
             if (!isRunning) break;
             // Update status display
             updateStatus(blockConfig.blockId, i + 1, trials.length, blockOrder);
@@ -352,6 +354,9 @@ const Session = (() => {
 		trialData = await runBaselinePRPTrial(trials[i], config, leftParent, rightParent)
 	    } else {
 		trialData = await runTrial(trials[i], seConfig, prevResponseTime);
+		if (blockDef.isTraining) { 
+		    blockOutcomes.push(isTrialCorrectForAdvancement(trialData));
+		}
 	    }
             trialData.blockOrder = blockOrder;
             trialData.isPractice = blockDef.isPractice || false;
