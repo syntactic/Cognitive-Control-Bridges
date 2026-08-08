@@ -63,7 +63,7 @@ const CP_DISJOINT_KEY_MAPS = {
 // ============================================================
 
 const CP_DEFAULTS = {
-    csi: 0,                 // ms cue-stimulus interval
+    csi: 200,                 // ms cue-stimulus interval
     stimulusDuration: 2500,   // ms
     responseWindow: 2500,     // ms
     iti: { type: 'uniform', value: 500, params: [400, 600] },
@@ -81,6 +81,7 @@ const cpPRP = {
     blockId: 'cp_prp',
     blockType: 'prp',
     paradigm: 'dual-task',
+    csi: 0,
     rso: 'disjoint',
     keyMaps: CP_DISJOINT_KEY_MAPS,
     task1: 'mov',
@@ -205,10 +206,13 @@ const cpStroopCrossed = {
 // the fallback so demos and the other paradigms are untouched.
 //
 // Between-subjects assignment (which task is easy in asym switching; which
-// dimension is the target in Stroop) is baked into the CSV, so the client stays
-// agnostic. The only coherence config that must change for CSV mode is the
-// asymmetric switcher: its CSV emits an already-resolved target_coh_level
-// (easy on the easy task), so we swap its per-task table for a level-keyed one.
+// dimension is the target in Stroop/PRP) is baked into the CSV at the trial
+// level, but the client is not fully agnostic: cpApplySweetPea() must pick the
+// matching instruction text from `condition` for cp_prp, cp_stroop, and
+// cp_stroop_crossed (A = mov, B = or). The only coherence config that must
+// change for CSV mode is the asymmetric switcher: its CSV emits an
+// already-resolved target_coh_level (easy on the easy task), so we swap its
+// per-task table for a level-keyed one.
 
 const CP_CSV_COHERENCE_OVERRIDES = {
     cp_taskswitch_asym: {
@@ -239,7 +243,15 @@ function cpApplySweetPea(sessionArray, participant, condition) {
             sequenceSource: cpSequencePath(blockId, condition, participant),
             ...(override ? { coherence: override } : {}),
         };
-        return { ...blockDef, blockConfig };
+        // PRP task order and the Stroop target task are condition-assigned
+        // (A = mov, B = or), so their instructions must match the condition's CSV.
+        const condTask = condition === 'B' ? 'or' : 'mov';
+        const instructions = blockId === 'cp_prp'
+            ? CP_PRP_INSTRUCTIONS(condTask)
+            : (blockId === 'cp_stroop' || blockId === 'cp_stroop_crossed')
+                ? CP_STROOP_INSTRUCTIONS(condTask)
+                : blockDef.instructions;
+        return { ...blockDef, blockConfig, instructions };
     });
 }
 
@@ -247,13 +259,37 @@ function cpApplySweetPea(sessionArray, participant, condition) {
 // Instructions
 // ============================================================
 
-const CP_PRP_INSTRUCTIONS =
-    'Dual-task (PRP) block: TWO tasks per trial.\n\n'
-    + 'Respond to the FIRST task, then the SECOND.\n'
-    + 'MOVEMENT (left hand): A = left, D = right.\n'
-    + 'ORIENTATION (right hand): J = left, L = right.\n\n'
-    + 'The delay between the two tasks varies.\n\n'
-    + 'Press any key to begin.';
+// PRP task order is fixed per session and assigned between subjects by the
+// `condition` URL param (A = movement first, B = orientation first), so the
+// instructions are a function of the T1 task — same pattern as
+// CP_STROOP_INSTRUCTIONS below. Key maps are task-tied and never swap:
+// mov = left hand A/D, or = right hand J/L, in either order.
+const CP_PRP_INSTRUCTIONS = (t1Task) => {
+    const movFirst = t1Task === 'mov';
+    const movItem = 'MOVEMENT - which way are the fish SWIMMING?\n'
+        + '   Left hand:  A = left, D = right.';
+    const orItem = 'ORIENTATION - which way are the fish FACING?\n'
+        + '   Right hand:  J = left, L = right.';
+    const stimulusStory = movFirst
+        ? 'The fish start out swimming while facing straight toward you. A moment\n'
+          + 'later they turn to face left or right. That delay changes from trial to\n'
+          + 'trial - sometimes it is very short.'
+        : 'The fish start out facing left or right without moving. A moment\n'
+          + 'later they begin to swim. That delay changes from trial to\n'
+          + 'trial - sometimes it is very short.';
+    const firstName = movFirst ? 'MOVEMENT' : 'ORIENTATION';
+    const secondName = movFirst ? 'ORIENTATION' : 'MOVEMENT';
+    return 'Two tasks on every trial.\n\n'
+        + `The ${firstName} task always comes FIRST.\n`
+        + `The ${secondName} task always comes SECOND. This never changes.\n\n`
+        + `1) ${movFirst ? movItem : orItem}\n\n`
+        + `2) ${movFirst ? orItem : movItem}\n\n`
+        + stimulusStory + '\n\n'
+        + `Answer the ${firstName.toLowerCase()} task first, then the ${secondName.toLowerCase()} task, IN THAT ORDER,\n`
+        + 'even if you work out the second one early.\n\n'
+        + 'Be as fast as you can while staying accurate.\n\n'
+        + 'Press any key to begin.';
+};
 
 const CP_TASKSWITCH_INSTRUCTIONS =
     'Task-switching block: ONE task per trial; it may switch between trials.\n\n'
@@ -276,7 +312,12 @@ const CP_STROOP_INSTRUCTIONS = (task) =>
 // Trial counts are full-length; Abridged mode (index.html) runs ~1/10 for fast testing.
 
 const CP_PRP_SESSION = [
-    { blockConfig: cpPRP, numTrials: 120, instructions: CP_PRP_INSTRUCTIONS },
+    // Default instructions assume condition A (movement first). The no-param
+    // path (no ?participant=) is demo-only — cpApplySweetPea never runs, so the
+    // JS-generator fallback's trial sequence does not necessarily match these
+    // instructions. With ?participant=&condition=, cpApplySweetPea overrides
+    // them per condition.
+    { blockConfig: cpPRP, numTrials: 120, instructions: CP_PRP_INSTRUCTIONS('mov') },
 ];
 
 const CP_TASKSWITCH_SESSION = [
