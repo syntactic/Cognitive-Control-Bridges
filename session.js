@@ -4,6 +4,9 @@
 const Session = (() => {
     // State
     let allTrialData = [];
+    // One stage-summary object per training stage run this session
+    // Populated by runSession from runBlock's return value.
+    let trainingLog = [];
     let currentSessionDef = null;
     let isRunning = false;
     let canvasContainer = null;
@@ -260,7 +263,26 @@ const Session = (() => {
      */
     async function runBlock(blockDef, blockOrder) {
         const { blockConfig, instructions } = blockDef;
+	// Fail before anything is shown to the participant: both checked
+	// combinations run to completion and export a full CSV, so an
+	// un-guarded one costs a whole session's data.
+	assertValidBlockConfig(blockConfig);
 	const numTrials = blockDef.isTraining ? TRAINING_CAP : blockDef.numTrials;
+	// A stage may ask for its own advancement threshold —
+	// PRP's S8 uses 12/16 because isTrialCorrectForAdvancement requires BOTH
+	// responses correct there, and 14/16 on a product of two accuracies would
+	// send a competent participant to the cap (at 80%/task: 26.4% pass under
+	// 14/16 vs 81.1% under 12/16, across the cap). Resolved ONCE here and handed
+	// to both the stop-early predicate and the stage summary: if the two ever
+	// diverged, a stage could stop while its logged criterionMet said it had not.
+	// Left `undefined` when the stage does not ask, so session_helpers.js's
+	// defaults (16/14) stay the single place the shared default lives — and it
+	// must never be lowered, since at 10/16 a pure guesser clears the stage 76.2%
+	// of the time. NB the predicate below runs before EVERY trial, so a stage
+	// offers 33 overlapping windows, not 3 disjoint ones; quote across-cap rates,
+	// not per-window ones.
+	const advancementWindow = blockDef.advancementWindow;
+	const advancementThreshold = blockDef.advancementThreshold;
 	let trials;
 	let seConfig;
 	const feedback = blockConfig.feedback ?? true;
@@ -286,7 +308,21 @@ const Session = (() => {
 	} else {
 	    // SweetPea-backed blocks carry pre-fetched, counterbalanced vectors
 	    // (populated in runSession). Fall back to the interim generator otherwise.
-	    const preVec = blockDef._vectors || null;
+	    let preVec = blockDef._vectors || null;
+	    // PRP's S8 orders its SOAs longest -> shortest instead of sampling them
+	    // (the stage shapes response order, not coherence). The SOA is
+	    // baked into the SE timing params at generation time, so unlike the
+	    // coherence ramp it cannot be overridden per trial in the loop below —
+	    // it has to be imposed on the sequence vectors first. A SweetPea CSV
+	    // wins if one is present: its counterbalancing is the whole point of it.
+	    if (blockConfig.soaSchedule && !preVec) {
+		const scheduleLength = blockConfig.soaSchedule.scheduleLength
+		    ?? TRAINING_SOA_SCHEDULE_LENGTH;
+		const vectors = generateSequenceVectors(blockConfig, numTrials);
+		vectors.soa = vectors.soa.map((sampled, i) =>
+		    scheduledSoa(i, blockConfig.soaSchedule.levels, scheduleLength) ?? sampled);
+		preVec = vectors;
+	    }
 	    trials = generateBlockTrials(blockConfig, preVec ? preVec.task1.length : numTrials, preVec);
 	    seConfig = buildSEConfig(blockConfig.rso, blockConfig.earlyResolve, feedback, acceptFirstResponse, blockConfig.keyMaps);
 	    canvasContainer.classList.toggle('dual-canvas-mode', false);
@@ -316,7 +352,7 @@ const Session = (() => {
         let prevResponseTime = null;
 	let trialData;
 	let blockOutcomes = [];
-        for (let i = 0; i < trials.length && (!blockDef.isTraining || !meetsAdvancementCriterion(blockOutcomes)); i++) {
+        for (let i = 0; i < trials.length && (!blockDef.isTraining || !meetsAdvancementCriterion(blockOutcomes, advancementWindow, advancementThreshold)); i++) {
             if (!isRunning) break;
             // Update status display
             updateStatus(blockConfig.blockId, i + 1, trials.length, blockOrder);
@@ -340,6 +376,19 @@ const Session = (() => {
 		newCoherence = Math.min(quest.getNextIntensity(), 0.9);
 		t1Params["coh_" + task_1 + "_1"] = newCoherence;
 	    }
+	    // Training coherence ramp: ceiling -> test level
+	    // over the first `rampLength` trials of the stage. Same override point as
+	    // Quest, and task-agnostic — task_1 is already resolved per trial, so a
+	    // stage that alternates mov/or (S4) ramps both without special-casing.
+	    // `to` is either a single number or a per-task table { mov, or }.
+	    if (blockConfig.coherenceRamp) {
+		const ramp = blockConfig.coherenceRamp;
+		// Throws rather than writing a coh_null_1 key or a NaN coherence —
+		// see resolveRampTarget.
+		const rampTo = resolveRampTarget(ramp, task_1, blockConfig.blockId);
+		t1Params["coh_" + task_1 + "_1"] =
+		    rampedCoherence(i, ramp.from, rampTo, ramp.rampLength ?? TRAINING_RAMP_LENGTH);
+	    }
 	    if (canvasType === 'dual-canvas') {
 		const trialT1Side = trials[i].meta.t1Side ?? 'left';
 		const leftTask = trialT1Side === 'left' ? trials[i].meta.t1_task : trials[i].meta.t2_task;
@@ -360,6 +409,12 @@ const Session = (() => {
 	    }
             trialData.blockOrder = blockOrder;
             trialData.isPractice = blockDef.isPractice || false;
+	    // Every row carries which phase and (for training)
+	    // which stage produced it, so training trials can be excluded from
+	    // analysis and the S2/S3 exclusion rule can be checked from the CSV alone.
+	    // Defaults keep every pre-existing blockDef (none set these) at 'test'/null.
+	    trialData.phase = blockDef.phase || 'test';
+	    trialData.stage = blockDef.stage || null;
 	    if (task_1) {
 		trialData.t1_target_coherence = t1Params["coh_" + task_1 + "_1"];
 	    }
@@ -381,6 +436,32 @@ const Session = (() => {
 	if (blockDef.runQuest) {
 	    return quest.getNextIntensity();
 	}
+	// Training stages report their outcome to runSession the same way Quest
+	// blocks do (nothing outside runBlock sees per-trial results otherwise).
+	// runSession disambiguates the two on blockDef.runQuest/isTraining, NOT on
+	// the return value — see the comment at the call site.
+	if (blockDef.isTraining) {
+	    const summary = summarizeAdvancementWindow(
+		blockOutcomes, advancementWindow, advancementThreshold);
+	    return {
+		kind: 'trainingStage',
+		stageId: blockDef.stage ?? null,
+		blockId: blockConfig.blockId,
+		trialsUsed: blockOutcomes.length,
+		criterionMet: summary.criterionMet,
+		finalWindowAccuracy: summary.accuracy,
+		// Recorded so the log says what criterion it was scored against
+		// (it is not the same for every stage).
+		advancementWindow: summary.windowSize,
+		advancementThreshold: summary.threshold,
+		// Failing the cap on S2 or S3 is the
+		// pre-registered exclusion. Recorded only — acting on it is a
+		// separate product decision and is deliberately NOT implemented here.
+		exclusionCandidate: (blockDef.stage === 'S2' || blockDef.stage === 'S3')
+		    && !summary.criterionMet
+		    && blockOutcomes.length >= numTrials,
+	    };
+	}
     }
 
     function overwriteCoherence(session, coherences, startIndex) {
@@ -391,22 +472,104 @@ const Session = (() => {
 	}
     }
 
-    /** Slice every array in a sequence-vector object to the first `keep` rows. */
-    function sliceVectors(vectors, keep) {
+    /** Slice every array in a sequence-vector object to `[from, to)`. */
+    function sliceVectors(vectors, from, to) {
         const out = {};
         for (const key of Object.keys(vectors)) {
-            out[key] = Array.isArray(vectors[key]) ? vectors[key].slice(0, keep) : vectors[key];
+            out[key] = Array.isArray(vectors[key]) ? vectors[key].slice(from, to) : vectors[key];
         }
         return out;
     }
 
     /**
+     * Take slice `index` of `of` equal parts of a CSV's sequence vectors.
+     *
+     * A test block split across a break is still ONE counterbalanced design:
+     * SweetPea balanced the whole CSV, so the halves are consecutive windows of
+     * it, never re-reads of the same rows. Any remainder rows go to the last
+     * slice, so no trial is dropped.
+     *
+     * The first trial of a non-initial slice is relabelled `transitionType:
+     * 'First'`. It genuinely follows a break, and the JS-generator path already
+     * forces 'First' on each sub-block's trial 0 — leaving the CSV path saying
+     * 'Switch'/'Repeat' there would make the two paths disagree about the one
+     * trial an analysis is most likely to drop. Only the metadata changes; task
+     * identity comes from `task1`, which is untouched.
+     */
+    function sliceSequenceWindow(vectors, index, of) {
+        const n = vectors.task1.length;
+        const per = Math.floor(n / of);
+        const from = index * per;
+        const to = index === of - 1 ? n : from + per;
+        const out = sliceVectors(vectors, from, to);
+        if (index > 0 && out.transition && out.transition.length > 0) {
+            out.transition = [...out.transition];
+            out.transition[0] = 'First';
+        }
+        return out;
+    }
+
+    /**
+     * Reject two blockDefs reading the same CSV without saying which part each
+     * one wants. Splitting a test block for a mid-block break gives both halves the
+     * same `blockId`, and cpApplySweetPea derives the CSV path from `blockId`
+     * alone — so without a `sequenceSlice` both halves would load the same file
+     * and REPLAY the same trials, doubling every cell and halving the design.
+     * That runs to completion and exports a full CSV, so it has to throw.
+     *
+     * TODO: cpApplySweetPea has a second blockId-derived gap in the same place —
+     * it skips `phase: 'training'` blockDefs, so the condition-B training content
+     * (PRP's S8 t1Task, Stroop's rehearsal task, the asym ramp targets) is never
+     * swapped. Deferred; see the review notes. Fixing that will touch this
+     * function's caller, so do the two together.
+     */
+    function assertSequenceSourcesAreDistinct(sessionDef) {
+        const bySource = new Map();
+        for (const blockDef of sessionDef) {
+            const src = blockDef.blockConfig && blockDef.blockConfig.sequenceSource;
+            if (!src) continue;
+            if (!bySource.has(src)) bySource.set(src, []);
+            bySource.get(src).push(blockDef);
+        }
+        for (const [src, defs] of bySource) {
+            if (defs.length === 1) continue;
+            const slices = defs.map(d => d.sequenceSlice);
+            if (slices.some(s => !s || typeof s.index !== 'number' || typeof s.of !== 'number')) {
+                throw new Error(
+                    `${defs.length} blocks share the sequence CSV '${src}' but not all of them ` +
+                    'declare a sequenceSlice. They would each load the whole file and replay the ' +
+                    'SAME trials. Give every block sharing a CSV a ' +
+                    'sequenceSlice: { index, of } (see sliceSequenceWindow).'
+                );
+            }
+            const of = slices[0].of;
+            if (slices.some(s => s.of !== of)) {
+                throw new Error(
+                    `Blocks sharing the sequence CSV '${src}' disagree about how many parts it ` +
+                    `splits into (${slices.map(s => s.of).join(', ')}).`
+                );
+            }
+            const indices = slices.map(s => s.index).sort((a, b) => a - b);
+            const expected = Array.from({ length: of }, (_, i) => i);
+            if (defs.length !== of || indices.join() !== expected.join()) {
+                throw new Error(
+                    `Blocks sharing the sequence CSV '${src}' must cover slices ` +
+                    `${expected.join(', ')} exactly once each; got ${indices.join(', ')}.`
+                );
+            }
+        }
+    }
+
+    /**
      * Fetch and parse the SweetPea CSV for each block that declares a
      * `sequenceSource`, attaching the parsed vectors as `blockDef._vectors`.
-     * Abridged mode keeps only the first ceil(N/10) rows (fast smoke test —
-     * this DOES break the counterbalancing, so never analyze abridged data).
+     * A blockDef may claim one part of its CSV via `sequenceSlice: { index, of }`.
+     * Abridged mode then keeps only the first ceil(N/10) rows of whatever this
+     * block ended up with (fast smoke test — this DOES break the
+     * counterbalancing, so never analyze abridged data).
      */
     async function preloadSequences(sessionDef, options) {
+        assertSequenceSourcesAreDistinct(sessionDef);
         for (const blockDef of sessionDef) {
             const src = blockDef.blockConfig && blockDef.blockConfig.sequenceSource;
             if (!src) { blockDef._vectors = null; continue; }
@@ -416,9 +579,13 @@ const Session = (() => {
             }
             const text = await resp.text();
             let vectors = loadSequenceVectors(text, blockDef.blockConfig);
+            if (blockDef.sequenceSlice) {
+                vectors = sliceSequenceWindow(
+                    vectors, blockDef.sequenceSlice.index, blockDef.sequenceSlice.of);
+            }
             if (options.abridged) {
                 const keep = Math.max(1, Math.ceil(vectors.task1.length / 10));
-                vectors = sliceVectors(vectors, keep);
+                vectors = sliceVectors(vectors, 0, keep);
             }
             blockDef._vectors = vectors;
         }
@@ -431,6 +598,7 @@ const Session = (() => {
         canvasContainer = containerEl;
         currentSessionDef = sessionDef;
         allTrialData = [];
+        trainingLog = [];
         isRunning = true;
 
         // Clear container
@@ -451,20 +619,51 @@ const Session = (() => {
         }
 
 	const questCoherences = { mov: 0.4, or: 0.6}; // some defaults
+	// Index into allTrialData of the first trial not yet covered by a break
+	// summary. "Since the last break", not "this block": when a break is
+	// skipped the next summary spans everything that has accumulated.
+	let summaryAnchor = 0;
         for (let b = 0; b < sessionDef.length; b++) {
             if (!isRunning) break;
-            const questResult = await runBlock(sessionDef[b], b + 1);
-	    if (questResult !== undefined) {
-		questCoherences[sessionDef[b].blockConfig.startTask] = questResult;
+	    // runBlock returns a Quest coherence for Quest blocks and a training
+	    // stage summary for training stages. Branch on what the blockDef ASKED
+	    // FOR, never on `!== undefined`: a stage summary reaching
+	    // overwriteCoherence would be injected into later blocks as a coherence.
+	    const blockDef = sessionDef[b];
+	    const blockResult = await runBlock(blockDef, b + 1);
+	    if (blockDef.runQuest) {
+		questCoherences[blockDef.blockConfig.startTask] = blockResult;
 		overwriteCoherence(sessionDef, questCoherences, b + 1);
+	    } else if (blockDef.isTraining && blockResult) {
+		trainingLog.push(blockResult);
 	    }
 
 
-            // Inter-block break (except after the last block)
-            if (b < sessionDef.length - 1 && isRunning) {
+            // Inter-block break (except after the last block).
+            //
+            // Skipped after a training stage: every stage is followed immediately
+            // by the next stage's own instruction screen, so the generic
+            // "block complete" screen is pure noise there, and whether a real
+            // break belongs INSIDE training is open pending the advisor.
+            const isTrainingStage = blockDef.phase === 'training';
+            if (b < sessionDef.length - 1 && isRunning && !isTrainingStage) {
+                // The block-level performance summary that replaces the
+                // trial-by-trial feedback the test blocks no longer show. It is
+                // shown HERE, strictly between blocks, and must never be moved
+                // trial-adjacent — the entire point of it is that no exogenous
+                // performance signal lands inside a trial's response-selection
+                // window. Training rows are excluded: those stages still run with
+                // feedback on, and they are not the participant's test data.
+                const sinceBreak = allTrialData
+                    .slice(summaryAnchor)
+                    .filter(row => row.phase !== 'training');
+                const summaryLine = formatBreakSummary(summarizeBlockPerformance(sinceBreak));
+                summaryAnchor = allTrialData.length;
                 await showInstructions(
                     `Block ${b + 1} of ${sessionDef.length} complete.\n\n` +
+                    (summaryLine ? `${summaryLine}\n\n` : '') +
                     'Take a short break if needed.\n\n' +
+                    'Aim to be both fast and accurate.\n\n' +
                     'Press any key to continue to the next block.'
                 );
             }
@@ -507,6 +706,7 @@ const Session = (() => {
         // Column order
 	const columns = [
 	    'blockOrder', 'blockId', 'blockType', 'paradigm', 'isPractice',
+	    'phase', 'stage',
 	    'trialNumber', 't1_task', 't2_task', 'transitionType',
 	    'iti', 'iti_achieved', 'soa', 'side', 't1Side', 'earlyResolve',
 	    't1_stim_onset', 't2_stim_onset',
@@ -553,5 +753,6 @@ const Session = (() => {
         stopSession,
         exportCSV,
         getData: () => allTrialData,
+        getTrainingLog: () => trainingLog,
     };
 })();

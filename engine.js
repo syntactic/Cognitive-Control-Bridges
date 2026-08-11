@@ -486,7 +486,7 @@ function loadSequenceVectors(csvText, blockConfig) {
  *   the target (ch1) direction instead of a fresh random draw. The distractor /
  *   T2 direction is still derived from it + congruency. When null (the default,
  *   used by the interim generator and all existing paradigms), the target
- *   direction is drawn at random as before — behaviour is unchanged.
+ *   direction is drawn at random as before — behavior is unchanged.
  * @returns {{ ch1_task: number, ch1_distractor: number, ch2_task: number, ch2_distractor: number }}
  */
 function assignDirections(task, congruency, paradigm, rso, keyMaps, mapping = 'parallel', injectedTargetDir = null) {
@@ -611,7 +611,7 @@ function buildTimingParams(spec) {
     const timingParams = {};
 
     // Cue and go signal SHARE AN ONSET. This is not a stylistic choice: the SE
-    // package draws the cue border with a zero-alpha colour whenever the matching
+    // package draws the cue border with a zero-alpha color whenever the matching
     // go signal is inactive (game.js draw(), '#fb00' / '#0af0'), so a cue that
     // starts before its go signal is drawn but invisible. Starting go_1 at the
     // cue rather than at the stimulus is what makes the CSI a real, *visible*
@@ -702,8 +702,6 @@ function buildTrialParams(spec) {
     // full duration. But zeroing silenced pathways (coh=0 -> dur=0) changes
     // their end times to 0. We must recompute offsets using the actual
     // post-zeroing ch1 end times so SE places ch2 stimuli correctly.
-    //
-    // Reference: viewer.js convertAbsoluteToSEParams lines 134-137.
     if (spec.task2 !== null) {
         const mov1End = params.start_mov_1 + params.dur_mov_1;
         const or1End = params.start_or_1 + params.dur_or_1;
@@ -798,7 +796,7 @@ function resolveCoherence(coherenceConfig, task1, task2, isDualTask, targetLevel
  *   verbatim instead of generating them. The block length is taken from the
  *   vectors. A preloaded targetDir[] is injected into assignDirections so
  *   SweetPea owns the target direction. When null (default), the interim
- *   generator runs and behaviour is unchanged.
+ *   generator runs and behavior is unchanged.
  * @returns {{ seParams: object, meta: object }[]}
  */
 function generateBlockTrials(blockConfig, numTrials, preloadedVectors = null) {

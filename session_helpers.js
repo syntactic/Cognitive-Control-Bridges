@@ -442,6 +442,46 @@ function createQuest(priorMean, priorSD) {
 const TRAINING_CAP = 48; // hard cap on trials per training stage
 
 /**
+ * Summarize the rolling advancement window over everything run so far.
+ *
+ * Single source of truth for BOTH the stop-early predicate and the per-stage
+ * log fields (`criterion_met`, `final_window_accuracy`): they are the same
+ * threshold over the same slice of the same array, so computing them in two
+ * places would let them drift.
+ *
+ * @param {boolean[]} correctnessHistory - one entry per trial run in this
+ *   stage so far, in order; true = counted as correct for advancement
+ * @param {number} windowSize - rolling window size (default: 16)
+ * @param {number} threshold - correct responses needed within the window
+ *   (default: 14). A stage may override it — the two-response PRP stage uses 12
+ *   — but the DEFAULT must never be lowered: at 10/16 a pure guesser clears a
+ *   single-response window 22.7% of the time and **76.2% across the 48-trial
+ *   cap**, which would void the exclusion rule for the single-task stages. (The
+ *   cap figure is not 1-(1-p)^3: runBlock re-checks this predicate before EVERY
+ *   trial from 16 on, so the guesser gets 33 overlapping windows, not 3 disjoint
+ *   ones. Recompute with analysis/advancement_rates.js rather than by hand.)
+ * @returns {{ windowLength: number, numCorrect: number, windowSize: number,
+ *             threshold: number, accuracy: number|null, criterionMet: boolean }}
+ *   accuracy is the mean over the last min(windowSize, history length) trials,
+ *   or null when no trial has run yet. windowSize/threshold are echoed back so a
+ *   stage summary can record which criterion it was scored against.
+ */
+function summarizeAdvancementWindow(correctnessHistory, windowSize = 16, threshold = 14) {
+    const window = correctnessHistory.slice(-windowSize);
+    const numCorrect = window.filter(Boolean).length;
+    return {
+	windowLength: window.length,
+	numCorrect,
+	windowSize,
+	threshold,
+	accuracy: window.length > 0 ? numCorrect / window.length : null,
+	// A partial window cannot satisfy the criterion: before `windowSize`
+	// trials exist there is nothing to evaluate.
+	criterionMet: window.length >= windowSize && numCorrect >= threshold,
+    };
+}
+
+/**
  * Returns true if the participant currently meets the rolling-window
  * advancement criterion (14/16 correct), given everything run so far.
  * Before `windowSize` trials exist there's nothing to evaluate, so it
@@ -449,16 +489,12 @@ const TRAINING_CAP = 48; // hard cap on trials per training stage
  *
  * @param {boolean[]} correctnessHistory - one entry per trial run in this
  *   stage so far, in order; true = counted as correct for advancement
- * @param {number} windowSize - rolling window size (D8 default: 16)
- * @param {number} threshold - correct responses needed within the window (D8 default: 14)
+ * @param {number} windowSize - rolling window size (default: 16)
+ * @param {number} threshold - correct responses needed within the window (default: 14)
  * @returns {boolean}
  */
 function meetsAdvancementCriterion(correctnessHistory, windowSize = 16, threshold = 14) {
-    if (correctnessHistory.length < windowSize) {
-	return false;
-    }
-    const numCorrect = correctnessHistory.slice(-windowSize).filter(Boolean).length;
-    return numCorrect >= threshold;
+    return summarizeAdvancementWindow(correctnessHistory, windowSize, threshold).criterionMet;
 }
 
 /**
@@ -480,5 +516,239 @@ function isTrialCorrectForAdvancement(trialData) {
 	correct = correct & trialData.accuracy2.startsWith('correct');
     }
     return correct;
+}
+
+// Default length of the S2-S4 coherence ramp, in trials.
+//
+// It is deliberately windowSize - 1 = 15, i.e. the ramp bottoms out ON trial
+// index 15 (the 16th trial). The 14/16 advancement criterion is only ever
+// evaluated over a full rolling window of 16 trials, and the earliest such
+// window is trials 0..15. If the ramp were still declining anywhere inside a
+// window the criterion checks, "14/16 correct" would partly reflect
+// easier-than-test-level trials — undermining the exact thing the ramp is for:
+// making the criterion mean "has the mapping" rather than "got
+// lucky". Bottoming out at index 15 means every window the criterion ever
+// sees is entirely at real test-level difficulty.
+const TRAINING_RAMP_LENGTH = 15;
+
+/**
+ * Reject the blockConfig flag combinations that produce silently WRONG data
+ * rather than an error. Called by runBlock before a single trial is generated.
+ *
+ * Nothing else catches either of these: both configurations run to completion and
+ * export a full CSV, so the failure only shows up as an uninterpretable effect
+ * during analysis. Hence throwing rather than warning.
+ *
+ * @param {object} blockConfig
+ * @throws {Error} on earlyResolve-without-acceptFirstResponse, or a coherence
+ *   ramp on a dual-task block
+ */
+function assertValidBlockConfig(blockConfig) {
+    const id = blockConfig.blockId || '(unnamed block)';
+
+    // SE's src/trial.js is
+    //   earlyResolve && (isCorrect || acceptFirstResponse)
+    // so earlyResolve ALONE resolves the trial early only on a *correct* press: a
+    // wrong press leaves the trial running, the participant corrects it, and
+    // extractSingleStreamResponse scores the trial 'corrected' with the RT of the
+    // SECOND press. That is the most correction-friendly regime available, not a
+    // neutral one, and isTrialCorrectForAdvancement counts 'corrected' as correct
+    // — so a training criterion becomes satisfiable by pressing both keys.
+    if (blockConfig.earlyResolve && !blockConfig.acceptFirstResponse) {
+        throw new Error(
+            `blockConfig '${id}': earlyResolve is true but acceptFirstResponse is false. ` +
+            'That combination resolves the trial early only on a CORRECT press, so an ' +
+            "error is comfortably corrected and scored 'corrected' with the second " +
+            "press's RT. earlyResolve does NOT imply acceptFirstResponse: set " +
+            'acceptFirstResponse: true (first press is the response) or ' +
+            'earlyResolve: false.'
+        );
+    }
+
+    // runBlock's ramp writes coh_<task_1>_1
+    // only, so on a dual-task block T2's channel is never ramped: the ramp becomes
+    // a T1-difficulty manipulation crossed with SOA — the exact confound PRP
+    // exists to measure. Ramping both channels would fix the asymmetry but still
+    // rehearses something the test block never shows.
+    if (blockConfig.coherenceRamp && blockConfig.paradigm === 'dual-task') {
+        throw new Error(
+            `blockConfig '${id}': coherenceRamp is not allowed on a 'dual-task' block. ` +
+            'The ramp writes T1\'s channel only (coh_<task>_1), so T2 would run at test ' +
+            'coherence throughout — a silent T1-difficulty manipulation crossed with SOA, ' +
+            'which is the exact confound a PRP block exists to measure.'
+        );
+    }
+}
+
+/**
+ * Resolve the bottom of a coherence ramp for one trial's task.
+ *
+ * Exists to make the second silent failure loud: `ramp.to` may be a per-task
+ * table ({ mov, or }), and a paradigm whose `t1_task` is null (the prp-baseline
+ * shape) resolves that table to `undefined`. rampedCoherence would then return
+ * NaN for every mid-ramp trial and runBlock would write a `coh_null_1` key that
+ * SE ignores — a stage that silently never ramps at all.
+ *
+ * @param {{ from: number, to: number|object, rampLength?: number }} ramp
+ * @param {string|null} task - the trial's T1 task ('mov' | 'or')
+ * @returns {number} the finite coherence the ramp descends to
+ * @throws {Error} when the ramp target does not resolve to a finite number
+ */
+function resolveRampTarget(ramp, task, blockId) {
+    const to = typeof ramp.to === 'number'
+        ? ramp.to
+        : (ramp.to != null ? ramp.to[task] : undefined);
+    if (!Number.isFinite(to)) {
+        throw new Error(
+            `blockConfig '${blockId || '(unnamed block)'}': coherenceRamp.to did not resolve ` +
+            `to a finite number for task '${task}' (got ${JSON.stringify(to)}). ` +
+            'A per-task ramp table needs an entry for every task the stage can present, ' +
+            'and a stage whose t1_task is null cannot carry a per-task ramp at all.'
+        );
+    }
+    if (!Number.isFinite(ramp.from)) {
+        throw new Error(
+            `blockConfig '${blockId || '(unnamed block)'}': coherenceRamp.from must be a ` +
+            `finite number (got ${JSON.stringify(ramp.from)}).`
+        );
+    }
+    return to;
+}
+
+/**
+ * Linear coherence ramp for a training stage: start at
+ * ceiling coherence so the participant can see what the task is, and descend to
+ * the real test-level coherence before the advancement criterion can fire.
+ *
+ * Paradigm-agnostic by design — numbers in, number out. The `to` value (CP_EASY,
+ * CP_HARD, a Stroop level, ...) is supplied by whatever builds the stage config.
+ *
+ * @param {number} trialIndex - 0-based index of the trial within the stage
+ * @param {number} fromCoherence - coherence at trialIndex 0 (typically 1.0)
+ * @param {number} toCoherence - coherence at trialIndex rampLength - 1, and for
+ *   every trial after that
+ * @param {number} rampLength - number of trials the descent spans
+ * @returns {number}
+ */
+function rampedCoherence(trialIndex, fromCoherence, toCoherence, rampLength = TRAINING_RAMP_LENGTH) {
+    if (rampLength <= 1) return toCoherence;
+    if (trialIndex <= 0) return fromCoherence;
+    if (trialIndex >= rampLength - 1) return toCoherence;
+    const progress = trialIndex / (rampLength - 1);
+    return fromCoherence + (toCoherence - fromCoherence) * progress;
+}
+
+/**
+ * Accuracy and mean RT over a set of trial rows — the between-blocks compromise
+ * that replaces trial-level feedback.
+ *
+ * `feedback: false` in the test blocks removes the participant's only
+ * speed-accuracy signal. It was removed on purpose: an exogenous right/wrong
+ * event on trial n lands inside trial n+1's response-selection window, and
+ * post-error effects are a deferred research question we do not want baked into
+ * the data. A summary shown strictly BETWEEN blocks restores the calibration at
+ * zero trial-level cost, which is the whole reason the compromise is safe — see
+ * the caller in session.js, which must never move it next to a trial.
+ *
+ * Counts RESPONSES, not trials, so a two-response PRP block reports the same
+ * quantity a single-task block does (a joint "both correct" rate would read as
+ * mysteriously low to a participant doing fine on each task). Mean RT is over
+ * correct responses only, as everywhere else.
+ *
+ * @param {object[]} rows - trial rows as pushed to allTrialData
+ * @returns {{numResponses, numCorrect, accuracy, meanRt}|null} null when the
+ *   rows contain no scored response at all (nothing honest to report)
+ */
+function summarizeBlockPerformance(rows) {
+    let numResponses = 0;
+    let numCorrect = 0;
+    let rtSum = 0;
+    let rtCount = 0;
+    for (const row of rows) {
+        for (const [accuracy, rt] of [[row.accuracy1, row.rt1], [row.accuracy2, row.rt2]]) {
+            if (accuracy == null) continue;
+            numResponses++;
+            if (!accuracy.startsWith('correct')) continue;
+            numCorrect++;
+            if (typeof rt === 'number' && Number.isFinite(rt)) {
+                rtSum += rt;
+                rtCount++;
+            }
+        }
+    }
+    if (numResponses === 0) return null;
+    return {
+        numResponses,
+        numCorrect,
+        accuracy: numCorrect / numResponses,
+        meanRt: rtCount > 0 ? rtSum / rtCount : null,
+    };
+}
+
+/**
+ * One participant-facing line for the break screen, or null when there is
+ * nothing to report. Deliberately purely factual and identically worded every
+ * time: a summary whose PHRASING varied with performance would be an evaluative
+ * signal rather than the calibration the summary is there to restore.
+ */
+function formatBreakSummary(summary) {
+    if (!summary) return null;
+    const accuracy = `${Math.round(summary.accuracy * 100)}% correct`;
+    const rt = summary.meanRt !== null
+        ? `, average ${Math.round(summary.meanRt)} ms per answer`
+        : '';
+    return `Since the last break: ${accuracy}${rt}.`;
+}
+
+// Length, in trials, of PRP's S8 descending-SOA introduction.
+//
+// It is the criterion WINDOW size (16), not windowSize - 1 as TRAINING_RAMP_LENGTH
+// is, and for the opposite reason. The ramp must FINISH before the earliest
+// criterion window closes so that "14/16" is never scored on easier-than-test
+// trials. The SOA schedule must instead fit ENTIRELY INSIDE that window, so a
+// participant cannot meet criterion having practiced only the long, easy SOAs and
+// then meet the short ones for the first time in the test block.
+const TRAINING_SOA_SCHEDULE_LENGTH = 16;
+
+/**
+ * SOA for one trial of PRP's paradigm-specific training stage (S8).
+ *
+ * A coherence ramp is forbidden in PRP's S8 (a T1-only ramp is a
+ * T1-difficulty manipulation crossed with SOA — the confound PRP measures), so
+ * what S8 shapes instead is RESPONSE ORDER. The stage opens at the longest SOA,
+ * where "answer T1, then T2" is self-evident because T1 is essentially finished
+ * before T2 appears, and descends to the shortest SOA, where the two responses
+ * genuinely overlap. After the schedule the stage falls back to the block's own
+ * (mixed) SOA sequence, because the test block presents SOA in random order and
+ * the last thing practiced should match it.
+ *
+ * Pure and paradigm-agnostic: it takes the SOA levels rather than reading
+ * CP_PRP_SOA_LEVELS, which is still a placeholder pending advisor input.
+ *
+ * @param {number} trialIndex - 0-based index of the trial within the stage
+ * @param {number[]} soaLevels - the stage's SOA levels, in any order
+ * @param {number} [scheduleLength] - trials the descent spans
+ * @returns {number|null} the scheduled SOA, or null once the schedule is over
+ *   (meaning: keep whatever SOA the sequence generator chose for this trial)
+ */
+function scheduledSoa(trialIndex, soaLevels, scheduleLength = TRAINING_SOA_SCHEDULE_LENGTH) {
+    if (!Array.isArray(soaLevels) || soaLevels.length === 0) {
+        throw new Error('scheduledSoa: soaLevels must be a non-empty array');
+    }
+    if (!(scheduleLength >= 1)) {
+        throw new Error(`scheduledSoa: scheduleLength must be >= 1 (got ${scheduleLength})`);
+    }
+    // Copy before sorting — the caller's level array (a paradigm constant) must
+    // not be reordered underneath it.
+    const descending = [...soaLevels].sort((a, b) => b - a);
+    if (trialIndex >= scheduleLength) return null;
+    if (trialIndex <= 0) return descending[0];
+    // Equal-as-possible runs per level; any remainder lands on the earlier
+    // (longer, easier) levels, which is the safe direction to err in.
+    const levelIndex = Math.min(
+        descending.length - 1,
+        Math.floor((trialIndex * descending.length) / scheduleLength)
+    );
+    return descending[levelIndex];
 }
 
