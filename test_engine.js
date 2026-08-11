@@ -2268,7 +2268,7 @@ const injDT = assignDirections('mov', 'congruent', 'dual-task', 'disjoint',
     { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } }, 'parallel', 180);
 assert(injDT.ch1_task === 180, 'dual-task: injected T1 target honored');
 assert(injDT.ch1_task === injDT.ch2_task, 'dual-task congruent: T2 same side as injected T1');
-// no injection -> still randomizes across draws (behaviour unchanged)
+// no injection -> still randomizes across draws (behavior unchanged)
 const noInj = new Set();
 for (let i = 0; i < 60; i++) noInj.add(assignDirections('mov', 'univalent', 'single-task', 'identical', idKeyMaps).ch1_task);
 assert(noInj.size === 2, 'no injection: target dir still randomized (both 0 and 180 seen)');

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Instruction screen height audit</title>
+<!--
+  Measures every instruction screen of every canonical session against the
+  600 px canvas, in a real layout engine.
+
+  WHY: showInstructions() dismisses on ANY keydown after 200 ms, so a screen
+  taller than #canvas-container cannot be read — pressing Space or PageDown to
+  scroll starts the block instead. .instructions-overlay's overflow-y is a
+  safety net, not a reading affordance, and intercepting the scroll keys is not
+  an option because every screen tells the participant to "press any key".
+  So the real requirement is: NOTHING OVERFLOWS.
+
+  Run:  npx serve .   then open  analysis/measure_instructions.html
+  Console gets a per-screen table; the page shows it too. Exit criterion is the
+  PASS line at the bottom.
+
+  The CSS below is copied verbatim from index.html. If you change the overlay or
+  content styling there, change it here too or this audit measures fiction.
+-->
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+
+    /* ---- verbatim from index.html ---- */
+    #canvas-container {
+        width: 600px;
+        height: 600px;
+        border: 1px solid #333;
+        border-radius: 8px;
+        background: #0a0a1a;
+        position: relative;
+        outline: none;
+    }
+    .instructions-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(10, 10, 26, 0.95);
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        overflow-y: auto;
+        padding: 20px;
+        z-index: 10;
+        border-radius: 8px;
+    }
+    .instructions-content {
+        /* The copy is authored with hard line breaks at ~66 characters (see
+           canonical_paradigms.js). At 80% of a 600 px canvas the measure only
+           fits ~55, so almost every authored line ALSO soft-wrapped, producing
+           a ragged two-line-per-sentence screen. The overlay's 20 px padding
+           already supplies the margin, so the content may use the full width
+           and the authored breaks land where they were written. */
+        max-width: 100%;
+        margin: auto 0;
+        text-align: center;
+        font-size: 1em;
+        line-height: 1.6;
+        color: #c0c0c0;
+    }
+    /* ---- end verbatim ---- */
+
+    #report { font-family: ui-monospace, Menlo, monospace; font-size: 12px; white-space: pre; margin-top: 20px; }
+    .ok { color: #6fcf72; }
+    .bad { color: #ff6b6b; }
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+<div id="report">measuring…</div>
+
+<script src="../engine.js"></script>
+<script src="../training_stages.js"></script>
+<script src="../demo_block_configs.js"></script>
+<script src="../hirsch_block_configs.js"></script>
+<script src="../switch-frequency.js"></script>
+<script src="../canonical_paradigms.js"></script>
+<script src="../session_helpers.js"></script>
+
+<script>
+const CANVAS = 600;
+const container = document.getElementById('canvas-container');
+
+// Reproduce showInstructions() exactly: one overlay, innerHTML with <br>.
+//
+// Returns { needed, available }. `needed` is the content's own laid-out height
+// plus the overlay's vertical padding — the height the screen WANTS. Do not use
+// overlay.scrollHeight: it saturates at the overlay's client height for anything
+// that fits, so every comfortable screen reads as an identical 598 and you
+// cannot see how much slack you have while trimming.
+function measure(text) {
+    container.innerHTML = '';
+    const overlay = document.createElement('div');
+    overlay.className = 'instructions-overlay';
+    overlay.innerHTML = `<div class="instructions-content">${text.replace(/\n/g, '<br>')}</div>`;
+    container.appendChild(overlay);
+    const content = overlay.firstElementChild;
+    const pad = parseFloat(getComputedStyle(overlay).paddingTop)
+        + parseFloat(getComputedStyle(overlay).paddingBottom);
+    const result = {
+        needed: Math.ceil(content.getBoundingClientRect().height + pad),
+        available: overlay.clientHeight,
+    };
+    container.innerHTML = '';
+    return result;
+}
+
+const SESSIONS = {
+    cp_prp_training: CP_PRP_TRAINING_SESSION,
+    cp_taskswitch_training: CP_TASKSWITCH_TRAINING_SESSION,
+    cp_taskswitch_asym_training: CP_TASKSWITCH_ASYM_TRAINING_SESSION,
+    cp_stroop_training: CP_STROOP_TRAINING_SESSION,
+    cp_stroop_crossed_training: CP_STROOP_CROSSED_TRAINING_SESSION,
+    // The test-only sessions run the same copy without the practice preamble;
+    // measured too so trimming one path cannot silently overflow the other.
+    cp_prp: CP_PRP_SESSION,
+    cp_taskswitch: CP_TASKSWITCH_SESSION,
+    cp_taskswitch_asym: CP_TASKSWITCH_ASYM_SESSION,
+    cp_stroop: CP_STROOP_SESSION,
+    cp_stroop_crossed: CP_STROOP_CROSSED_SESSION,
+};
+
+const lines = [];
+let worst = 0, overflowing = 0, measured = 0, available = CANVAS;
+
+function record(label, text, out) {
+    const { needed, available: avail } = measure(text);
+    available = avail;
+    measured++;
+    worst = Math.max(worst, needed);
+    const over = needed > avail;
+    if (over) overflowing++;
+    const slack = avail - needed;
+    out.push(`  ${label}  ${String(needed).padStart(4)} px  ` +
+        (over ? `*** OVERFLOWS by ${-slack} px ***` : `ok (${slack} px spare)`));
+}
+
+for (const [id, session] of Object.entries(SESSIONS)) {
+    lines.push(`\n${id}`);
+    session.forEach((blockDef, i) => {
+        const label = `[${i}] ${(blockDef.stage || 'test').padEnd(4)}`;
+        if (!blockDef.instructions) {
+            lines.push(`  ${label}  (no screen — break screen precedes it)`);
+            return;
+        }
+        record(label, blockDef.instructions, lines);
+    });
+}
+
+// The break screen is generated in runSession, not stored on a blockDef, so
+// measure a representative one: the longest summary line it can produce.
+const breakScreen =
+    'Block 1 of 9 complete.\n\n' +
+    formatBreakSummary({ numResponses: 120, numCorrect: 100, accuracy: 100 / 120, meanRt: 1234.5 }) + '\n\n' +
+    'Take a short break if needed.\n\n' +
+    'Aim to be both fast and accurate.\n\n' +
+    'Press any key to continue to the next block.';
+lines.push('\nbreak screen (runSession)');
+record('     ', breakScreen, lines);
+
+lines.push(`\n${'-'.repeat(58)}`);
+lines.push(`measured ${measured} screens; tallest ${worst} px against ${available} px of usable canvas`);
+lines.push(overflowing === 0
+    ? 'PASS — every screen fits without scrolling'
+    : `FAIL — ${overflowing} screen(s) overflow`);
+
+const report = document.getElementById('report');
+report.textContent = lines.join('\n');
+report.className = overflowing === 0 ? 'ok' : 'bad';
+console.log(lines.join('\n'));
+window.__AUDIT__ = { measured, worst, overflowing, text: lines.join('\n') };
+</script>
+</body>
+</html>
