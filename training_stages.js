@@ -110,6 +110,10 @@ const TRAINING_BOTH_CONGRUENCIES = {
  *   TRAINING_RAMP_LENGTH (session_helpers.js) when omitted, resolved by runBlock.
  * @param {object} [spec.instructions] - optional copy keyed by stage id
  *   ({ S1: '...', S2: '...' }). No copy is written here.
+ * @param {object} [spec.demos] - optional instruction-screen cartoon specs keyed
+ *   by stage id, same shape as `instructions` and for the same reason: the
+ *   depiction depends on the paradigm's key maps, which this file does not know.
+ *   Consumed by createInstructionDemo (instruction_demo.js); see cpTrainingDemos.
  * @returns {object[]} blockDef-shaped objects for S1-S6, in order.
  */
 function buildSharedTrainingStages(spec) {
@@ -136,6 +140,7 @@ function buildSharedTrainingStages(spec) {
     }
 
     const instructionsFor = (stage) => (spec.instructions && spec.instructions[stage]) || null;
+    const demoFor = (stage) => (spec.demos && spec.demos[stage]) || null;
 
     // Fields every stage shares. Anything a stage varies is spread over the top.
     const commonConfig = {
@@ -162,6 +167,7 @@ function buildSharedTrainingStages(spec) {
         phase: 'training',
         stage,
         instructions: instructionsFor(stage),
+        demo: demoFor(stage),
     });
 
     // Single-task pathway stages (S2, S3): univalent, CSI 0, coherence ramped from
@@ -206,6 +212,7 @@ function buildSharedTrainingStages(spec) {
         phase: 'training',
         stage: 'S1',
         instructions: instructionsFor('S1'),
+        demo: demoFor('S1'),
     });
 
     // --- S2/S3: one S-R pathway at a time --------------------------------
@@ -344,6 +351,8 @@ const PARADIGM_FINAL_STAGE_DEFAULTS = {
  *   guessing floor to the single-response 14/16; the other kinds deliberately
  *   emit nothing and inherit the shared 14/16.
  * @param {string} [spec.instructions] - stage copy. None is written here.
+ * @param {object} [spec.demo] - instruction-screen cartoon spec for this stage,
+ *   same contract as buildSharedTrainingStages' `demos` (see cpTrainingDemos).
  * @returns {object} one blockDef-shaped object, stage 'S8'
  */
 function buildParadigmFinalStage(spec) {
@@ -389,6 +398,7 @@ function buildParadigmFinalStage(spec) {
         phase: 'training',
         stage: 'S8',
         instructions: spec.instructions || null,
+        demo: spec.demo || null,
         ...extra,
     });
 

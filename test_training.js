@@ -117,9 +117,14 @@ const RESPOND_INCORRECT = () => ({
 
 // canonical_paradigms.js sits where index.html puts it — after training_stages.js
 // (whose builders it calls at load time) and before session_helpers.js.
+// instruction_demo.js declares only constants, a class and two functions at load
+// time — no DOM — so it is safe to eval here. showInstructions skips the cartoon
+// under the stub DOM (overlay.firstElementChild is undefined), so nothing in it
+// actually runs; it is loaded so a syntax error there fails this suite rather
+// than only the browser.
 const sources = [
     './engine.js', './training_stages.js', './canonical_paradigms.js',
-    './session_helpers.js', './session.js',
+    './session_helpers.js', './instruction_demo.js', './session.js',
 ].map(f => fs.readFileSync(f, 'utf8')).join('\n;\n');
 
 eval(sources + `
@@ -151,6 +156,7 @@ eval(sources + `
     CP_PRP_SOA_LEVELS,
     CP_SEQUENCE_POOL_SIZE,
     CP_TEST_BLOCKS_PER_SESSION,
+    DEMO_KEYCAPS,
 };
 `);
 
@@ -161,6 +167,7 @@ const {
     Session, TRAINING_CAP, TRAINING_RAMP_LENGTH, TRAINING_SOA_SCHEDULE_LENGTH,
     CP_SESSIONS, CP_TEST_SESSIONS, CP_DISJOINT_KEY_MAPS, CP_IDENTICAL_KEY_MAPS,
     CP_PRP_SOA_LEVELS, CP_SEQUENCE_POOL_SIZE, CP_TEST_BLOCKS_PER_SESSION,
+    DEMO_KEYCAPS,
 } = globalThis.__T;
 
 // ============================================================
@@ -1055,14 +1062,48 @@ for (const [id, expected] of Object.entries(CP_EXPECTED)) {
     assert(/right hand/i.test(all) === disjoint,
         `${id}: a second hand is named iff there is one`);
     // From S4 on the border is the whole mechanism, so every one of those screens
-    // has to say what it means.
+    // has to convey what it means — in WORDS or in the animated cartoon, which
+    // since 2026-08-17 carries it on S6 (both segments show the same conflicting
+    // stimulus under a different cue colour, which is a sharper statement of the
+    // legend than the legend). A screen that does neither is the failure this
+    // guards: it would leave the participant with no account of the border at the
+    // exact stage where reading it wrong starts costing accuracy.
     for (const stage of ['S4', 'S5', 'S6']) {
-        const text = stageOf(id, stage).instructions;
-        assert(/ORANGE/.test(text) && /BLUE/.test(text),
-            `${id}/${stage}: names both border colors`);
+        const stageDef = stageOf(id, stage);
+        const text = stageDef.instructions;
+        const inWords = /ORANGE/.test(text) && /BLUE/.test(text);
+        const cues = new Set((stageDef.demo ? stageDef.demo.segments : [])
+            .flatMap(seg => [seg.border, seg.then && seg.then.border])
+            .flatMap(b => (Array.isArray(b) ? b : [b]))
+            .filter(Boolean));
+        const inDemo = cues.has('mov') && cues.has('or');
+        assert(inWords || inDemo,
+            `${id}/${stage}: conveys both border colors, in words or in its demo`);
     }
     assert(!/Dotted|Dashed/.test(all),
         `${id}: no copy claims the cue is dotted/dashed — SE colors it, and dash-vs-dot separates cue1 from cue2`);
+    // The stimulus is FISH. "dot"/"triangle"/"circle" are SE's abstract-mode
+    // names (defaultConfig objName 'triangles' / distName 'circles'), and
+    // ?stimulus=fish is the default, so that vocabulary describes objects the
+    // participant cannot see. cp_stroop's test screen said "Respond to the dot
+    // MOVEMENT; ignore the triangle orientation" until 2026-08-17, which — after
+    // seven screens of SWIMMING/FACING — read to a real condition-B pilot as an
+    // instruction to do the movement task. Checked across the WHOLE session, test
+    // screens included, not just the training copy.
+    for (const blockDef of CP_SESSIONS[id]) {
+        if (!blockDef.instructions) continue;
+        assert(!/\b(dot|dots|triangle|triangles|circle|circles)\b/i.test(blockDef.instructions),
+            `${id}/${blockDef.stage || 'test'}: names the stimulus in fish terms, not abstract ones`);
+    }
+    // The flip side: the two dimensions are called SWIMMING and FACING on every
+    // screen that names them, so the vocabulary never changes under the
+    // participant mid-session.
+    for (const blockDef of CP_SESSIONS[id]) {
+        if (!blockDef.instructions) continue;
+        const namesDimension = /MOVEMENT|ORIENTATION/i.test(blockDef.instructions);
+        assert(!namesDimension || /SWIMMING|FACING/i.test(blockDef.instructions),
+            `${id}/${blockDef.stage || 'test'}: any screen naming a dimension also glosses it as swimming/facing`);
+    }
     assert(copy.every(text => /Press any key to begin/.test(text)),
         `${id}: every screen ends with how to continue`);
     // With S7 gone these screens are the only gate; they must not have grown one.
@@ -1076,6 +1117,103 @@ assert(/ONE question/.test(stageOf('cp_stroop', 'S8').instructions),
     "Stroop's S8 copy narrows back down to a single task");
 assert(/switching between/.test(stageOf('cp_taskswitch', 'S8').instructions),
     "switching's S8 copy describes the mixed block");
+
+section('canonical sessions — instruction-screen demos');
+
+// The animated cartoon (instruction_demo.js) is generated from the same key maps
+// and finalStage as the copy, so the two cannot disagree about which finger
+// answers which question. These assertions are on the SPEC, which is plain data;
+// the rendering itself is DOM code and is covered by
+// analysis/measure_instructions.js in real Chromium.
+const CP_TRAINING_STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S8'];
+
+for (const id of Object.keys(CP_EXPECTED)) {
+    const keyMaps = CP_EXPECTED[id].keyMaps;
+    const validKeys = new Set([
+        ...Object.values(keyMaps.mov), ...Object.values(keyMaps.or),
+    ].map(k => String(k).toLowerCase()));
+
+    for (const stage of CP_TRAINING_STAGES) {
+        const demo = stageOf(id, stage).demo;
+        assert(demo && Array.isArray(demo.segments) && demo.segments.length > 0,
+            `${id}/${stage}: has a demo with at least one segment`);
+
+        for (const seg of demo.segments) {
+            const events = [seg, ...(seg.then ? [seg.then] : [])];
+            for (const ev of events) {
+                if (!ev.key) continue;
+                // The cartoon depicting a key the paradigm does not use would
+                // teach the wrong finger — worse than showing no cartoon.
+                assert(validKeys.has(String(ev.key).toLowerCase()),
+                    `${id}/${stage}: demo key '${ev.key}' is one of this paradigm's own keys`);
+                assert(DEMO_KEYCAPS[String(ev.key).toLowerCase()] !== undefined,
+                    `${id}/${stage}: demo key '${ev.key}' has a keycap graphic`);
+            }
+            // A segment must last long enough for its own keypresses to be seen.
+            // A `then` at 1000 ms whose key flashes 900 ms later needs 1900+.
+            const latest = seg.then ? (seg.then.at === undefined ? 700 : seg.then.at) : 0;
+            assert((seg.duration || 2400) >= latest + 900 + 400,
+                `${id}/${stage}: segment outlasts the keypresses it schedules`);
+        }
+    }
+
+    // S1-S3 deliberately show NO border although those blocks really paint one:
+    // their copy says a border exists and to ignore it, and the cartoon shows
+    // only what the participant must attend to. The border enters the cartoon at
+    // S4, where it starts to mean something.
+    for (const stage of ['S1', 'S2', 'S3']) {
+        const demo = stageOf(id, stage).demo;
+        assert(demo.segments.every(seg => !seg.border),
+            `${id}/${stage}: cartoon shows no border yet`);
+    }
+    for (const stage of ['S4', 'S5', 'S6']) {
+        const demo = stageOf(id, stage).demo;
+        assert(demo.segments.every(seg => Boolean(seg.border)),
+            `${id}/${stage}: every cartoon segment is cued`);
+    }
+
+    // Test blocks get no cartoon: the participant has just seen S8's, and
+    // cp_prp's test screen is the tallest in the whole session (552 px of 598).
+    for (const blockDef of CP_SESSIONS[id].filter(b => b.phase !== 'training')) {
+        assert(!blockDef.demo, `${id}: test blocks carry no demo`);
+    }
+}
+
+// S1/S2 show movement with NO orientation, which is what makes SE draw the
+// forward-facing sprite; S3 is the mirror image. Getting this backwards would
+// contradict the copy ("the fish do not swim at all") on the very screen that
+// introduces the second task.
+for (const id of Object.keys(CP_EXPECTED)) {
+    assert(stageOf(id, 'S1').demo.segments.every(s => s.orientation === null && s.movement !== null),
+        `${id}/S1: cartoon swims without facing`);
+    assert(stageOf(id, 'S3').demo.segments.every(s => s.movement === null && s.orientation !== null),
+        `${id}/S3: cartoon faces without swimming`);
+    assert(stageOf(id, 'S6').demo.segments.every(s => s.movement !== null && s.orientation !== null),
+        `${id}/S6: cartoon is bivalent`);
+}
+
+// S6's two segments are the SAME stimulus under different cues, so the correct
+// key differs while nothing else does. That contrast is what replaced
+// CP_BORDER_LEGEND in the copy — if it regresses, the legend has to come back.
+for (const id of Object.keys(CP_EXPECTED)) {
+    const [a, b] = stageOf(id, 'S6').demo.segments;
+    assert(a.movement === b.movement && a.orientation === b.orientation,
+        `${id}/S6: both cartoon segments show one identical stimulus`);
+    assert(a.border !== b.border, `${id}/S6: only the cue differs between them`);
+    assert(a.key !== b.key, `${id}/S6: and therefore so does the answer`);
+}
+
+// PRP is the only cartoon with a second stimulus arriving mid-segment, and the
+// two segments are a long SOA then a short one — the descending schedule the
+// stage actually runs.
+const prpDemo = stageOf('cp_prp', 'S8').demo;
+assert(prpDemo.segments.every(seg => seg.then),
+    'cp_prp/S8: every cartoon segment brings in a second stimulus');
+assert(prpDemo.segments[0].then.at > prpDemo.segments[1].then.at,
+    'cp_prp/S8: cartoon SOA descends, matching soaSchedule');
+assert(prpDemo.segments.every(seg => Array.isArray(seg.then.border)
+    && seg.then.border.length === 2),
+    'cp_prp/S8: both cues are on screen once the second stimulus arrives');
 
 section('canonical sessions — the border is introduced honestly (not "new" at S4)');
 

@@ -133,6 +133,32 @@
             color: #c0c0c0;
         }
 
+        /* The animated stimulus cartoon on a training instruction screen
+           (instruction_demo.js). Laid out as a ROW — canvas beside keycaps — so
+           the whole thing costs one canvas-height of the screen's budget rather
+           than canvas plus keycap. The canvas has a 320 px backing store and is
+           displayed at 150 px; do not size it from `config.size`, which is a
+           fraction of the VIEWPORT and is what oversized the trial canvas. */
+        .demo-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin: 12px 0;
+        }
+        .demo-row .demo-canvas {
+            width: 150px;
+            height: 150px;
+            background: #000;
+            border-radius: 6px;
+            flex: none;
+        }
+        .demo-row .demo-key {
+            width: 108px;
+            image-rendering: pixelated;
+            flex: none;
+        }
+
         .info {
             margin-top: 16px;
             padding: 0 20px;
@@ -228,6 +254,7 @@
     <script src="canonical_paradigms.js"></script>
     <script src="timing_bug_test.js"></script>
     <script src="session_helpers.js"></script>
+    <script src="instruction_demo.js"></script>
     <script src="session.js"></script>
 
     <script>
@@ -344,7 +371,12 @@
                 participantMode.sequenceIds.join(', '));
         }
 
-        function getSessionDef(id) {
+        // `cond` is the between-subjects condition the training stages are built
+        // for. It defaults to 'A' so the demo dropdown (no participant URL) keeps
+        // working; a participant URL passes its real condition from the call site
+        // below. Without the parameter every `case '*_training'` below threw
+        // "cond is not defined" and no training session could start at all.
+        function getSessionDef(id, cond = 'A') {
             let blocks;
             switch (id) {
                 // Generic demos
@@ -513,7 +545,8 @@
         }
 
         startBtn.addEventListener('click', async () => {
-            const sessionDef = getSessionDef(selectEl.value);
+            const sessionDef = getSessionDef(
+                selectEl.value, participantMode ? participantMode.condition : 'A');
             if (!sessionDef) return;
 
             startBtn.style.display = 'none';

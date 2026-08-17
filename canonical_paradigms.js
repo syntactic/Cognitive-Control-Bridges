@@ -71,6 +71,16 @@ const CP_DISJOINT_KEY_MAPS = {
     or:  { 180: 'j', 0: 'l' },
 };
 
+// Direction vocabulary for generated key lines. These live UP HERE, not down in
+// the instructions section, because cpKeyPhrase reads them and
+// CP_STROOP_INSTRUCTIONS calls it while CP_STROOP_SESSION is being built below —
+// i.e. at load time, before a `const` declared later has initialised.
+// 0 = rightward, 180 = leftward, 90 = up, 270 = down (canvas Y-axis inverted).
+const CP_DIRECTION_WORDS = { 0: 'right', 90: 'up', 180: 'left', 270: 'down' };
+// Reading order for a key line: left/right first, since every canonical paradigm
+// currently uses the horizontal pair.
+const CP_DIRECTION_ORDER = [180, 0, 90, 270];
+
 // ============================================================
 // Shared defaults
 // ============================================================
@@ -445,12 +455,35 @@ const CP_TASKSWITCH_INSTRUCTIONS =
 // not from the instructions. The two switching paradigms therefore share the same
 // screen verbatim, which is also what makes them comparable.
 
-const CP_STROOP_INSTRUCTIONS = (task) =>
-    `Interference block: ${task === 'mov' ? 'MOVEMENT' : 'ORIENTATION'} task only.\n\n`
-    + `Respond to the ${task === 'mov' ? 'dot MOVEMENT' : 'triangle ORIENTATION'}; `
-    + `ignore the ${task === 'mov' ? 'triangle orientation' : 'dot movement'}.\n`
-    + 'Keys (left hand): A = left, D = right.\n\n'
-    + 'Press any key to begin.';
+// VOCABULARY (fixed 2026-08-17). This screen used to say "Respond to the dot
+// MOVEMENT; ignore the triangle orientation". Both nouns were wrong and the
+// combination was actively misleading:
+//   - "dot"/"triangle" are SE's ABSTRACT stimulus names (defaultConfig's objName
+//     'triangles' / distName 'circles'). Every real participant runs the fish
+//     sprites (?stimulus=fish is the default), so the sentence described objects
+//     that were not on screen.
+//   - All seven training screens say SWIMMING and FACING. Switching to
+//     MOVEMENT/ORIENTATION here, at the exact moment feedback stops, made
+//     "ignore the dot movement" read as an instruction to DO the movement task —
+//     reported from a real run of condition B.
+// The other two test screens (PRP, task switching) already glossed the dimension
+// in fish terms; this one now matches them. NOTE the same stale nouns still
+// appear in switch-frequency.js and hirsch_block_configs.js — different
+// paradigms, not part of this study, deliberately left alone.
+//
+// The key line is derived from CP_IDENTICAL_KEY_MAPS rather than written out, so
+// it cannot drift from the map the block actually runs. `true` = shared response
+// set, which is what makes cpKeyLine print "Keys:" and not a hand — matching the
+// training screens, which say the same thing for the same reason.
+const CP_STROOP_INSTRUCTIONS = (task) => {
+    const target = task === 'mov' ? 'SWIMMING' : 'FACING';
+    const other = task === 'mov' ? 'FACING' : 'SWIMMING';
+    return `Interference block: the ${target} question only.\n\n`
+        + `Respond to which way the fish are ${target}; ignore which way\n`
+        + `they are ${other}.\n`
+        + `  ${cpKeyLine(CP_IDENTICAL_KEY_MAPS.mov, true)}\n\n`
+        + 'Press any key to begin.';
+};
 
 // ============================================================
 // Session definitions
@@ -553,11 +586,11 @@ const CP_STROOP_CROSSED_SESSION = cpTestBlocks(cpStroopCrossed, 108,
 // keys for switching/PRP, one shared A/D map for Stroop) and two copies of the
 // same sentence would drift apart.
 
-// 0 = rightward, 180 = leftward, 90 = up, 270 = down (canvas Y-axis inverted).
-const CP_DIRECTION_WORDS = { 0: 'right', 90: 'up', 180: 'left', 270: 'down' };
-// Reading order for a key line: left/right first, since every canonical paradigm
-// currently uses the horizontal pair.
-const CP_DIRECTION_ORDER = [180, 0, 90, 270];
+// CP_DIRECTION_WORDS / CP_DIRECTION_ORDER used to live here. They moved up to
+// the constants block because cpKeyPhrase reads them and CP_STROOP_INSTRUCTIONS
+// now calls it AT LOAD TIME (CP_STROOP_SESSION is built above). Function
+// declarations hoist; the `const`s they close over do not, so calling one from
+// here threw "Cannot access 'CP_DIRECTION_ORDER' before initialization".
 
 const CP_LEFT_HAND_LETTERS = 'qwertasdfgzxcvb';
 const CP_RIGHT_HAND_LETTERS = 'yuiophjklnm';
@@ -638,11 +671,21 @@ function cpTrainingInstructions(keyMaps, finalStage) {
     // cueCsi 200 puts it ahead of the stimulus where S1-S3 ran at csi 0. S1-S3
     // therefore name the border and tell the participant to ignore it, and S4
     // introduces its MEANING rather than its existence.
+    // TRIMMED FOR THE DEMO (2026-08-17). Every screen below now carries an
+    // animated cartoon of its own stimulus (cpTrainingDemos), which costs ~148 px
+    // of a 598 px budget. Copy that the cartoon SHOWS was cut; copy that the
+    // cartoon cannot show was kept. Each cut is marked. Re-run
+    // `node analysis/measure_instructions.js` after any edit here.
+    //
+    // S1: the cartoon shows a group of fish swimming left, then right, so the
+    // sentence describing that was folded into the one-line job statement.
+    // The border sentence STAYS: the S1 block really does paint an orange border
+    // (SE schedules cue1 with go1 from trial onset), and the cartoon deliberately
+    // omits it, so this is now the only place the participant is told it is there
+    // and irrelevant.
     const S1 =
         'STEP 1 of 7 — learning the keys.\n\n'
-        + 'A group of fish will appear and swim together, either to the LEFT\n'
-        + 'or to the RIGHT.\n\n'
-        + 'Your job: say which way they are SWIMMING.\n\n'
+        + 'Your job: say which way the group of fish is SWIMMING.\n\n'
         + `  ${movLine}\n\n`
         + 'There is a colored border around the edge of the screen. It does\n'
         + 'not mean anything yet — ignore it for now.\n\n'
@@ -671,14 +714,16 @@ function cpTrainingInstructions(keyMaps, finalStage) {
         + 'becomes useful in the next step.\n\n'
         + 'Again: as fast as you can while staying accurate. Press any key to begin.';
 
+    // S4: the two bullets became one sentence, and the "mixed questions" pair
+    // became one line — the cartoon alternates an orange swimming trial with a
+    // blue facing trial, which is that content. CP_BORDER_LEGEND STAYS: this is
+    // the screen where the colour mapping is taught, and a participant who
+    // misreads the cartoon has nothing else to fall back on.
     const S4 =
         'STEP 4 of 7 — the border now tells you what to do.\n\n'
-        + 'From now on the two questions are mixed: each trial asks about\n'
-        + 'SWIMMING or about FACING, and it can change trial to trial.\n\n'
-        + 'That border you have been ignoring is what tells you which. It\n'
-        + 'is new in two ways:\n\n'
-        + '  - Its color says which question this trial is asking.\n'
-        + '  - It appears just BEFORE the fish, so you can get ready.\n\n'
+        + 'From now on the two questions are mixed, and can change every trial.\n\n'
+        + 'The border you have been ignoring is what tells you which — and it\n'
+        + 'now appears just BEFORE the fish, so you can get ready.\n\n'
         + CP_BORDER_LEGEND + '\n\n'
         + bothLines + '\n\n'
         + 'Press any key to begin.';
@@ -699,12 +744,150 @@ function cpTrainingInstructions(keyMaps, finalStage) {
         + 'while FACING the other way.\n\n'
         + 'Answer ONLY the question the border asked for, and ignore the other\n'
         + 'one, even when they point in opposite directions.\n\n'
-        + CP_BORDER_LEGEND + '\n\n'
+        // CP_BORDER_LEGEND dropped here (2026-08-17): S6's cartoon shows one
+        // conflicting stimulus twice, changing only the border colour and
+        // therefore the correct key, which is a sharper statement of the legend
+        // than the legend is. S4 still spells it out in words.
         + bothLines + '\n\n'
         + 'Some fish are harder to read than others. That is normal.\n\n'
         + 'Press any key to begin.';
 
     return { S1, S2, S3, S4, S5, S6, S8: cpFinalStageInstructions(keyMaps, finalStage) };
+}
+
+/**
+ * The animated cartoon that accompanies each training screen, keyed by stage —
+ * same contract and the same reason as cpTrainingInstructions: the depiction
+ * depends on the paradigm's key maps and on which task S8 drills, neither of
+ * which training_stages.js knows. Rendered by createInstructionDemo
+ * (instruction_demo.js); the spec itself is plain data and touches no DOM, so it
+ * is safe to build at load time and to assert on in tests.
+ *
+ * DELIBERATE SIMPLIFICATIONS, all of them departures from the real display:
+ *  - 8 fish, not the 150 the block draws (`Game.oobCount`), in a 150 px box.
+ *  - NO border on S1-S3, even though those blocks really do paint one (SE
+ *    schedules cue1 with go1 from trial onset, so an orange/blue border is on
+ *    screen from stage 1). Their copy says a border exists and to ignore it; the
+ *    cartoon shows only what the participant must attend to. The border appears
+ *    in the cartoon exactly when it starts to MEAN something, at S4.
+ *  - Coherence is not depicted faithfully — only S2 is shown degraded, because
+ *    its copy is the one that promises the fish get harder.
+ * The cartoon is a diagram of the decision, not a preview of the stimulus.
+ *
+ * @param {{mov: object, or: object}} keyMaps - the paradigm's own key maps
+ * @param {object} finalStage - { kind, t1Task?, task? }, matching the S8 spec
+ * @returns {{S1..S6: object, S8: object}} demo specs
+ */
+function cpTrainingDemos(keyMaps, finalStage) {
+    // 180 = leftward, 0 = rightward (engine.js). The keycap graphic is chosen
+    // from the key character itself, so a paradigm that changes its maps changes
+    // its cartoon for free — and throws in demoKeycap() if the new keys have no
+    // pixel art rather than depicting the wrong finger.
+    const movL = keyMaps.mov[180], movR = keyMaps.mov[0];
+    const orL = keyMaps.or[180], orR = keyMaps.or[0];
+
+    // S1/S2: swim left, then swim right. `orientation: null` is what makes SE's
+    // forward-facing sprite the one drawn, i.e. fish that swim without facing.
+    const swimBoth = [
+        { movement: 180, orientation: null, border: null, key: movL },
+        { movement: 0, orientation: null, border: null, key: movR },
+    ];
+
+    // S3: stationary, facing. `movement: null` is the stimulus its copy promises
+    // ("the fish do not swim at all").
+    const faceBoth = [
+        { movement: null, orientation: 180, border: null, key: orL },
+        { movement: null, orientation: 0, border: null, key: orR },
+    ];
+
+    return {
+        S1: { segments: swimBoth },
+        // The only stage whose cartoon is degraded, matching the one line of copy
+        // that promises it. 0.75 of 8 fish leaves two moving at random — visible
+        // as noise without making the cartoon unreadable at 150 px.
+        S2: { segments: swimBoth, coherence: 0.75 },
+        S3: { segments: faceBoth },
+        // S4: univalent still, but now cued and mixed — one segment per task, so
+        // the colour change and the hand change happen together.
+        S4: {
+            segments: [
+                { movement: 180, orientation: null, border: 'mov', key: movL },
+                { movement: null, orientation: 0, border: 'or', key: orR },
+            ],
+        },
+        // S5: bivalent, congruent. Both pathways on, always agreeing, so the
+        // answer is the same whichever the border asks for.
+        S5: {
+            segments: [
+                { movement: 180, orientation: 180, border: 'mov', key: movL },
+                { movement: 0, orientation: 0, border: 'or', key: orR },
+            ],
+        },
+        // S6: bivalent, INCONGRUENT — the same stimulus twice, changing only the
+        // border and therefore the correct key. That contrast is the whole lesson
+        // of the stage, and is why CP_BORDER_LEGEND could come out of the copy.
+        S6: {
+            segments: [
+                { movement: 180, orientation: 0, border: 'mov', key: movL },
+                { movement: 180, orientation: 0, border: 'or', key: orR },
+            ],
+        },
+        S8: cpFinalStageDemo(keyMaps, finalStage),
+    };
+}
+
+/** S8's cartoon. Three shapes, matching cpFinalStageInstructions'. */
+function cpFinalStageDemo(keyMaps, finalStage) {
+    const movL = keyMaps.mov[180], movR = keyMaps.mov[0];
+    const orL = keyMaps.or[180], orR = keyMaps.or[0];
+
+    if (finalStage.kind === 'switching') {
+        // A repeat then a switch, which is the manipulation the test block
+        // measures and the one thing S6's cartoon does not show.
+        return {
+            segments: [
+                { movement: 180, orientation: 0, border: 'mov', key: movL },
+                { movement: 0, orientation: 180, border: 'mov', key: movR },
+                { movement: 0, orientation: 180, border: 'or', key: orL },
+            ],
+        };
+    }
+
+    if (finalStage.kind === 'rehearsal') {
+        // One task for the rest of the session. Both segments conflict, because
+        // that is what the Stroop test block is made of.
+        const task = finalStage.task === 'or' ? 'or' : 'mov';
+        const keys = keyMaps[task];
+        return {
+            segments: [
+                { movement: 180, orientation: 0, border: task, key: keys[180] },
+                { movement: 0, orientation: 180, border: task, key: keys[0] },
+            ],
+        };
+    }
+
+    if (finalStage.kind === 'prp') {
+        // The only cartoon with a `then`: the second stimulus arrives while the
+        // first is still on screen, gets its own nested border, and is answered
+        // with the other hand. Two segments, a long SOA then a short one — the
+        // descending schedule the stage actually runs (soaSchedule in
+        // buildParadigmFinalStage), and the thing its copy promises.
+        const movFirst = finalStage.t1Task !== 'or';
+        const seg = (at) => (movFirst
+            ? {
+                movement: 180, orientation: null, border: 'mov', key: movL,
+                then: { at, orientation: 0, border: ['mov', 'or'], key: orR },
+                duration: at + 2100,
+            }
+            : {
+                movement: null, orientation: 180, border: 'or', key: orL,
+                then: { at, movement: 0, border: ['or', 'mov'], key: movR },
+                duration: at + 2100,
+            });
+        return { segments: [seg(1000), seg(400)] };
+    }
+
+    throw new Error(`cpFinalStageDemo: unknown S8 kind '${finalStage.kind}'`);
 }
 
 /**
@@ -795,6 +978,9 @@ const CP_TEST_BLOCK_PREAMBLE =
 function cpBuildTrainingSession(spec) {
     const finalStage = spec.finalStage;
     const instructions = cpTrainingInstructions(spec.keyMaps, finalStage);
+    // Built from the same two inputs as the copy, so a condition that swaps S8's
+    // task swaps the cartoon with the sentence describing it — they cannot drift.
+    const demos = cpTrainingDemos(spec.keyMaps, finalStage);
     const shared = buildSharedTrainingStages({
         keyMaps: spec.keyMaps,
         rso: spec.rso,
@@ -804,6 +990,7 @@ function cpBuildTrainingSession(spec) {
         ...(spec.levelFactors ? { levelFactors: spec.levelFactors } : {}),
         blockIdPrefix: spec.blockIdPrefix,
         instructions,
+        demos,
     });
     const s8 = buildParadigmFinalStage({
         ...finalStage,
@@ -811,6 +998,7 @@ function cpBuildTrainingSession(spec) {
         rso: spec.rso,
         blockIdPrefix: spec.blockIdPrefix,
         instructions: instructions.S8,
+        demo: demos.S8,
     });
     const testBlocks = spec.testSession.map((blockDef, i) => (i === 0
         ? { ...blockDef, instructions: CP_TEST_BLOCK_PREAMBLE + blockDef.instructions }

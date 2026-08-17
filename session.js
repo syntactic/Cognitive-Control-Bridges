@@ -116,15 +116,40 @@ const Session = (() => {
     /**
      * Show an instruction/break screen and wait for a keypress to continue.
      */
-    function showInstructions(text) {
+    function showInstructions(text, demo = null) {
         return new Promise(resolve => {
             const overlay = document.createElement('div');
             overlay.className = 'instructions-overlay';
             overlay.innerHTML = `<div class="instructions-content">${text.replace(/\n/g, '<br>')}</div>`;
+
+            // The animated cartoon, if this screen has one. It goes after the
+            // first paragraph — under the "STEP n of 7" heading, above the
+            // explanation — and REPLACES the paragraph break it lands on, which
+            // is why it costs ~148 px of the height budget rather than its full
+            // height. `content` is undefined under the headless DOM stub in
+            // test_training.js, which is the intended degradation: the cartoon is
+            // pure presentation and no training assertion depends on it.
+            let running = null;
+            const content = overlay.firstElementChild;
+            if (demo && content) {
+                running = createInstructionDemo(demo, spriteConfig);
+                const firstBreak = content.querySelector('br + br');
+                if (firstBreak) {
+                    content.insertBefore(running.element, firstBreak.nextSibling);
+                    firstBreak.remove();
+                } else {
+                    content.appendChild(running.element);
+                }
+            }
             canvasContainer.appendChild(overlay);
 
-            const handler = (e) => {
+            const handler = () => {
                 document.removeEventListener('keydown', handler);
+                // Before the overlay goes: the cartoon owns an rAF loop and a
+                // handful of pending timers, and nothing else will stop them.
+                // Leaking one per screen would leave seven running under the
+                // first test block.
+                if (running) running.stop();
                 overlay.remove();
                 resolve();
             };
@@ -262,7 +287,7 @@ const Session = (() => {
      * Run a complete block of trials.
      */
     async function runBlock(blockDef, blockOrder) {
-        const { blockConfig, instructions } = blockDef;
+        const { blockConfig, instructions, demo } = blockDef;
 	// Fail before anything is shown to the participant: both checked
 	// combinations run to completion and export a full CSV, so an
 	// un-guarded one costs a whole session's data.
@@ -330,7 +355,7 @@ const Session = (() => {
 
         // Show instructions
         if (instructions) {
-            await showInstructions(instructions);
+            await showInstructions(instructions, demo);
         }
 
         // The instruction screen breaks the trial rhythm, so the first trial of
