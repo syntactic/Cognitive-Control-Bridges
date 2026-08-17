@@ -36,8 +36,8 @@ const TRAINING_STAGE_DEFAULTS = {
     unspeededStimulusDuration: 15000,
     s1Trials: 8,                 // 8 unspeeded trials, no criterion
 
-    stimulusDuration: 2500,
-    responseWindow: 2500,
+    stimulusDuration: 2000,
+    responseWindow: 2000,
     iti: { type: 'uniform', value: 500, params: [400, 600] },
 
     // INFERRED. S4's CSI must be POSITIVE — that is what turns the cue
@@ -282,8 +282,8 @@ function buildSharedTrainingStages(spec) {
 // it reads no paradigm constant — and it is NOT wired into any SESSION array.
 
 const PARADIGM_FINAL_STAGE_DEFAULTS = {
-    stimulusDuration: 2500,
-    responseWindow: 2500,
+    stimulusDuration: 2000,
+    responseWindow: 2000,
     iti: { type: 'uniform', value: 500, params: [400, 600] },
     // Feedback stays ON for training, including S8, and off in the test block.
     feedback: true,

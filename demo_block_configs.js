@@ -127,7 +127,7 @@ const DEMO_SESSION = [
     {
         blockConfig: demoMixed,
         numTrials: 80,
-        instructions: 'Mixed block: The task switches randomly between trials.\n\nThe border style tells you which task to do:\n  Dotted = MOVEMENT (left hand: A/D)\n  Dashed = ORIENTATION (right hand: J/L)\n\nPress any key to begin.',
+        instructions: 'Mixed block: The task switches randomly between trials.\n\nThe border color tells you which task to do:\n  Orange = MOVEMENT (left hand: A/D)\n  Blue = ORIENTATION (right hand: J/L)\n\nPress any key to begin.',
     },
     {
         blockConfig: demoPRP,

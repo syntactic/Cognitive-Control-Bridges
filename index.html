@@ -209,9 +209,6 @@
                 <option value="hirsch_part1">Part 1: Task Switching</option>
                 <option value="hirsch_part2">Part 2: Dual-Canvas PRP</option>
             </optgroup>
-            <optgroup label="Bug Testing">
-                <option value="timing_bug_soa">T2 Timing Bug (SOA sweep)</option>
-            </optgroup>
             <optgroup label="Hirsch Quick Tests">
                 <option value="hirsch_alt_pure">Alternating Pure</option>
                 <option value="hirsch_alt_mixed">Alternating Mixed</option>
@@ -252,7 +249,6 @@
     <script src="hirsch_block_configs.js"></script>
     <script src="switch-frequency.js"></script>
     <script src="canonical_paradigms.js"></script>
-    <script src="timing_bug_test.js"></script>
     <script src="session_helpers.js"></script>
     <script src="instruction_demo.js"></script>
     <script src="session.js"></script>
@@ -437,10 +433,6 @@
                     blocks = SF_BIVALENT_SESSION;
                     break;
                 // Hirsch replication
-                // Bug testing
-                case 'timing_bug_soa':
-                    blocks = TIMING_BUG_SESSION;
-                    break;
                 case 'hirsch_faithful':
                     blocks = HIRSCH_FAITHFUL_SESSION;
                     break;

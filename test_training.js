@@ -1345,6 +1345,14 @@ function trainingBlockDef(stage, overrides = {}) {
 
 const container = makeElement();
 
+// Fast-forward setTimeout for the duration of headless test runs so trials do
+// not block on real 500 ms ITI sleeps. Nothing here asserts on wall-clock timing.
+async function withFastClock(fn) {
+    const realSetTimeout = global.setTimeout;
+    global.setTimeout = (cb) => realSetTimeout(cb, 0);
+    try { return await fn(); } finally { global.setTimeout = realSetTimeout; }
+}
+
 // runSession is async, and this file is CommonJS (no top-level await), so the
 // integration tests and the summary live inside one async main().
 async function main() {
@@ -1818,15 +1826,6 @@ section('runSession — a real CP_*_TRAINING_SESSION actually shows a break summ
 // kind. This test runs the real thing end to end.
 //
 // Real training stages carry a ~500 ms ITI, and a wrong-throughout-training run
-// takes every stage to the 48-trial cap, so the session is ~360 trials of real
-// sleeping. Fast-forward the clock for the duration — nothing here asserts on
-// wall-clock timing.
-async function withFastClock(fn) {
-    const realSetTimeout = global.setTimeout;
-    global.setTimeout = (cb) => realSetTimeout(cb, 0);
-    try { return await fn(); } finally { global.setTimeout = realSetTimeout; }
-}
-
 // Training blocks run with feedback ON and test blocks with it OFF, and
 // buildSEConfig passes that through — so the SE stub can tell which phase it is
 // in without counting trials. Wrong all through training, right all through test.
@@ -1949,7 +1948,7 @@ if (failed > 0) {
 
 } // end main
 
-main().catch(err => {
+withFastClock(main).catch(err => {
     console.error('\nUNCAUGHT ERROR:', err);
     process.exit(1);
 });

@@ -61,6 +61,25 @@
         line-height: 1.6;
         color: #c0c0c0;
     }
+    .demo-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        margin: 12px 0;
+    }
+    .demo-row .demo-canvas {
+        width: 150px;
+        height: 150px;
+        background: #000;
+        border-radius: 6px;
+        flex: none;
+    }
+    .demo-row .demo-key {
+        width: 108px;
+        image-rendering: pixelated;
+        flex: none;
+    }
     /* ---- end verbatim ---- */
 
     #report { font-family: ui-monospace, Menlo, monospace; font-size: 12px; white-space: pre; margin-top: 20px; }
@@ -78,6 +97,7 @@
 <script src="../demo_block_configs.js"></script>
 <script src="../hirsch_block_configs.js"></script>
 <script src="../switch-frequency.js"></script>
+<script src="../instruction_demo.js"></script>
 <script src="../canonical_paradigms.js"></script>
 <script src="../session_helpers.js"></script>
 
@@ -92,19 +112,36 @@ const container = document.getElementById('canvas-container');
 // overlay.scrollHeight: it saturates at the overlay's client height for anything
 // that fits, so every comfortable screen reads as an identical 598 and you
 // cannot see how much slack you have while trimming.
-function measure(text) {
+function measure(text, demo = null) {
     container.innerHTML = '';
     const overlay = document.createElement('div');
     overlay.className = 'instructions-overlay';
     overlay.innerHTML = `<div class="instructions-content">${text.replace(/\n/g, '<br>')}</div>`;
-    container.appendChild(overlay);
     const content = overlay.firstElementChild;
+    // Same insertion as showInstructions, including the paragraph break it eats.
+    // The REAL element is built and measured — a placeholder of the "right" size
+    // would just be this audit asserting its own assumption.
+    let running = null;
+    if (demo) {
+        running = createInstructionDemo(demo, null);
+        const firstBreak = content.querySelector('br + br');
+        if (firstBreak) {
+            content.insertBefore(running.element, firstBreak.nextSibling);
+            firstBreak.remove();
+        } else {
+            content.appendChild(running.element);
+        }
+    }
+    container.appendChild(overlay);
     const pad = parseFloat(getComputedStyle(overlay).paddingTop)
         + parseFloat(getComputedStyle(overlay).paddingBottom);
     const result = {
         needed: Math.ceil(content.getBoundingClientRect().height + pad),
         available: overlay.clientHeight,
     };
+    // The cartoon owns an rAF loop and pending timers; leaving 46 of them running
+    // would not change a number here but would peg the CPU for the rest of the run.
+    if (running) running.stop();
     container.innerHTML = '';
     return result;
 }
@@ -127,8 +164,8 @@ const SESSIONS = {
 const lines = [];
 let worst = 0, overflowing = 0, measured = 0, available = CANVAS;
 
-function record(label, text, out) {
-    const { needed, available: avail } = measure(text);
+function record(label, text, out, demo = null) {
+    const { needed, available: avail } = measure(text, demo);
     available = avail;
     measured++;
     worst = Math.max(worst, needed);
@@ -142,12 +179,13 @@ function record(label, text, out) {
 for (const [id, session] of Object.entries(SESSIONS)) {
     lines.push(`\n${id}`);
     session.forEach((blockDef, i) => {
-        const label = `[${i}] ${(blockDef.stage || 'test').padEnd(4)}`;
+        const label = `[${i}] ${(blockDef.stage || 'test').padEnd(4)}`
+            + (blockDef.demo ? ' +demo' : '      ');
         if (!blockDef.instructions) {
             lines.push(`  ${label}  (no screen — break screen precedes it)`);
             return;
         }
-        record(label, blockDef.instructions, lines);
+        record(label, blockDef.instructions, lines, blockDef.demo);
     });
 }
 

@@ -414,24 +414,25 @@ const Session = (() => {
 		t1Params["coh_" + task_1 + "_1"] =
 		    rampedCoherence(i, ramp.from, rampTo, ramp.rampLength ?? TRAINING_RAMP_LENGTH);
 	    }
-	    if (canvasType === 'dual-canvas') {
-		const trialT1Side = trials[i].meta.t1Side ?? 'left';
-		const leftTask = trialT1Side === 'left' ? trials[i].meta.t1_task : trials[i].meta.t2_task;
-		const rightTask = trialT1Side === 'left' ? trials[i].meta.t2_task : trials[i].meta.t1_task;
-		const { leftConfig, rightConfig } = buildDualCanvasSEConfigs(leftTask, rightTask, trials[i].meta.earlyResolve, feedback, acceptFirstResponse, computeDualCanvasSize(), blockConfig.mapping);
-		trialData = await runDualCanvasTrial(trials[i], leftConfig, rightConfig, prevResponseTime);
-	    } else if (canvasType === 'alternating') {
-		const config = buildAlternatingSEConfig(trials[i].meta.t1_task, trials[i].meta.side, trials[i].meta.earlyResolve, feedback, acceptFirstResponse, computeDualCanvasSize(), blockConfig.mapping);
-		trialData = await runAlternatingTrial(trials[i], config, leftParent, rightParent);
-	    } else if (canvasType === 'prp-baseline') {
-		const config = buildAlternatingSEConfig(trials[i].meta.t2_task, trials[i].meta.side, trials[i].meta.earlyResolve, feedback, acceptFirstResponse, computeDualCanvasSize(), blockConfig.mapping);
-		trialData = await runBaselinePRPTrial(trials[i], config, leftParent, rightParent)
-	    } else {
-		trialData = await runTrial(trials[i], seConfig, prevResponseTime);
-		if (blockDef.isTraining) { 
-		    blockOutcomes.push(isTrialCorrectForAdvancement(trialData));
-		}
-	    }
+            if (canvasType === 'dual-canvas') {
+                const trialT1Side = trials[i].meta.t1Side ?? 'left';
+                const leftTask = trialT1Side === 'left' ? trials[i].meta.t1_task : trials[i].meta.t2_task;
+                const rightTask = trialT1Side === 'left' ? trials[i].meta.t2_task : trials[i].meta.t1_task;
+                const { leftConfig, rightConfig } = buildDualCanvasSEConfigs(leftTask, rightTask, trials[i].meta.earlyResolve, feedback, acceptFirstResponse, computeDualCanvasSize(), blockConfig.mapping);
+                trialData = await runDualCanvasTrial(trials[i], leftConfig, rightConfig, prevResponseTime);
+            } else if (canvasType === 'alternating') {
+                const config = buildAlternatingSEConfig(trials[i].meta.t1_task, trials[i].meta.side, trials[i].meta.earlyResolve, feedback, acceptFirstResponse, computeDualCanvasSize(), blockConfig.mapping);
+                trialData = await runAlternatingTrial(trials[i], config, leftParent, rightParent);
+            } else if (canvasType === 'prp-baseline') {
+                const config = buildAlternatingSEConfig(trials[i].meta.t2_task, trials[i].meta.side, trials[i].meta.earlyResolve, feedback, acceptFirstResponse, computeDualCanvasSize(), blockConfig.mapping);
+                trialData = await runBaselinePRPTrial(trials[i], config, leftParent, rightParent);
+            } else {
+                trialData = await runTrial(trials[i], seConfig, prevResponseTime);
+            }
+
+            if (blockDef.isTraining) {
+                blockOutcomes.push(isTrialCorrectForAdvancement(trialData));
+            }
             trialData.blockOrder = blockOrder;
             trialData.isPractice = blockDef.isPractice || false;
 	    // Every row carries which phase and (for training)

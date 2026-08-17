@@ -598,12 +598,12 @@ function meetsAdvancementCriterion(correctnessHistory, windowSize = 16, threshol
 function isTrialCorrectForAdvancement(trialData) {
     let correct = true;
     if (trialData.accuracy1 != null) {
-	correct = correct & trialData.accuracy1.startsWith('correct');
+	correct = correct && trialData.accuracy1.startsWith('correct');
     }
     if (trialData.accuracy2 != null) {
-	correct = correct & trialData.accuracy2.startsWith('correct');
+	correct = correct && trialData.accuracy2.startsWith('correct');
     }
-    return correct;
+    return Boolean(correct);
 }
 
 // Default length of the S2-S4 coherence ramp, in trials.

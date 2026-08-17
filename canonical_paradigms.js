@@ -87,8 +87,8 @@ const CP_DIRECTION_ORDER = [180, 0, 90, 270];
 
 const CP_DEFAULTS = {
     csi: 200,                 // ms cue-stimulus interval
-    stimulusDuration: 2500,   // ms
-    responseWindow: 2500,     // ms
+    stimulusDuration: 2000,   // ms
+    responseWindow: 2000,     // ms
     iti: { type: 'uniform', value: 500, params: [400, 600] },
     congruency: { conditions: ['congruent', 'incongruent'], proportions: [0.5, 0.5] },
 
@@ -96,7 +96,7 @@ const CP_DEFAULTS = {
     // none of them implies another, and engine.js defaults earlyResolve to false.
     //
     // earlyResolve: the trial ends on the response instead of running the full
-    //   2500 ms. Without it a test trial costs ~3 s while a training trial ends on
+    //   2000 ms. Without it a test trial costs ~2.5 s while a training trial ends on
     //   the response, i.e. the response regime would change exactly at the
     //   training -> test boundary. For a dual-task trial SE resolves only once
     //   BOTH go signals have settled (src/trial.js resolveEarly), so PRP still
