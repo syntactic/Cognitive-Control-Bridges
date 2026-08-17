@@ -415,6 +415,11 @@ const Session = (() => {
 	    // Defaults keep every pre-existing blockDef (none set these) at 'test'/null.
 	    trialData.phase = blockDef.phase || 'test';
 	    trialData.stage = blockDef.stage || null;
+	    // Which pool CSV this block's trials came from. There is no assignment
+	    // table anywhere — the draw is made in the browser from the participant
+	    // id — so this column is the ONLY record of what the participant saw.
+	    // Null on the JS-generator path, which has no sequence to name.
+	    trialData.sequenceId = blockConfig.sequenceId ?? null;
 	    if (task_1) {
 		trialData.t1_target_coherence = t1Params["coh_" + task_1 + "_1"];
 	    }
@@ -482,94 +487,44 @@ const Session = (() => {
     }
 
     /**
-     * Take slice `index` of `of` equal parts of a CSV's sequence vectors.
+     * Reject two blocks of one session reading the same CSV.
      *
-     * A test block split across a break is still ONE counterbalanced design:
-     * SweetPea balanced the whole CSV, so the halves are consecutive windows of
-     * it, never re-reads of the same rows. Any remainder rows go to the last
-     * slice, so no trial is dropped.
+     * Each test block now loads its own whole pool CSV, so the only way two of
+     * them share a file is a bad draw — a duplicate sequence id, or a session
+     * handed fewer ids than it has test blocks. The participant would then run
+     * one pool block's trials twice, doubling every cell of that block's design
+     * and contaminating their repetition effects. It runs to completion and
+     * exports a perfectly normal-looking CSV, so it has to throw.
      *
-     * The first trial of a non-initial slice is relabelled `transitionType:
-     * 'First'`. It genuinely follows a break, and the JS-generator path already
-     * forces 'First' on each sub-block's trial 0 — leaving the CSV path saying
-     * 'Switch'/'Repeat' there would make the two paths disagree about the one
-     * trial an analysis is most likely to drop. Only the metadata changes; task
-     * identity comes from `task1`, which is untouched.
+     * cpApplySweetPea checks the draw itself; this is the backstop for any other
+     * caller (and for a session assembled by hand).
      */
-    function sliceSequenceWindow(vectors, index, of) {
-        const n = vectors.task1.length;
-        const per = Math.floor(n / of);
-        const from = index * per;
-        const to = index === of - 1 ? n : from + per;
-        const out = sliceVectors(vectors, from, to);
-        if (index > 0 && out.transition && out.transition.length > 0) {
-            out.transition = [...out.transition];
-            out.transition[0] = 'First';
-        }
-        return out;
-    }
-
-    /**
-     * Reject two blockDefs reading the same CSV without saying which part each
-     * one wants. Splitting a test block for a mid-block break gives both halves the
-     * same `blockId`, and cpApplySweetPea derives the CSV path from `blockId`
-     * alone — so without a `sequenceSlice` both halves would load the same file
-     * and REPLAY the same trials, doubling every cell and halving the design.
-     * That runs to completion and exports a full CSV, so it has to throw.
-     *
-     * TODO: cpApplySweetPea has a second blockId-derived gap in the same place —
-     * it skips `phase: 'training'` blockDefs, so the condition-B training content
-     * (PRP's S8 t1Task, Stroop's rehearsal task, the asym ramp targets) is never
-     * swapped. Deferred; see the review notes. Fixing that will touch this
-     * function's caller, so do the two together.
-     */
-    function assertSequenceSourcesAreDistinct(sessionDef) {
-        const bySource = new Map();
+    function assertDistinctSequenceSources(sessionDef) {
+        const seen = new Map();
         for (const blockDef of sessionDef) {
             const src = blockDef.blockConfig && blockDef.blockConfig.sequenceSource;
             if (!src) continue;
-            if (!bySource.has(src)) bySource.set(src, []);
-            bySource.get(src).push(blockDef);
-        }
-        for (const [src, defs] of bySource) {
-            if (defs.length === 1) continue;
-            const slices = defs.map(d => d.sequenceSlice);
-            if (slices.some(s => !s || typeof s.index !== 'number' || typeof s.of !== 'number')) {
+            if (seen.has(src)) {
                 throw new Error(
-                    `${defs.length} blocks share the sequence CSV '${src}' but not all of them ` +
-                    'declare a sequenceSlice. They would each load the whole file and replay the ' +
-                    'SAME trials. Give every block sharing a CSV a ' +
-                    'sequenceSlice: { index, of } (see sliceSequenceWindow).'
+                    `Two blocks of this session read the same sequence CSV '${src}'. ` +
+                    'Each test block must get its own pool block — the participant would ' +
+                    'otherwise run the same trials twice. Check the sequence-id draw.'
                 );
             }
-            const of = slices[0].of;
-            if (slices.some(s => s.of !== of)) {
-                throw new Error(
-                    `Blocks sharing the sequence CSV '${src}' disagree about how many parts it ` +
-                    `splits into (${slices.map(s => s.of).join(', ')}).`
-                );
-            }
-            const indices = slices.map(s => s.index).sort((a, b) => a - b);
-            const expected = Array.from({ length: of }, (_, i) => i);
-            if (defs.length !== of || indices.join() !== expected.join()) {
-                throw new Error(
-                    `Blocks sharing the sequence CSV '${src}' must cover slices ` +
-                    `${expected.join(', ')} exactly once each; got ${indices.join(', ')}.`
-                );
-            }
+            seen.set(src, blockDef);
         }
     }
 
     /**
      * Fetch and parse the SweetPea CSV for each block that declares a
      * `sequenceSource`, attaching the parsed vectors as `blockDef._vectors`.
-     * A blockDef may claim one part of its CSV via `sequenceSlice: { index, of }`.
+     * One CSV is one complete block, so the whole file is used as-is.
      * Abridged mode then keeps only the first ceil(N/10) rows of whatever this
      * block ended up with (fast smoke test — this DOES break the
      * counterbalancing, so never analyze abridged data).
      */
     async function preloadSequences(sessionDef, options) {
-        assertSequenceSourcesAreDistinct(sessionDef);
+        assertDistinctSequenceSources(sessionDef);
         for (const blockDef of sessionDef) {
             const src = blockDef.blockConfig && blockDef.blockConfig.sequenceSource;
             if (!src) { blockDef._vectors = null; continue; }
@@ -579,10 +534,6 @@ const Session = (() => {
             }
             const text = await resp.text();
             let vectors = loadSequenceVectors(text, blockDef.blockConfig);
-            if (blockDef.sequenceSlice) {
-                vectors = sliceSequenceWindow(
-                    vectors, blockDef.sequenceSlice.index, blockDef.sequenceSlice.of);
-            }
             if (options.abridged) {
                 const keep = Math.max(1, Math.ceil(vectors.task1.length / 10));
                 vectors = sliceVectors(vectors, 0, keep);
@@ -706,7 +657,7 @@ const Session = (() => {
         // Column order
 	const columns = [
 	    'blockOrder', 'blockId', 'blockType', 'paradigm', 'isPractice',
-	    'phase', 'stage',
+	    'phase', 'stage', 'sequenceId',
 	    'trialNumber', 't1_task', 't2_task', 'transitionType',
 	    'iti', 'iti_achieved', 'soa', 'side', 't1Side', 'earlyResolve',
 	    't1_stim_onset', 't2_stim_onset',

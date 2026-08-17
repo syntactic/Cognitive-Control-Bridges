@@ -306,9 +306,14 @@ BUILDERS = {
 }
 
 # Natural full-crossing size per paradigm (one balanced replication). Trial
-# counts default to a multiple of this via MinimumTrials.
+# counts default to a multiple of this via MinimumTrials. These are the SWEETPEA
+# crossings (they include target_dir, which the client's own Factorial generator
+# does not cross) -- so they are strictly finer than the JS-side cell counts in
+# canonical_paradigms.js, and a row count that divides these divides those too.
 CROSSING_SIZE = {
-    "cp_prp": 24,
+    # soa(3) x congruency(2) x target_dir(2). Was recorded as 24 until 2026-08-16;
+    # nothing read it, but it disagreed with build_prp's actual crossing.
+    "cp_prp": 12,
     "cp_taskswitch": 16,
     "cp_taskswitch_asym": 8,
     "cp_stroop": 4,
@@ -318,14 +323,81 @@ CROSSING_SIZE = {
 SAMPLERS = {"CMSGen": CMSGen, "IterateGen": IterateGen, "RandomGen": RandomGen}
 
 
-def sample_rows(paradigm, n_trials, condition, n_samples, sampler="CMSGen", acceptable_error=0):
-    """Return a list of `n_samples` row-lists (one per participant sequence)."""
-    build = BUILDERS[paradigm]
-    block, to_rows = build(n_trials=n_trials, condition=condition)
+def sample_trial_dicts(paradigm, n_trials, n_samples, sampler="CMSGen",
+                       acceptable_error=0, condition="A"):
+    """Sample `n_samples` sequences and return them as raw trial dict-lists.
+
+    Deliberately stops short of CSV rows: the pool stamps ONE sampled sequence
+    with every condition label (see `rows_for`), which is what makes condition
+    and trial sequence exactly orthogonal. `condition` here only decides which
+    builder call constructs the block, and `assert_condition_agnostic` is what
+    guarantees that choice cannot matter.
+    """
+    block, _ = BUILDERS[paradigm](n_trials=n_trials, condition=condition)
     if sampler == "RandomGen":
         strategy = RandomGen(acceptable_error=acceptable_error)
     else:
         strategy = SAMPLERS[sampler]
     exps = synthesize_trials(block, n_samples, sampling_strategy=strategy)
-    dict_lists = experiments_to_dicts(block, exps)
-    return [to_rows(trials) for trials in dict_lists]
+    return experiments_to_dicts(block, exps)
+
+
+def rows_for(paradigm, trials, condition, n_trials):
+    """Stamp one sampled sequence with one condition's labels -> CSV rows.
+
+    Rebuilding the block costs nothing (no synthesis) and keeps `to_rows` the
+    single place a condition label is ever applied.
+    """
+    _, to_rows = BUILDERS[paradigm](n_trials=n_trials, condition=condition)
+    return to_rows(trials)
+
+
+def _block_signature(block):
+    """Everything about a block that could change what gets SAMPLED.
+
+    Constraint objects print their address, so their reprs are not comparable
+    across two builds; compare their types plus the design/crossing structure
+    instead. That is enough to catch a factor, level, or crossing term that
+    varies with condition.
+    """
+    return (
+        tuple((f.name, tuple(str(l.name) for l in f.levels)) for f in block.design),
+        tuple(tuple(f.name for f in crossing) for crossing in block.crossings),
+        tuple(block.crossing_sizes),
+        # Called, not referenced: it is a METHOD, and a bound method compares by
+        # identity, so leaving off the parentheses made every signature unequal
+        # to every other -- including a block's to its own.
+        block.common_preamble_size(),
+        tuple(type(c).__name__ for c in block.constraints),
+    )
+
+
+def assert_condition_agnostic(paradigm, n_trials, conditions=("A", "B")):
+    """Fail if `condition` reaches block CONSTRUCTION for this paradigm.
+
+    The pool writes one sampled sequence out under every condition label. That
+    is only legitimate while condition affects `to_rows` alone. If a builder ever
+    starts branching on condition before the block is built (a different
+    crossing, a condition-specific factor), the two labels would no longer
+    describe the same sampled sequence, and every A/B pair in the pool would be
+    quietly mislabelled -- an error nothing downstream could detect. So it throws
+    here instead, and generation falls back to per-condition sampling.
+    """
+    sigs = {c: _block_signature(BUILDERS[paradigm](n_trials=n_trials, condition=c)[0])
+            for c in conditions}
+    first = sigs[conditions[0]]
+    for c in conditions[1:]:
+        if sigs[c] != first:
+            raise ValueError(
+                f"{paradigm}: block construction depends on condition "
+                f"('{conditions[0]}' vs '{c}'). The pool emits ONE sampled sequence "
+                "under both condition labels, which is only valid while condition "
+                "affects to_rows() alone."
+            )
+
+
+def sample_rows(paradigm, n_trials, condition, n_samples, sampler="CMSGen", acceptable_error=0):
+    """Return a list of `n_samples` row-lists, all labelled `condition`."""
+    dict_lists = sample_trial_dicts(paradigm, n_trials, n_samples, sampler,
+                                    acceptable_error, condition=condition)
+    return [rows_for(paradigm, trials, condition, n_trials) for trials in dict_lists]

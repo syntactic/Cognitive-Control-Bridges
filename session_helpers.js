@@ -51,6 +51,12 @@ const UNNATURAL_WASD = { 0: 'a', 90: 's', 180: 'd', 270: 'w' };
  * When keyMaps is provided (from blockConfig), it takes precedence over rso.
  * Otherwise falls back to preset mappings based on rso.
  *
+ * `size` no longer determines the on-screen canvas size. SE computes that from
+ * the viewport (min(vw, vh) * size), which overflows the fixed 600 px
+ * #canvas-container on any reasonably large window; index.html pins the
+ * single-canvas element to the container with `width/height: 100% !important`.
+ * The value is kept only so SE's own default (0.75) is not the one in play.
+ *
  * @param {string} rso - 'disjoint' or 'identical'
  * @param {boolean} earlyResolve
  * @param {{ mov: object, or: object }} [keyMaps] - explicit key maps from block config
@@ -312,6 +318,88 @@ function extractDualCanvasResponse(t1Data, t2Data, t1StimOnset, t2StimOnset, t1C
 	responseOrder,
 	rawKeyPresses: JSON.stringify({ t1: t1Data.keyPresses, t2: t2Data.keyPresses }),
     };
+}
+
+// ============================================================
+// Sequence-pool draw
+// ============================================================
+// A participant's five test blocks are drawn from a shared pool of
+// independently balanced single-block CSVs (sequences/<paradigm>_<condition>_s<NNN>.csv).
+// There is no assignment table: every pool block is balanced on its own, so any
+// five of them make a balanced session and nothing needs to be counted centrally.
+// Paradigm and condition DO need balancing, and Prolific TaskFlow does that by
+// routing participants across one URL per cell.
+//
+// The draw is SEEDED on the participant identifier rather than left to
+// Math.random(). The reason is reload: an unseeded draw gives a participant
+// different blocks if they refresh, so a partially-saved session and its retry
+// could overlap or duplicate blocks. Seeded, the same identifier always yields
+// the same five in the same order.
+
+/** FNV-1a, 32-bit. Any small string hash would do; this one is short and stable. */
+function hashSeed(str) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < String(str).length; i++) {
+        h ^= String(str).charCodeAt(i);
+        // 32-bit FNV prime multiply, kept in range with Math.imul.
+        h = Math.imul(h, 0x01000193);
+    }
+    return h >>> 0;
+}
+
+/** mulberry32 — a 32-bit PRNG, ~10 lines, uniform enough to shuffle 50 items. */
+function makeSeededRng(seed) {
+    let a = seed >>> 0;
+    return function next() {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+/**
+ * Draw `count` DISTINCT sequence ids from a pool of `poolSize`, deterministically
+ * from `seedKey`.
+ *
+ * Distinctness is the point: running the same pool block twice would double
+ * every cell of that block's design for that participant and contaminate their
+ * repetition effects, and — because each block exports normal-looking rows —
+ * nothing downstream would notice. A partial Fisher-Yates shuffle gives
+ * without-replacement draws and a randomised ORDER in one step (block position
+ * is itself a nuisance variable: practice and fatigue load onto whichever
+ * sequence sits first or last).
+ *
+ * @param {string} seedKey - stable per participant, e.g. `${pid}|${paradigm}|${condition}`
+ * @param {number} poolSize - highest sequence id available (ids are 1-based)
+ * @param {number} count - how many to draw
+ * @returns {number[]} `count` distinct ids in [1, poolSize]
+ */
+function drawSequenceIds(seedKey, poolSize, count) {
+    if (!Number.isInteger(poolSize) || poolSize < 1) {
+        throw new Error(`drawSequenceIds: poolSize must be a positive integer, got ${poolSize}`);
+    }
+    if (!Number.isInteger(count) || count < 1) {
+        throw new Error(`drawSequenceIds: count must be a positive integer, got ${count}`);
+    }
+    if (count > poolSize) {
+        throw new Error(
+            `drawSequenceIds: cannot draw ${count} distinct sequences from a pool of ` +
+            `${poolSize}. Generate a larger pool (sweetpea/generate.py --pool N) and ` +
+            'raise CP_SEQUENCE_POOL_SIZE to match.'
+        );
+    }
+    if (seedKey === undefined || seedKey === null || String(seedKey) === '') {
+        throw new Error('drawSequenceIds: seedKey is required — an unseeded draw is not reproducible across a reload');
+    }
+    const rng = makeSeededRng(hashSeed(seedKey));
+    const ids = Array.from({ length: poolSize }, (_, i) => i + 1);
+    for (let i = 0; i < count; i++) {
+        const j = i + Math.floor(rng() * (poolSize - i));
+        [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+    return ids.slice(0, count);
 }
 
 function argMax(arr) {

@@ -233,13 +233,21 @@ const cpStroopCrossed = {
 };
 
 // ============================================================
-// SweetPea CSV wiring (participant/condition -> sequenceSource)
+// SweetPea CSV wiring (condition + drawn sequence ids -> sequenceSource)
 // ============================================================
-// By DEFAULT the canonical sessions use the interim JS generator (above). When
-// the page is opened with ?participant=NN&condition=A|B, index.html calls
-// cpApplySweetPea() to swap each block onto its pre-generated, counterbalanced
-// SweetPea CSV (sequences/<blockId>_<condition>_p<NN>.csv). The generator stays
-// the fallback so demos and the other paradigms are untouched.
+// By DEFAULT the canonical sessions use the interim JS generator (above). A real
+// participant arrives at ?paradigm=<id>&condition=A|B (Prolific TaskFlow routes
+// one URL per cell), and index.html draws five sequence ids from that cell's pool
+// and calls cpApplySweetPea() to give each test block its own pre-generated,
+// counterbalanced CSV. The generator stays the fallback so demos and the other
+// paradigms are untouched.
+//
+// POOL, NOT PER-PARTICIPANT FILES. Every CSV in sequences/ is ONE complete,
+// independently balanced block, so any five of them make a balanced session and
+// no central assignment table is needed. The cost of having no table is that the
+// draw exists nowhere else: `sequenceId` is written into every output row (see
+// session.js's CSV columns), and if that is ever dropped, the record of what a
+// participant actually saw is gone for good.
 //
 // Between-subjects assignment (which task is easy in asym switching; which
 // dimension is the target in Stroop/PRP) is baked into the CSV at the trial
@@ -257,48 +265,118 @@ const CP_CSV_COHERENCE_OVERRIDES = {
     },
 };
 
-function cpSequencePath(blockId, condition, participant) {
-    const nn = String(participant).padStart(2, '0');
-    return `sequences/${blockId}_${condition}_p${nn}.csv`;
+// How many sequence ids exist per paradigm per condition, i.e. the highest NNN in
+// sequences/. MUST match what sweetpea/generate.py --pool actually produced: the
+// draw picks ids in [1, CP_SEQUENCE_POOL_SIZE] and a drawn id with no file 404s
+// and aborts the session. test_training.js asserts every file in that range
+// exists, so raising this without generating the CSVs fails the tests rather than
+// a participant.
+const CP_SEQUENCE_POOL_SIZE = 50;
+
+// Test blocks per session. Not hardcoded anywhere else — the draw takes its count
+// from the session's own test-block count, so changing the sessions below is
+// enough. Five gives four inter-block breaks, which is Sebastian's "breaks every
+// ~100 trials" (07-31) directly. NB 5 x 96 = 480 test trials, up from the 96 a
+// participant ran under the per-participant-CSV scheme, and 60% above the ~300
+// endorsed on 08-11 — flagged for sign-off in EXPERIMENT_OVERVIEW.md §1.
+const CP_TEST_BLOCKS_PER_SESSION = 5;
+
+/**
+ * Path to one pool block. `sequenceId` is 1-based and zero-padded to three
+ * digits, matching sweetpea/generate.py's `sequence_filename`.
+ */
+function cpSequencePath(paradigm, condition, sequenceId) {
+    if (!Number.isInteger(sequenceId) || sequenceId < 1) {
+        throw new Error(`cpSequencePath: sequenceId must be a positive integer, got ${sequenceId}`);
+    }
+    const nnn = String(sequenceId).padStart(3, '0');
+    return `sequences/${paradigm}_${condition}_s${nnn}.csv`;
 }
 
 /**
- * Return a copy of a canonical session array with each block pointed at its
- * SweetPea CSV. Pure; does not mutate the input configs.
+ * Return a copy of a canonical session array with each TEST block pointed at its
+ * own pool CSV, in the order the ids were drawn. Pure; does not mutate the input
+ * configs.
  *
- * @param {Array} sessionArray - e.g. CP_TASKSWITCH_SESSION
- * @param {number|string} participant - participant id (>=1)
+ * @param {Array} sessionArray - e.g. CP_TASKSWITCH_SESSION (or a training session)
  * @param {string} condition - 'A' or 'B'
+ * @param {number[]} sequenceIds - drawn ids, one per test block, already distinct
  */
-function cpApplySweetPea(sessionArray, participant, condition) {
-    return sessionArray.map(blockDef => {
-        // Training stages are generated live (their content is a shaping schedule,
-        // not a counterbalanced design) and have no CSV. Pointing them at
-        // cpSequencePath() would make preloadSequences fetch sequences/train_S2_...csv
-        // and abort the session on a 404.
+function cpApplySweetPea(sessionArray, condition, sequenceIds) {
+    if (!Array.isArray(sequenceIds)) {
+        throw new Error('cpApplySweetPea: sequenceIds must be an array of drawn sequence ids');
+    }
+    const testBlockCount = sessionArray.filter(b => b.phase !== 'training').length;
+    if (sequenceIds.length !== testBlockCount) {
+        throw new Error(
+            `cpApplySweetPea: got ${sequenceIds.length} sequence ids for ${testBlockCount} ` +
+            'test blocks. Every test block needs its own pool CSV; a mismatch would ' +
+            'leave a block on the JS generator or replay another block\'s trials.'
+        );
+    }
+    if (new Set(sequenceIds).size !== sequenceIds.length) {
+        throw new Error(
+            `cpApplySweetPea: drawn sequence ids are not distinct (${sequenceIds.join(', ')}). ` +
+            'Running one pool block twice doubles every cell of its design for that participant.'
+        );
+    }
+    // If the session includes training stages, rebuild them for this condition so
+    // that condition-dependent content (S8 t1Task, Stroop rehearsal task, ramp targets)
+    // matches the assigned between-subjects condition.
+    let baseSession = sessionArray;
+    const trainingStage = sessionArray.find(b => b.phase === 'training');
+    if (trainingStage && condition) {
+        const prefix = trainingStage.blockConfig && trainingStage.blockConfig.blockId;
+        let paradigm = null;
+        if (prefix && prefix.startsWith('prp_train')) paradigm = 'cp_prp';
+        else if (prefix && prefix.startsWith('tsa_train')) paradigm = 'cp_taskswitch_asym';
+        else if (prefix && prefix.startsWith('ts_train')) paradigm = 'cp_taskswitch';
+        else if (prefix && prefix.startsWith('stroopx_train')) paradigm = 'cp_stroop_crossed';
+        else if (prefix && prefix.startsWith('stroop_train')) paradigm = 'cp_stroop';
+        if (paradigm) {
+            const rebuiltTraining = cpTrainingSessionFor(paradigm, condition);
+            const rebuiltTrainingStages = rebuiltTraining.filter(b => b.phase === 'training');
+            const testBlocksOnly = sessionArray.filter(b => b.phase !== 'training');
+            baseSession = [...rebuiltTrainingStages, ...testBlocksOnly];
+        }
+    }
+    let testBlockIndex = 0;
+    return baseSession.map(blockDef => {
+        // Training stages are generated live and have no CSV.
         if (blockDef.phase === 'training') return blockDef;
         const blockId = blockDef.blockConfig.blockId;
         const override = CP_CSV_COHERENCE_OVERRIDES[blockId];
+        const sequenceId = sequenceIds[testBlockIndex++];
         const blockConfig = {
             ...blockDef.blockConfig,
-            sequenceSource: cpSequencePath(blockId, condition, participant),
+            sequenceSource: cpSequencePath(blockId, condition, sequenceId),
+            // Recorded on every row of this block. With no assignment table this
+            // is the only surviving record of the draw.
+            sequenceId,
             ...(override ? { coherence: override } : {}),
         };
         // PRP task order and the Stroop target task are condition-assigned
         // (A = mov, B = or), so their instructions must match the condition's CSV.
         //
-        // A blockDef with NO instructions keeps none: the second half of a split
-        // test block is preceded by the break screen, not by its own instruction
-        // screen, and overriding null here would put a full instruction screen
-        // immediately after the break.
+        // A blockDef with NO instructions keeps none: only the first test block
+        // carries a screen, and blocks 2..5 are preceded by the break screen
+        // instead. Overriding null here would put a full instruction screen
+        // immediately after every break.
         const condTask = condition === 'B' ? 'or' : 'mov';
-        const instructions = !blockDef.instructions
+        const swapped = blockId === 'cp_prp'
+            ? CP_PRP_INSTRUCTIONS(condTask)
+            : (blockId === 'cp_stroop' || blockId === 'cp_stroop_crossed')
+                ? CP_STROOP_INSTRUCTIONS(condTask)
+                : null;
+        // In a training session the first test block's copy is the preamble plus
+        // the block's own screen. Swapping the screen for the condition's version
+        // used to drop the preamble with it, so a participant on the CSV path was
+        // never told that practice was over or that feedback had stopped.
+        const keepsPreamble = typeof blockDef.instructions === 'string'
+            && blockDef.instructions.startsWith(CP_TEST_BLOCK_PREAMBLE);
+        const instructions = (!blockDef.instructions || !swapped)
             ? blockDef.instructions
-            : blockId === 'cp_prp'
-                ? CP_PRP_INSTRUCTIONS(condTask)
-                : (blockId === 'cp_stroop' || blockId === 'cp_stroop_crossed')
-                    ? CP_STROOP_INSTRUCTIONS(condTask)
-                    : blockDef.instructions;
+            : (keepsPreamble ? CP_TEST_BLOCK_PREAMBLE + swapped : swapped);
         return { ...blockDef, blockConfig, instructions };
     });
 }
@@ -379,8 +457,9 @@ const CP_STROOP_INSTRUCTIONS = (task) =>
 // ============================================================
 // Trial counts are full-length; Abridged mode (index.html) runs ~1/10 for fast testing.
 //
-// EVERY test block is split into TWO blockDefs sharing one blockConfig. Two
-// reasons, and the first is a bug fix:
+// EVERY test session is CP_TEST_BLOCKS_PER_SESSION (5) blockDefs sharing one
+// blockConfig, each of which draws its own pool CSV on the participant path.
+// Three reasons, and the first is a bug fix:
 //
 //  1. The break summary is shown by runSession only BETWEEN blocks, and it
 //     skips the break after a `phase: 'training'` block. A one-block test session
@@ -389,80 +468,63 @@ const CP_STROOP_INSTRUCTIONS = (task) =>
 //     the whole justification for `feedback: false` in CP_DEFAULTS, so with one
 //     block the participant got neither trial feedback nor a block summary: no
 //     speed-accuracy signal anywhere in the session.
-//  2. The session design calls for breaks after ~100 trials, over 2-3 test
-//     blocks. 96-144 unbroken trials failed that outright.
+//  2. The session design calls for breaks after ~100 trials (Sebastian, 07-31).
+//     Five blocks of ~96 gives four breaks at exactly that spacing.
+//  3. Each block is one pool CSV, so the block boundary is also the sequence
+//     boundary — nothing has to slice a counterbalanced file into parts.
 //
-// SPLIT SIZES ARE NOT FREE. These blocks are `sequenceType: 'Factorial'`, and
+// BLOCK SIZES ARE NOT FREE. These blocks are `sequenceType: 'Factorial'`, and
 // generateFactorialSequence fills any shortfall below a whole number of
-// repetitions with RANDOMLY SAMPLED cells (engine.js ~line 163) — so a sub-block
+// repetitions with RANDOMLY SAMPLED cells (engine.js ~line 163) — so a block
 // whose length is not a multiple of the crossing size silently unbalances the
 // design, exactly the way the factorial-ITI test bug did. Verified empirically
 // (200 replications per paradigm, observed cell counts, plus a negative control
 // at a deliberately bad length):
 //
-//     paradigm             crossing                                cells  half
-//     cp_prp               soa(3) x congruency(2)                    6     60
-//     cp_taskswitch        transition(2) x congruency(2) x level(2)  8     64
-//     cp_taskswitch_asym   transition(2) x congruency(2)             4     64
-//     cp_stroop            congruency(2)                             2     48
-//     cp_stroop_crossed    congruency(2) x target(3) x distractor(3) 18     72
+//     paradigm             crossing                                cells  block
+//     cp_prp               soa(3) x congruency(2)                    6      96
+//     cp_taskswitch        transition(2) x congruency(2) x level(2)  8      96
+//     cp_taskswitch_asym   transition(2) x congruency(2)             4      96
+//     cp_stroop            congruency(2)                             2      96
+//     cp_stroop_crossed    congruency(2) x target(3) x distractor(3) 18     108
 //
-// Every half is a whole multiple of its crossing. IF YOU CHANGE A TRIAL COUNT,
-// recheck it against this table — the totals are unchanged from the pre-split
-// values precisely so that this stays true.
+// These are the JS generator's crossings. SweetPea's are finer (it also crosses
+// target_dir: 12/16/8/4/36 — designs.CROSSING_SIZE), and the same block sizes are
+// whole multiples of those too, which is what makes one pool CSV one balanced
+// block. IF YOU CHANGE A TRIAL COUNT, recheck it against BOTH tables, and change
+// sweetpea/generate.py's DEFAULT_TRIALS with it — on the participant path the
+// CSV's row count wins and `numTrials` is ignored entirely.
 //
-// `sequenceSlice` covers the CSV path: cpApplySweetPea derives the CSV path from
-// blockId, and both halves share a blockId, so without it both would load the
-// whole file and replay the same rows. preloadSequences enforces this — see
-// assertSequenceSourcesAreDistinct.
-//
-// Only the FIRST half carries instructions. The second is preceded by the break
-// screen, which already says what it needs to; a second instruction screen there
-// would just be one more thing to dismiss.
+// Only the FIRST block carries instructions. Blocks 2..5 are preceded by the
+// break screen, which already says what it needs to; a second instruction screen
+// there would just be one more thing to dismiss.
 
-const CP_PRP_SESSION = [
-    // Default instructions assume condition A (movement first). The no-param
-    // path (no ?participant=) is demo-only — cpApplySweetPea never runs, so the
-    // JS-generator fallback's trial sequence does not necessarily match these
-    // instructions. With ?participant=&condition=, cpApplySweetPea overrides
-    // them per condition.
-    { blockConfig: cpPRP, numTrials: 60, instructions: CP_PRP_INSTRUCTIONS('mov'),
-      sequenceSlice: { index: 0, of: 2 } },
-    { blockConfig: cpPRP, numTrials: 60, instructions: null,
-      sequenceSlice: { index: 1, of: 2 } },
-];
+/** Five blockDefs on one blockConfig: the first with a screen, the rest without. */
+function cpTestBlocks(blockConfig, numTrials, instructions) {
+    return Array.from({ length: CP_TEST_BLOCKS_PER_SESSION }, (_, i) => ({
+        blockConfig,
+        numTrials,
+        instructions: i === 0 ? instructions : null,
+    }));
+}
 
-const CP_TASKSWITCH_SESSION = [
-    { blockConfig: cpTaskSwitch, numTrials: 64, instructions: CP_TASKSWITCH_INSTRUCTIONS,
-      sequenceSlice: { index: 0, of: 2 } },
-    { blockConfig: cpTaskSwitch, numTrials: 64, instructions: null,
-      sequenceSlice: { index: 1, of: 2 } },
-];
+// Default instructions assume condition A (movement first). The no-param path is
+// demo-only — cpApplySweetPea never runs, so the JS-generator fallback's trial
+// sequence does not necessarily match these instructions. With
+// ?paradigm=&condition=, cpApplySweetPea overrides them per condition.
+const CP_PRP_SESSION = cpTestBlocks(cpPRP, 96, CP_PRP_INSTRUCTIONS('mov'));
 
-const CP_TASKSWITCH_ASYM_SESSION = [
-    // Same screen as cp_taskswitch, verbatim — see the note by
-    // CP_TASKSWITCH_INSTRUCTIONS on why the "one task is harder" line was dropped.
-    { blockConfig: cpTaskSwitchAsym, numTrials: 64,
-      instructions: CP_TASKSWITCH_INSTRUCTIONS,
-      sequenceSlice: { index: 0, of: 2 } },
-    { blockConfig: cpTaskSwitchAsym, numTrials: 64, instructions: null,
-      sequenceSlice: { index: 1, of: 2 } },
-];
+const CP_TASKSWITCH_SESSION = cpTestBlocks(cpTaskSwitch, 96, CP_TASKSWITCH_INSTRUCTIONS);
 
-const CP_STROOP_SESSION = [
-    { blockConfig: cpStroop, numTrials: 48, instructions: CP_STROOP_INSTRUCTIONS(CP_TARGET_TASK),
-      sequenceSlice: { index: 0, of: 2 } },
-    { blockConfig: cpStroop, numTrials: 48, instructions: null,
-      sequenceSlice: { index: 1, of: 2 } },
-];
+// Same screen as cp_taskswitch, verbatim — see the note by
+// CP_TASKSWITCH_INSTRUCTIONS on why the "one task is harder" line was dropped.
+const CP_TASKSWITCH_ASYM_SESSION = cpTestBlocks(cpTaskSwitchAsym, 96, CP_TASKSWITCH_INSTRUCTIONS);
 
-const CP_STROOP_CROSSED_SESSION = [
-    { blockConfig: cpStroopCrossed, numTrials: 72,
-      instructions: CP_STROOP_INSTRUCTIONS(CP_TARGET_TASK),
-      sequenceSlice: { index: 0, of: 2 } },
-    { blockConfig: cpStroopCrossed, numTrials: 72, instructions: null,
-      sequenceSlice: { index: 1, of: 2 } },
-];
+const CP_STROOP_SESSION = cpTestBlocks(cpStroop, 96, CP_STROOP_INSTRUCTIONS(CP_TARGET_TASK));
+
+// 108, not 96: the crossed design's 36-cell crossing does not divide 96.
+const CP_STROOP_CROSSED_SESSION = cpTestBlocks(cpStroopCrossed, 108,
+    CP_STROOP_INSTRUCTIONS(CP_TARGET_TASK));
 
 // ============================================================
 // Training / shaping sessions
@@ -756,117 +818,151 @@ function cpBuildTrainingSession(spec) {
     return [...shared, s8, ...testBlocks];
 }
 
-const CP_PRP_TRAINING_SESSION = cpBuildTrainingSession({
-    blockIdPrefix: 'prp_train',
-    keyMaps: CP_DISJOINT_KEY_MAPS,
-    rso: 'disjoint',
-    rampTarget: { mov: CP_EASY, or: CP_EASY },
-    // Bivalent stimuli in training even though cp_prp's test block is univalent
-    // (its `coherence.distractor` is 0). Deliberately NOT passing
-    // testCoherence, which would make S5/S6 univalent and skip bivalence
-    // entirely.
-    trainingDistractor: CP_DISTRACTOR,
-    testSession: CP_PRP_SESSION,
-    finalStage: {
-        kind: 'prp',
-        csi: cpPRP.csi,                  // 0 — S8 matches the test block exactly
-        coherence: cpPRP.coherence,
-        // cpPRP.task1 is condition A's first task; cpApplySweetPea swaps it (and
-        // the copy) for condition B.
-        t1Task: cpPRP.task1,
-        // PLACEHOLDER: CP_PRP_SOA_LEVELS is Tim's stand-in
-        // until Sebastian hears back from Ahmed (07-31 l.61). Passed in rather
-        // than read inside the builder so the placeholder has exactly one home.
-        soaLevels: CP_PRP_SOA_LEVELS,
-    },
-});
+function cpBuildPrpTrainingSession(condition = 'A') {
+    const t1Task = condition === 'B' ? 'or' : 'mov';
+    return cpBuildTrainingSession({
+        blockIdPrefix: 'prp_train',
+        keyMaps: CP_DISJOINT_KEY_MAPS,
+        rso: 'disjoint',
+        rampTarget: { mov: CP_EASY, or: CP_EASY },
+        // Bivalent stimuli in training even though cp_prp's test block is univalent
+        // (its `coherence.distractor` is 0). Deliberately NOT passing
+        // testCoherence, which would make S5/S6 univalent and skip bivalence
+        // entirely.
+        trainingDistractor: CP_DISTRACTOR,
+        testSession: CP_PRP_SESSION,
+        finalStage: {
+            kind: 'prp',
+            csi: cpPRP.csi,                  // 0 — S8 matches the test block exactly
+            coherence: cpPRP.coherence,
+            t1Task,
+            // PLACEHOLDER: CP_PRP_SOA_LEVELS is Tim's stand-in
+            // until Sebastian hears back from Ahmed (07-31 l.61). Passed in rather
+            // than read inside the builder so the placeholder has exactly one home.
+            soaLevels: CP_PRP_SOA_LEVELS,
+        },
+    });
+}
 
-const CP_TASKSWITCH_TRAINING_SESSION = cpBuildTrainingSession({
-    blockIdPrefix: 'ts_train',
-    keyMaps: CP_DISJOINT_KEY_MAPS,
-    rso: 'disjoint',
-    // Each task carries both levels here, so the ramp bottoms at the easy one —
-    // see the JUDGMENT CALL note above.
-    rampTarget: { mov: CP_EASY, or: CP_EASY },
-    trainingDistractor: CP_DISTRACTOR,
-    testCoherence: cpTaskSwitch.coherence,
-    levelFactors: cpTaskSwitch.levelFactors,
-    testSession: CP_TASKSWITCH_SESSION,
-    finalStage: {
-        kind: 'switching',
-        csi: cpTaskSwitch.csi,
-        coherence: cpTaskSwitch.coherence,
+function cpBuildTaskSwitchTrainingSession(condition = 'A') {
+    return cpBuildTrainingSession({
+        blockIdPrefix: 'ts_train',
+        keyMaps: CP_DISJOINT_KEY_MAPS,
+        rso: 'disjoint',
+        // Each task carries both levels here, so the ramp bottoms at the easy one —
+        // see the JUDGMENT CALL note above.
+        rampTarget: { mov: CP_EASY, or: CP_EASY },
+        trainingDistractor: CP_DISTRACTOR,
+        testCoherence: cpTaskSwitch.coherence,
         levelFactors: cpTaskSwitch.levelFactors,
-        switchRate: cpTaskSwitch.switchRate,
-    },
-});
+        testSession: CP_TASKSWITCH_SESSION,
+        finalStage: {
+            kind: 'switching',
+            csi: cpTaskSwitch.csi,
+            coherence: cpTaskSwitch.coherence,
+            levelFactors: cpTaskSwitch.levelFactors,
+            switchRate: cpTaskSwitch.switchRate,
+        },
+    });
+}
 
-const CP_TASKSWITCH_ASYM_TRAINING_SESSION = cpBuildTrainingSession({
-    blockIdPrefix: 'tsa_train',
-    keyMaps: CP_DISJOINT_KEY_MAPS,
-    rso: 'disjoint',
-    // One fixed level per task here, so there is no choice to make: the ramp
-    // bottoms at each task's own test coherence, hard task included.
-    rampTarget: {
-        mov: cpTaskSwitchAsym.coherence.target.mov,
-        or: cpTaskSwitchAsym.coherence.target.or,
-    },
-    trainingDistractor: CP_DISTRACTOR,
-    testCoherence: cpTaskSwitchAsym.coherence,
-    testSession: CP_TASKSWITCH_ASYM_SESSION,
-    finalStage: {
-        kind: 'switching',
-        csi: cpTaskSwitchAsym.csi,
-        coherence: cpTaskSwitchAsym.coherence,
-        switchRate: cpTaskSwitchAsym.switchRate,
-    },
-});
+function cpBuildTaskSwitchAsymTrainingSession(condition = 'A') {
+    const easyTask = condition === 'B' ? 'or' : 'mov';
+    const targetCoherence = {
+        mov: easyTask === 'mov' ? CP_EASY : CP_HARD,
+        or:  easyTask === 'or'  ? CP_EASY : CP_HARD,
+    };
+    const coherence = condition === 'A'
+        ? cpTaskSwitchAsym.coherence
+        : {
+            target: targetCoherence,
+            distractor: CP_DISTRACTOR,
+        };
+    return cpBuildTrainingSession({
+        blockIdPrefix: 'tsa_train',
+        keyMaps: CP_DISJOINT_KEY_MAPS,
+        rso: 'disjoint',
+        rampTarget: targetCoherence,
+        trainingDistractor: CP_DISTRACTOR,
+        testCoherence: coherence,
+        testSession: CP_TASKSWITCH_ASYM_SESSION,
+        finalStage: {
+            kind: 'switching',
+            csi: cpTaskSwitchAsym.csi,
+            coherence,
+            switchRate: cpTaskSwitchAsym.switchRate,
+        },
+    });
+}
 
-const CP_STROOP_TRAINING_SESSION = cpBuildTrainingSession({
-    blockIdPrefix: 'stroop_train',
-    keyMaps: CP_IDENTICAL_KEY_MAPS,
-    rso: 'identical',
-    // The non-target dimension is never a target in the Stroop test block, so
-    // S3's ramp bottoms at the strength it actually appears with — CP_DISTRACTOR.
-    // S3 is required even for Stroop, because a distractor with no trained
-    // response pathway produces no response-level conflict.
-    rampTarget: {
-        mov: CP_TARGET_TASK === 'mov' ? CP_EASY : CP_DISTRACTOR,
-        or: CP_TARGET_TASK === 'or' ? CP_EASY : CP_DISTRACTOR,
-    },
-    trainingDistractor: CP_DISTRACTOR,
-    testCoherence: cpStroop.coherence,
-    testSession: CP_STROOP_SESSION,
-    finalStage: {
-        kind: 'rehearsal',
-        csi: cpStroop.csi,
-        coherence: cpStroop.coherence,
-        task: CP_TARGET_TASK,
-        // PLACEHOLDER: the rehearsal runs PARADIGM_FINAL_STAGE_DEFAULTS'
-        // rehearsalTrials (16 trials, no new content). Whether 16 is the right
-        // length is still an open parameter question, so no numTrials override
-        // is invented here.
-    },
-});
+function cpBuildStroopTrainingSession(condition = 'A') {
+    const targetTask = condition === 'B' ? 'or' : 'mov';
+    return cpBuildTrainingSession({
+        blockIdPrefix: 'stroop_train',
+        keyMaps: CP_IDENTICAL_KEY_MAPS,
+        rso: 'identical',
+        // The non-target dimension is never a target in the Stroop test block, so
+        // S3's ramp bottoms at the strength it actually appears with — CP_DISTRACTOR.
+        // S3 is required even for Stroop, because a distractor with no trained
+        // response pathway produces no response-level conflict.
+        rampTarget: {
+            mov: targetTask === 'mov' ? CP_EASY : CP_DISTRACTOR,
+            or:  targetTask === 'or'  ? CP_EASY : CP_DISTRACTOR,
+        },
+        trainingDistractor: CP_DISTRACTOR,
+        testCoherence: cpStroop.coherence,
+        testSession: CP_STROOP_SESSION,
+        finalStage: {
+            kind: 'rehearsal',
+            csi: cpStroop.csi,
+            coherence: cpStroop.coherence,
+            task: targetTask,
+            // PLACEHOLDER: the rehearsal runs PARADIGM_FINAL_STAGE_DEFAULTS'
+            // rehearsalTrials (16 trials, no new content). Whether 16 is the right
+            // length is still an open parameter question, so no numTrials override
+            // is invented here.
+        },
+    });
+}
 
-const CP_STROOP_CROSSED_TRAINING_SESSION = cpBuildTrainingSession({
-    blockIdPrefix: 'stroopx_train',
-    keyMaps: CP_IDENTICAL_KEY_MAPS,
-    rso: 'identical',
-    // Easiest of the three crossed levels, per the JUDGMENT CALL note above.
-    rampTarget: { mov: CP_STROOP_LEVELS.high, or: CP_STROOP_LEVELS.high },
-    // S5 needs ONE distractor strength; the middle level is the least
-    // committal choice, and S6 then spans all three via levelFactors.
-    trainingDistractor: CP_STROOP_LEVELS.mid,
-    testCoherence: cpStroopCrossed.coherence,
-    levelFactors: cpStroopCrossed.levelFactors,
-    testSession: CP_STROOP_CROSSED_SESSION,
-    finalStage: {
-        kind: 'rehearsal',
-        csi: cpStroopCrossed.csi,
-        coherence: cpStroopCrossed.coherence,
+function cpBuildStroopCrossedTrainingSession(condition = 'A') {
+    const targetTask = condition === 'B' ? 'or' : 'mov';
+    return cpBuildTrainingSession({
+        blockIdPrefix: 'stroopx_train',
+        keyMaps: CP_IDENTICAL_KEY_MAPS,
+        rso: 'identical',
+        // Easiest of the three crossed levels, per the JUDGMENT CALL note above.
+        rampTarget: { mov: CP_STROOP_LEVELS.high, or: CP_STROOP_LEVELS.high },
+        // S5 needs ONE distractor strength; the middle level is the least
+        // committal choice, and S6 then spans all three via levelFactors.
+        trainingDistractor: CP_STROOP_LEVELS.mid,
+        testCoherence: cpStroopCrossed.coherence,
         levelFactors: cpStroopCrossed.levelFactors,
-        task: CP_TARGET_TASK,
-        // PLACEHOLDER: same 16-trial default as cp_stroop above.
-    },
-});
+        testSession: CP_STROOP_CROSSED_SESSION,
+        finalStage: {
+            kind: 'rehearsal',
+            csi: cpStroopCrossed.csi,
+            coherence: cpStroopCrossed.coherence,
+            levelFactors: cpStroopCrossed.levelFactors,
+            task: targetTask,
+            // PLACEHOLDER: same 16-trial default as cp_stroop above.
+        },
+    });
+}
+
+function cpTrainingSessionFor(paradigm, condition = 'A') {
+    switch (paradigm) {
+        case 'cp_prp': return cpBuildPrpTrainingSession(condition);
+        case 'cp_taskswitch': return cpBuildTaskSwitchTrainingSession(condition);
+        case 'cp_taskswitch_asym': return cpBuildTaskSwitchAsymTrainingSession(condition);
+        case 'cp_stroop': return cpBuildStroopTrainingSession(condition);
+        case 'cp_stroop_crossed': return cpBuildStroopCrossedTrainingSession(condition);
+        default: throw new Error(`cpTrainingSessionFor: unknown paradigm '${paradigm}'`);
+    }
+}
+
+const CP_PRP_TRAINING_SESSION = cpBuildPrpTrainingSession('A');
+const CP_TASKSWITCH_TRAINING_SESSION = cpBuildTaskSwitchTrainingSession('A');
+const CP_TASKSWITCH_ASYM_TRAINING_SESSION = cpBuildTaskSwitchAsymTrainingSession('A');
+const CP_STROOP_TRAINING_SESSION = cpBuildStroopTrainingSession('A');
+const CP_STROOP_CROSSED_TRAINING_SESSION = cpBuildStroopCrossedTrainingSession('A');

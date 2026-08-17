@@ -149,6 +149,8 @@ eval(sources + `
     CP_DISJOINT_KEY_MAPS,
     CP_IDENTICAL_KEY_MAPS,
     CP_PRP_SOA_LEVELS,
+    CP_SEQUENCE_POOL_SIZE,
+    CP_TEST_BLOCKS_PER_SESSION,
 };
 `);
 
@@ -158,7 +160,7 @@ eval(sources + `
 const {
     Session, TRAINING_CAP, TRAINING_RAMP_LENGTH, TRAINING_SOA_SCHEDULE_LENGTH,
     CP_SESSIONS, CP_TEST_SESSIONS, CP_DISJOINT_KEY_MAPS, CP_IDENTICAL_KEY_MAPS,
-    CP_PRP_SOA_LEVELS,
+    CP_PRP_SOA_LEVELS, CP_SEQUENCE_POOL_SIZE, CP_TEST_BLOCKS_PER_SESSION,
 } = globalThis.__T;
 
 // ============================================================
@@ -690,7 +692,8 @@ for (const [id, expected] of Object.entries(CP_EXPECTED)) {
 
     // Nothing may reach runBlock that its guards would reject, and engine.js has
     // to be able to generate trials from every config in the session.
-    for (const blockDef of session) {
+    for (let i = 0; i < session.length; i++) {
+        const blockDef = session[i];
         assertDoesNotThrow(() => assertValidBlockConfig(blockDef.blockConfig),
             `${id}/${blockDef.blockConfig.blockId}: passes the runBlock guards`);
         let trials = null;
@@ -699,13 +702,13 @@ for (const [id, expected] of Object.entries(CP_EXPECTED)) {
         }
         assert(trials && trials.length === 20,
             `${id}/${blockDef.blockConfig.blockId}: engine generates trials`);
-        // Every screen-bearing block has copy. The exception is a continuation
-        // slice of a split test block: it is preceded by the break screen, and a
-        // second full instruction screen right after the break would be noise.
-        const isContinuation = blockDef.sequenceSlice && blockDef.sequenceSlice.index > 0;
+        // Every screen-bearing block has copy. The exception is a test block
+        // after the first: it is preceded by the break screen, and a second full
+        // instruction screen right after the break would be noise.
+        const isContinuation = i > session.length - testSession.length;
         if (isContinuation) {
             assert(blockDef.instructions == null,
-                `${id}/${blockDef.blockConfig.blockId}: a continuation slice shows no screen of its own`);
+                `${id}/${blockDef.blockConfig.blockId}: test block ${i - (session.length - testSession.length) + 1} shows no screen of its own`);
         } else {
             assert(typeof blockDef.instructions === 'string' && blockDef.instructions.length > 0,
                 `${id}/${blockDef.blockConfig.blockId}: has instruction copy`);
@@ -763,7 +766,7 @@ for (const id of Object.keys(CP_EXPECTED)) {
         `${id}: and at least one of them is not the last block of the session`);
 }
 
-section('canonical sessions — every split divides the factorial crossing evenly');
+section('canonical sessions — every block divides the factorial crossing evenly');
 
 // generateFactorialSequence fills any shortfall below a whole number of
 // repetitions with RANDOMLY SAMPLED cells, so a sub-block whose length is not a
@@ -813,31 +816,192 @@ for (const [id, keys] of Object.entries(CP_CROSSINGS)) {
     assert(cells === CP_EXPECTED_CELLS[id],
         `${id}: crossing is ${CP_EXPECTED_CELLS[id]} cells (measured ${cells})`);
     assert(n % cells === 0,
-        `${id}: ${n} trials per half is a whole multiple of the ${cells}-cell crossing ` +
+        `${id}: ${n} trials per block is a whole multiple of the ${cells}-cell crossing ` +
         `(${n % cells} left over would be randomly sampled)`);
     assert(CP_TEST_SESSIONS[id].every(b => b.numTrials === n),
-        `${id}: both halves are the same length, so both are balanced`);
+        `${id}: every block is the same length, so every block is balanced`);
 }
 
 // Negative control: the divisibility check must be capable of failing.
 assert(70 % CP_EXPECTED_CELLS.cp_stroop_crossed !== 0,
-    'the check would reject a bad split (70 is not a multiple of 18)');
+    'the check would reject a bad block length (70 is not a multiple of 18)');
 
-section('canonical sessions — split halves claim distinct slices of their CSV');
+section('canonical sessions — five test blocks, one instruction screen');
 
-// cpApplySweetPea derives the CSV path from blockId, and both halves share one.
-// Without a sequenceSlice they would each load the whole file and replay the
-// SAME trials — which runs to completion and exports a full CSV, so nothing
-// downstream would notice.
 for (const id of Object.keys(CP_EXPECTED)) {
     const testSession = CP_TEST_SESSIONS[id];
-    const slices = testSession.map(b => b.sequenceSlice);
-    assert(slices.every(s => s && typeof s.index === 'number' && typeof s.of === 'number'),
-        `${id}: every half declares a sequenceSlice`);
-    assert(slices.every(s => s.of === testSession.length),
-        `${id}: each slice knows how many parts there are`);
-    assert(slices.map(s => s.index).sort().join() === testSession.map((_, i) => i).join(),
-        `${id}: the halves cover each slice index exactly once`);
+    assert(testSession.length === CP_TEST_BLOCKS_PER_SESSION,
+        `${id}: ${CP_TEST_BLOCKS_PER_SESSION} test blocks (found ${testSession.length})`);
+    assert(typeof testSession[0].instructions === 'string' && testSession[0].instructions.length > 0,
+        `${id}: the first block carries the instruction screen`);
+    assert(testSession.slice(1).every(b => b.instructions === null),
+        `${id}: blocks 2..${CP_TEST_BLOCKS_PER_SESSION} show no screen — they follow the break screen`);
+    assert(testSession.every(b => b.blockConfig === testSession[0].blockConfig),
+        `${id}: every block shares one blockConfig — they differ only in their drawn CSV`);
+    assert(testSession.every(b => b.sequenceSlice === undefined),
+        `${id}: no block claims a slice — one pool CSV is one whole block now`);
+}
+
+section('cpApplySweetPea — one drawn pool CSV per test block');
+
+// With no assignment table, the draw exists only in the output CSV, and two
+// blocks landing on one file would replay a participant's trials while exporting
+// perfectly normal-looking rows.
+for (const id of Object.keys(CP_EXPECTED)) {
+    for (const condition of ['A', 'B']) {
+        const ids = drawSequenceIds(`test-pid|${id}|${condition}`, CP_SEQUENCE_POOL_SIZE,
+            CP_TEST_BLOCKS_PER_SESSION);
+        const applied = cpApplySweetPea(CP_SESSIONS[id], condition, ids);
+        const testBlocks = applied.filter(b => b.phase !== 'training');
+        const sources = testBlocks.map(b => b.blockConfig.sequenceSource);
+        assert(new Set(sources).size === CP_TEST_BLOCKS_PER_SESSION,
+            `${id}/${condition}: resolves to ${CP_TEST_BLOCKS_PER_SESSION} DISTINCT sequence files`);
+        assert(sources.every(src => fs.existsSync(src)),
+            `${id}/${condition}: every drawn file exists on disk (${sources.filter(s => !fs.existsSync(s)).join(', ') || 'all present'})`);
+        assert(sources.every(src => src.includes(`${id}_${condition}_s`)),
+            `${id}/${condition}: every file is this paradigm's and this condition's`);
+        assert(testBlocks.every((b, i) => b.blockConfig.sequenceId === ids[i]),
+            `${id}/${condition}: each block records the sequence id it was given`);
+        assert(applied.filter(b => b.phase === 'training')
+            .every(b => b.blockConfig.sequenceSource === undefined),
+            `${id}/${condition}: training stages keep no sequenceSource — they have no CSV`);
+    }
+}
+
+// The whole pool must be reachable: the draw picks ids in [1, CP_SEQUENCE_POOL_SIZE]
+// and a drawn id with no file 404s and aborts the session mid-participant.
+for (const id of Object.keys(CP_EXPECTED)) {
+    for (const condition of ['A', 'B']) {
+        const missing = [];
+        for (let s = 1; s <= CP_SEQUENCE_POOL_SIZE; s++) {
+            const path = cpSequencePath(id, condition, s);
+            if (!fs.existsSync(path)) missing.push(path);
+        }
+        assert(missing.length === 0,
+            `${id}/${condition}: all ${CP_SEQUENCE_POOL_SIZE} pool files exist ` +
+            `(missing ${missing.length}: ${missing.slice(0, 3).join(', ')})`);
+    }
+}
+
+section('canonical sessions — condition B training content');
+
+// PRP: under condition B, S8 T1 task must be 'or' (facing) and S8 instructions say FACING first.
+const prpB = cpBuildPrpTrainingSession('B');
+const prpBS8 = prpB.find(b => b.stage === 'S8');
+assert(prpBS8.blockConfig.task1 === 'or' || prpBS8.blockConfig.t1Task === 'or',
+    'PRP condition B S8: T1 task is orientation');
+assert(prpBS8.instructions.includes('FACING comes FIRST'),
+    'PRP condition B S8 copy: says FACING comes FIRST');
+
+// Stroop: under condition B, S2 ramps mov to distractor level (0.5), S3 ramps or to easy level (0.8),
+// S8 rehearsal task is 'or' (facing) and S8 instructions say FACING.
+const stroopB = cpBuildStroopTrainingSession('B');
+const stroopBS2 = stroopB.find(b => b.stage === 'S2');
+const stroopBS3 = stroopB.find(b => b.stage === 'S3');
+const stroopBS8 = stroopB.find(b => b.stage === 'S8');
+assert(stroopBS2.blockConfig.coherence.target === 0.5, 'Stroop condition B S2: mov ramps to distractor level (0.5)');
+assert(stroopBS3.blockConfig.coherence.target === 0.8, 'Stroop condition B S3: or ramps to target level (0.8)');
+assert(stroopBS8.blockConfig.task1 === 'or', 'Stroop condition B S8: rehearsal task is orientation');
+assert(stroopBS8.instructions.includes('which way are the fish\nFACING?'), 'Stroop condition B S8 copy: refers to FACING');
+
+// Stroop crossed: under condition B, S8 rehearsal task is 'or' (facing).
+const stroopxB = cpBuildStroopCrossedTrainingSession('B');
+const stroopxBS8 = stroopxB.find(b => b.stage === 'S8');
+assert(stroopxBS8.blockConfig.task1 === 'or', 'Stroop crossed condition B S8: rehearsal task is orientation');
+assert(stroopxBS8.instructions.includes('which way are the fish\nFACING?'), 'Stroop crossed condition B S8 copy: refers to FACING');
+
+// Asym task switching: under condition B, or is easy (0.8) and mov is hard (0.3).
+const tsaB = cpBuildTaskSwitchAsymTrainingSession('B');
+const tsaBS2 = tsaB.find(b => b.stage === 'S2');
+const tsaBS3 = tsaB.find(b => b.stage === 'S3');
+const tsaBS8 = tsaB.find(b => b.stage === 'S8');
+assert(tsaBS2.blockConfig.coherence.target === 0.3, 'Asym switching condition B S2: mov ramps to hard level (0.3)');
+assert(tsaBS3.blockConfig.coherence.target === 0.8, 'Asym switching condition B S3: or ramps to easy level (0.8)');
+assert(tsaBS8.blockConfig.coherence.target.mov === 0.3 && tsaBS8.blockConfig.coherence.target.or === 0.8,
+    'Asym switching condition B S8: coherence has mov hard and or easy');
+
+// cpApplySweetPea: when passed a training session with condition 'B', rebuilds the training stages for condition B.
+const appliedPrpB = cpApplySweetPea(CP_SESSIONS.cp_prp, 'B', [1, 2, 3, 4, 5]);
+const appliedPrpBS8 = appliedPrpB.find(b => b.stage === 'S8');
+assert(appliedPrpBS8.blockConfig.task1 === 'or' || appliedPrpBS8.blockConfig.t1Task === 'or',
+    'cpApplySweetPea swaps PRP S8 to condition B');
+assert(appliedPrpBS8.instructions.includes('FACING comes FIRST'),
+    'cpApplySweetPea swaps PRP S8 copy to condition B');
+
+section('cpApplySweetPea — refusals');
+
+assertThrows(() => cpApplySweetPea(CP_TEST_SESSIONS.cp_stroop, 'A', [1, 2, 3, 4]),
+    'fewer ids than test blocks is refused — a block would fall back to the JS generator');
+assertThrows(() => cpApplySweetPea(CP_TEST_SESSIONS.cp_stroop, 'A', [1, 2, 3, 4, 5, 6]),
+    'more ids than test blocks is refused');
+assertThrows(() => cpApplySweetPea(CP_TEST_SESSIONS.cp_stroop, 'A', [1, 2, 3, 4, 4]),
+    'a duplicate id is refused — that block would be run twice');
+assertThrows(() => cpSequencePath('cp_stroop', 'A', 0), 'sequence ids are 1-based');
+
+section('pool CSVs — one complete, balanced block each');
+
+// Each file must be a whole multiple of the paradigm's crossing, measured from
+// generateSequenceVectors rather than hardcoded, so a future crossing change
+// (n-1 congruency, say) fails here instead of corrupting a block.
+const POOL_ROW_COUNTS = {};
+for (const [id, keys] of Object.entries(CP_CROSSINGS)) {
+    const cells = measureCellCount(CP_TEST_SESSIONS[id][0].blockConfig, keys);
+    const path = cpSequencePath(id, 'A', 1);
+    if (!fs.existsSync(path)) {
+        assert(false, `${id}: pool file ${path} exists (cannot check its balance without it)`);
+        continue;
+    }
+    const rows = fs.readFileSync(path, 'utf8').trim().split('\n').slice(1);
+    POOL_ROW_COUNTS[id] = rows.length;
+    assert(rows.length % cells === 0,
+        `${id}: pool CSV has ${rows.length} rows, a whole multiple of the ${cells}-cell crossing`);
+    assert(rows.length === CP_TEST_SESSIONS[id][0].numTrials,
+        `${id}: the pool CSV's row count (${rows.length}) matches the blockDef's numTrials ` +
+        `(${CP_TEST_SESSIONS[id][0].numTrials}) — the CSV wins on the participant path, so a ` +
+        'mismatch means the declared session length is fiction');
+}
+
+section('pool CSVs — A and B differ only in their labels');
+
+// The pool samples each sequence ONCE and writes it out under both condition
+// labels, which is what makes condition and trial sequence exactly orthogonal:
+// an A/B difference can never be a sequence difference. If generation ever
+// reverts to sampling per condition, this fails.
+const CONDITION_LABEL_COLUMNS = new Set(['condition', 'task', 'target_coh_level']);
+for (const id of Object.keys(CP_EXPECTED)) {
+    if (!fs.existsSync(cpSequencePath(id, 'A', 1)) || !fs.existsSync(cpSequencePath(id, 'B', 1))) {
+        // Reported by the pool-completeness check above; don't crash the suite.
+        assert(false, `${id}: both condition files of sequence 001 exist`);
+        continue;
+    }
+    const readRows = (condition) => {
+        const lines = fs.readFileSync(cpSequencePath(id, condition, 1), 'utf8').trim().split('\n');
+        const header = lines[0].split(',');
+        return lines.slice(1).map(line => {
+            const cells = line.split(',');
+            return Object.fromEntries(header.map((h, i) => [h, cells[i]]));
+        });
+    };
+    const a = readRows('A');
+    const b = readRows('B');
+    assert(a.length === b.length, `${id}: the A and B files are the same length`);
+    const differing = new Set();
+    for (let i = 0; i < a.length; i++) {
+        for (const col of Object.keys(a[i])) {
+            if (a[i][col] !== b[i][col]) differing.add(col);
+        }
+    }
+    assert([...differing].every(col => CONDITION_LABEL_COLUMNS.has(col)),
+        `${id}: A and B differ only in label columns (differing: ${[...differing].join(', ') || 'none'})`);
+    // cp_taskswitch has no between-subjects task assignment, so only the
+    // condition column itself may differ there.
+    if (id === 'cp_taskswitch') {
+        assert(!differing.has('task'),
+            'cp_taskswitch: task identity is not condition-assigned, so it must not differ');
+    } else {
+        assert(differing.has('task') || differing.has('target_coh_level'),
+            `${id}: the between-subjects assignment actually differs between A and B`);
+    }
 }
 
 section('canonical sessions — coherence follows each paradigm');
@@ -1541,22 +1705,25 @@ screens = screensOf(screenContainer);
 breakScreens = screens.filter(text => text.includes('Since the last break'));
 data = Session.getData();
 
-assert(breakScreens.length === 1,
-    'the real Stroop session shows exactly one break summary (it used to show none)');
+const expectedBreaks = CP_TEST_BLOCKS_PER_SESSION - 1;
+assert(breakScreens.length === expectedBreaks,
+    `the real Stroop session shows ${expectedBreaks} break summaries, one between each pair of ` +
+    `test blocks (it used to show none)`);
 assert(/100% correct/.test(breakScreens[0]),
     'and it reports only test performance — every training trial was wrong');
 assert(/ms per answer/.test(breakScreens[0]), 'with a mean RT');
 
-// The break has to land BETWEEN the two halves of the test block, not anywhere
-// near a trial: the summary's safety argument is entirely about where it is.
+// The breaks have to land BETWEEN test blocks, not anywhere near a trial: the
+// summary's safety argument is entirely about where it is.
 const cpTestRows = data.filter(r => r.phase === 'test');
-const firstHalf = cpTestRows.filter(r => r.blockOrder === 8);
-const secondHalf = cpTestRows.filter(r => r.blockOrder === 9);
-assert(firstHalf.length === 48 && secondHalf.length === 48,
-    'the test block ran as two 48-trial halves');
+const testBlockOrders = [...new Set(cpTestRows.map(r => r.blockOrder))];
+assert(testBlockOrders.length === CP_TEST_BLOCKS_PER_SESSION,
+    `the test phase ran as ${CP_TEST_BLOCKS_PER_SESSION} separate blocks`);
+assert(testBlockOrders.every(o => cpTestRows.filter(r => r.blockOrder === o).length === 96),
+    'each test block ran its full 96 trials');
 assert(data.filter(r => r.phase === 'training').length > 0, 'training really ran too');
-assert(screens.filter(t => /Block \d+ of \d+ complete/.test(t)).length === 1,
-    'exactly one block-complete screen — none of the training stages produced one');
+assert(screens.filter(t => /Block \d+ of \d+ complete/.test(t)).length === expectedBreaks,
+    `exactly ${expectedBreaks} block-complete screens — none of the training stages produced one`);
 assert(screens[screens.length - 1].includes('Session complete'), 'and the session ends normally');
 
 // Every paradigm, not just Stroop: the structural precondition is that at least
@@ -1571,75 +1738,61 @@ for (const [id, session] of Object.entries(CP_SESSIONS)) {
 }
 
 // ============================================================
-// Split test blocks read DIFFERENT rows of one SweetPea CSV
+// Each test block reads its OWN pool CSV, whole
 // ============================================================
 
-section('preloadSequences — sequenceSlice splits one CSV instead of replaying it');
+section('preloadSequences — one CSV per block, read whole');
 
-// cpApplySweetPea derives the CSV path from blockId, and both halves of a split
-// test block share one. The failure this rules out is silent: without a slice
-// both halves load the whole file, the participant sees every trial twice, and
-// the exported CSV looks entirely normal.
-const SPLIT_CSV = [
-    'block_id,condition,trial_index,task,congruency,target_dir,response_transition',
-    ...Array.from({ length: 8 }, (_, i) =>
-        `cp_stroop,A,${i},mov,${i % 2 ? 'incongruent' : 'congruent'},${i < 4 ? 'left' : 'right'},First`),
+const poolCsv = (dir) => [
+    'block_id,condition,sequence_id,trial_index,task,congruency,target_dir,response_transition',
+    ...Array.from({ length: 4 }, (_, i) =>
+        `cp_stroop,A,1,${i},mov,${i % 2 ? 'incongruent' : 'congruent'},${dir},First`),
 ].join('\n');
 
 const realFetch = global.fetch;
-global.fetch = async () => ({ ok: true, status: 200, text: async () => SPLIT_CSV });
+// Two different pool blocks, distinguishable by the direction they encode.
+global.fetch = async (src) => ({
+    ok: true, status: 200,
+    text: async () => poolCsv(src.includes('s001') ? 'left' : 'right'),
+});
 
-const splitConfig = { ...TRAINING_BLOCK_CONFIG, blockId: 'sliced', sequenceSource: 'seq.csv' };
+const poolConfigA = { ...TRAINING_BLOCK_CONFIG, blockId: 'pooled', sequenceSource: 'sequences/x_A_s001.csv', sequenceId: 1 };
+const poolConfigB = { ...TRAINING_BLOCK_CONFIG, blockId: 'pooled', sequenceSource: 'sequences/x_A_s002.csv', sequenceId: 2 };
 seResponder = RESPOND_CORRECT;
 await Session.runSession([
-    { blockConfig: splitConfig, instructions: 'A', sequenceSlice: { index: 0, of: 2 } },
-    { blockConfig: splitConfig, instructions: null, sequenceSlice: { index: 1, of: 2 } },
+    { blockConfig: poolConfigA, instructions: 'A' },
+    { blockConfig: poolConfigB, instructions: null },
 ], makeElement(), { stimulus: 'abstract' });
 
 data = Session.getData();
-const half1 = data.filter(r => r.blockOrder === 1);
-const half2 = data.filter(r => r.blockOrder === 2);
-assert(half1.length === 4 && half2.length === 4, 'an 8-row CSV splits into two 4-trial halves');
-assert(half1.every(r => r.t1_target_dir === 180), 'the first half reads the first four rows');
-assert(half2.every(r => r.t1_target_dir === 0), 'the second half reads the LAST four rows, not the first');
-assert(data.length === 8, 'every CSV row is used exactly once — no row is replayed or dropped');
+const block1 = data.filter(r => r.blockOrder === 1);
+const block2 = data.filter(r => r.blockOrder === 2);
+assert(block1.length === 4 && block2.length === 4,
+    'each block runs its own whole 4-row CSV — no file is split');
+assert(block1.every(r => r.t1_target_dir === 180) && block2.every(r => r.t1_target_dir === 0),
+    'each block runs the trials of the file it was given, not of the other one');
 
-// A non-initial slice starts after a break, so its first trial is relabelled
-// 'First' to match what the JS-generator path does for each sub-block.
-assert(half2[0].transitionType === 'First',
-    "the second half's first trial is marked 'First' — it follows a break");
+// With no assignment table this column is the only record of the draw.
+assert(block1.every(r => r.sequenceId === 1) && block2.every(r => r.sequenceId === 2),
+    'every row records the sequence id its block came from');
 
-section('preloadSequences — sharing a CSV without a slice is refused');
-
-await assertRejects(
-    () => Session.runSession([
-        { blockConfig: splitConfig, instructions: 'A' },
-        { blockConfig: splitConfig, instructions: null },
-    ], makeElement(), { stimulus: 'abstract' }),
-    'not all of them declare a sequenceSlice',
-    'two blocks sharing a CSV with no slices are rejected, not silently replayed');
+section('preloadSequences — two blocks on one CSV are refused');
 
 await assertRejects(
     () => Session.runSession([
-        { blockConfig: splitConfig, instructions: 'A', sequenceSlice: { index: 0, of: 2 } },
-        { blockConfig: splitConfig, instructions: null, sequenceSlice: { index: 0, of: 2 } },
+        { blockConfig: poolConfigA, instructions: 'A' },
+        { blockConfig: poolConfigA, instructions: null },
     ], makeElement(), { stimulus: 'abstract' }),
-    'exactly once each',
-    'two blocks claiming the SAME slice are rejected');
+    'read the same sequence CSV',
+    'a duplicate draw is rejected, not silently replayed');
 
-await assertRejects(
-    () => Session.runSession([
-        { blockConfig: splitConfig, instructions: 'A', sequenceSlice: { index: 0, of: 2 } },
-        { blockConfig: splitConfig, instructions: null, sequenceSlice: { index: 1, of: 3 } },
-    ], makeElement(), { stimulus: 'abstract' }),
-    'disagree about how many parts',
-    'halves that disagree about the split size are rejected');
-
-// A single block reading its own CSV is untouched by the guard.
+// The JS-generator path has no sequence to name.
 seResponder = RESPOND_CORRECT;
 await Session.runSession(
-    [{ blockConfig: splitConfig, instructions: 'A' }], makeElement(), { stimulus: 'abstract' });
-assert(Session.getData().length === 8, 'one block with a sequenceSource still reads the whole CSV');
+    [{ blockConfig: TRAINING_BLOCK_CONFIG, numTrials: 2, instructions: 'A' }],
+    makeElement(), { stimulus: 'abstract' });
+assert(Session.getData().every(r => r.sequenceId === null),
+    'a block with no sequenceSource records a null sequenceId');
 
 global.fetch = realFetch;
 

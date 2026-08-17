@@ -85,6 +85,22 @@
 	    width: 1220px;
 	    height: 600px;
 	}
+        /* SE sizes its canvas from the VIEWPORT, not from its parent:
+           game.js updateCanvasSize() sets the inline style to
+           min(innerWidth, innerHeight) * config.size, and re-runs on every
+           window resize. With the single-canvas size of 0.75 that is 675 px in
+           a 900 px-tall window — 75 px wider and taller than this 600 px box,
+           so the stimulus field spilled past the border on the right and
+           bottom. Any viewport whose smaller dimension exceeds 800 px overflows.
+           Pin the canvas to the container instead; `!important` is what beats
+           SE's inline style, and re-applying it costs nothing on resize.
+           Dual-canvas mode is excluded because it is already handled in JS —
+           computeDualCanvasSize() in session.js derives the fraction from this
+           container's width, and its two canvases are not direct children. */
+        #canvas-container:not(.dual-canvas-mode) > canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
         .instructions-overlay {
             position: absolute;
             inset: 0;
@@ -226,6 +242,108 @@
             startBtn.disabled = !selectEl.value;
         });
 
+        // ============================================================
+        // Participant mode  (?paradigm=cp_stroop&condition=A&PROLIFIC_PID=...)
+        // ============================================================
+        // A real participant arrives on a URL Prolific TaskFlow routes them to,
+        // one per paradigm x condition cell — TaskFlow is what balances those two
+        // factors, by filling a per-URL target count. The five test sequences need
+        // only randomisation, not balance, so the browser draws them here with no
+        // shared state: five distinct ids from that cell's pool, seeded on the
+        // participant identifier so a refresh yields the same five.
+        //
+        // `&test=true` skips the training stages and runs the test blocks alone
+        // (piloting). Without it the participant runs the full session: S1-S6, S8,
+        // then the test blocks.
+        //
+        // FAILS LOUDLY on a missing or unrecognised paradigm/condition rather than
+        // falling back to a default session. A participant silently running the
+        // wrong condition is worse than a crash, and unlike a crash it is invisible
+        // in the data.
+
+        const CP_PARADIGM_IDS = [
+            'cp_prp', 'cp_taskswitch', 'cp_taskswitch_asym', 'cp_stroop', 'cp_stroop_crossed',
+        ];
+        const CP_CONDITIONS = ['A', 'B'];
+        // Stands in for PROLIFIC_PID during development, so the dev path is
+        // reproducible rather than blocked. NOT acceptable for a real run: two
+        // participants sharing it would draw the same five blocks, and the output
+        // would not be linkable to a Prolific submission.
+        const DEV_PARTICIPANT_ID = 'DEV';
+
+        function readParticipantMode() {
+            const params = new URLSearchParams(window.location.search);
+            const paradigm = params.get('paradigm');
+            const condition = params.get('condition');
+            // No paradigm at all = the demo dropdown, which must keep working with
+            // no parameters. Anything else is a participant URL and is checked.
+            if (!paradigm && !condition) return null;
+            if (!paradigm) {
+                throw new Error('URL has ?condition= but no ?paradigm=. Expected ' +
+                    `?paradigm=<${CP_PARADIGM_IDS.join('|')}>&condition=<A|B>.`);
+            }
+            if (!CP_PARADIGM_IDS.includes(paradigm)) {
+                throw new Error(`Unknown ?paradigm=${paradigm}. Expected one of: ` +
+                    CP_PARADIGM_IDS.join(', ') + '.');
+            }
+            if (!condition) {
+                throw new Error(`?paradigm=${paradigm} given without ?condition=. ` +
+                    'Condition is a between-subjects factor and has no default.');
+            }
+            if (!CP_CONDITIONS.includes(condition)) {
+                throw new Error(`Unknown ?condition=${condition}. Expected A or B.`);
+            }
+            const testOnly = params.get('test') === 'true';
+            const sessionId = testOnly ? paradigm : `${paradigm}_training`;
+
+            // Prolific TaskFlow substitutes {{%PROLIFIC_PID%}} in the URLs it
+            // routes to, so PROLIFIC_PID is the real seed. ?participant= is kept
+            // as a manual override for piloting.
+            const pid = params.get('PROLIFIC_PID') || params.get('participant');
+            if (!pid) {
+                console.warn(
+                    'No PROLIFIC_PID or participant in the URL — seeding the sequence draw ' +
+                    `on '${DEV_PARTICIPANT_ID}'. Every session run this way draws the SAME ` +
+                    'five blocks. Fine for development, never for a real participant.');
+            }
+            const participantId = pid || DEV_PARTICIPANT_ID;
+
+            // Paradigm and condition go into the seed so that an id reused across
+            // cells (e.g. a pilot participant run twice) does not draw the same
+            // positions from two different pools.
+            const seedKey = `${participantId}|${paradigm}|${condition}`;
+            const sequenceIds = drawSequenceIds(
+                seedKey, CP_SEQUENCE_POOL_SIZE, CP_TEST_BLOCKS_PER_SESSION);
+
+            return { paradigm, condition, testOnly, sessionId, participantId, sequenceIds };
+        }
+
+        /** Refuse to run, visibly, in the place the participant is already looking. */
+        function showFatal(message) {
+            document.querySelector('.instructions-content').textContent =
+                `Cannot start.\n\n${message}`;
+            document.getElementById('session-status').textContent = `Error: ${message}`;
+            selectEl.disabled = true;
+            startBtn.disabled = true;
+            console.error('Participant URL rejected:', message);
+        }
+
+        let participantMode = null;
+        try {
+            participantMode = readParticipantMode();
+        } catch (e) {
+            showFatal(e.message);
+        }
+        if (participantMode) {
+            selectEl.value = participantMode.sessionId;
+            selectEl.disabled = true;
+            startBtn.disabled = false;
+            console.log(`Participant mode: ${participantMode.sessionId} ` +
+                `condition ${participantMode.condition}, participant ` +
+                `${participantMode.participantId}, sequences ` +
+                participantMode.sequenceIds.join(', '));
+        }
+
         function getSessionDef(id) {
             let blocks;
             switch (id) {
@@ -262,19 +380,19 @@
                 // S1-S6 + S8 training followed by the same
                 // test blocks the five entries above run on their own.
                 case 'cp_prp_training':
-                    blocks = CP_PRP_TRAINING_SESSION;
+                    blocks = cpBuildPrpTrainingSession(cond);
                     break;
                 case 'cp_taskswitch_training':
-                    blocks = CP_TASKSWITCH_TRAINING_SESSION;
+                    blocks = cpBuildTaskSwitchTrainingSession(cond);
                     break;
                 case 'cp_taskswitch_asym_training':
-                    blocks = CP_TASKSWITCH_ASYM_TRAINING_SESSION;
+                    blocks = cpBuildTaskSwitchAsymTrainingSession(cond);
                     break;
                 case 'cp_stroop_training':
-                    blocks = CP_STROOP_TRAINING_SESSION;
+                    blocks = cpBuildStroopTrainingSession(cond);
                     break;
                 case 'cp_stroop_crossed_training':
-                    blocks = CP_STROOP_CROSSED_TRAINING_SESSION;
+                    blocks = cpBuildStroopCrossedTrainingSession(cond);
                     break;
                 // Switch frequency
                 case 'sf_univalent':
@@ -323,22 +441,17 @@
                     return null;
             }
 
-            // SweetPea counterbalanced sequences: opt in per participant via
-            // ?participant=NN&condition=A|B. Without these params the canonical
-            // paradigms use the interim JS generator (default/fallback).
-            // The training sessions are included: cpApplySweetPea skips their
-            // training stages (which are generated live and have no CSV) and
-            // still swaps the test block onto its counterbalanced sequence.
-            const cpIds = [
-                'cp_prp', 'cp_taskswitch', 'cp_taskswitch_asym', 'cp_stroop', 'cp_stroop_crossed',
-                'cp_prp_training', 'cp_taskswitch_training', 'cp_taskswitch_asym_training',
-                'cp_stroop_training', 'cp_stroop_crossed_training',
-            ];
-            const urlParams = new URLSearchParams(window.location.search);
-            const participant = urlParams.get('participant');
-            const condition = (urlParams.get('condition') || 'A').toUpperCase();
-            if (participant && cpIds.includes(id)) {
-                blocks = cpApplySweetPea(blocks, participant, condition);
+            // SweetPea pool sequences: each test block gets its own drawn CSV.
+            // Only in participant mode, and only for the session that URL asked
+            // for — the ids were drawn for that paradigm's pool, so applying them
+            // to anything else would point at another paradigm's files. Without
+            // URL params the canonical paradigms use the interim JS generator
+            // (default/fallback). The training sessions are included:
+            // cpApplySweetPea skips their training stages (generated live, no CSV)
+            // and still swaps every test block onto its pool sequence.
+            if (participantMode && id === participantMode.sessionId) {
+                blocks = cpApplySweetPea(
+                    blocks, participantMode.condition, participantMode.sequenceIds);
             }
 
             const isDualCanvas = blocks.some(b =>

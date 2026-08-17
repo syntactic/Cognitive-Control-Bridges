@@ -1025,6 +1025,69 @@ assert(altFbConfig2.feedback === false, 'alt: feedback false');
 assert(altFbConfig2.acceptFirstResponse === true, 'alt: acceptFirstResponse true');
 
 // ============================================================
+// drawSequenceIds — the sequence-pool draw
+// ============================================================
+
+section('drawSequenceIds — determinism');
+
+// The whole reason the draw is seeded: a participant who refreshes mid-session
+// must get the same five blocks, or a partly-saved session and its retry could
+// overlap or duplicate blocks.
+const drawA = drawSequenceIds('participant-xyz|cp_stroop|A', 50, 5);
+const drawA2 = drawSequenceIds('participant-xyz|cp_stroop|A', 50, 5);
+assert(drawA.join() === drawA2.join(), 'the same seed key yields the same draw, in the same order');
+assert(drawSequenceIds('participant-xyz|cp_stroop|B', 50, 5).join() !== drawA.join(),
+    'a different condition draws differently — one id reused across cells is not one draw');
+assert(drawSequenceIds('someone-else|cp_stroop|A', 50, 5).join() !== drawA.join(),
+    'a different participant draws differently');
+
+section('drawSequenceIds — distinctness and range');
+
+// Distinctness is the invariant: running one pool block twice doubles every cell
+// of its design for that participant and contaminates repetition effects, and the
+// exported CSV looks entirely normal.
+let allDistinct = true;
+let allInRange = true;
+for (let i = 0; i < 2000; i++) {
+    const draw = drawSequenceIds(`pid-${i}|cp_taskswitch|A`, 50, 5);
+    if (draw.length !== 5 || new Set(draw).size !== 5) allDistinct = false;
+    if (!draw.every(id => Number.isInteger(id) && id >= 1 && id <= 50)) allInRange = false;
+}
+assert(allDistinct, '2000 draws are each 5 DISTINCT ids');
+assert(allInRange, '2000 draws stay within [1, poolSize] and are integers');
+
+// A draw of the whole pool is a permutation — the strongest available check that
+// the partial shuffle neither drops nor repeats an id.
+const whole = drawSequenceIds('seed', 12, 12);
+assert(new Set(whole).size === 12 && Math.min(...whole) === 1 && Math.max(...whole) === 12,
+    'drawing the entire pool yields a permutation of 1..poolSize');
+
+section('drawSequenceIds — coverage');
+
+// A draw that always started from the same corner of the pool would be
+// deterministic AND distinct while still using only a handful of blocks.
+const used = new Set();
+for (let i = 0; i < 500; i++) {
+    for (const id of drawSequenceIds(`pid-${i}|cp_prp|A`, 50, 5)) used.add(id);
+}
+assert(used.size === 50, `500 participants between them use every block in the pool (used ${used.size}/50)`);
+
+section('drawSequenceIds — refusals');
+
+const drawThrows = (fn, message) => {
+    let threw = false;
+    try { fn(); } catch (e) { threw = true; }
+    assert(threw, message);
+};
+drawThrows(() => drawSequenceIds('seed', 4, 5),
+    'drawing more blocks than the pool holds throws instead of repeating one');
+drawThrows(() => drawSequenceIds('', 50, 5), 'an empty seed key is refused');
+drawThrows(() => drawSequenceIds(null, 50, 5), 'a null seed key is refused');
+drawThrows(() => drawSequenceIds('seed', 0, 5), 'a pool size of 0 is refused');
+drawThrows(() => drawSequenceIds('seed', 50, 0), 'a draw count of 0 is refused');
+drawThrows(() => drawSequenceIds('seed', 50.5, 5), 'a non-integer pool size is refused');
+
+// ============================================================
 // Summary
 // ============================================================
 
