@@ -13,17 +13,20 @@ const Session = (() => {
 
     // SE package references
     let spriteConfig = null; // populated by loadSprites() when sprite mode is on
-    async function loadSprites() {
+    async function loadSprites(stimulus = 'bird') {
         const base = 'node_modules/super-experiment/res/';
-        const img     = await superExperiment.loadImage(base + 'fish_2.png');
-        const imgDist = await superExperiment.loadImage(base + 'fish_forward.png');
+        const isBird = (stimulus === 'bird');
+        const imgFile = isBird ? 'bird_oriented.png' : 'fish_2.png';
+        const imgDistFile = isBird ? 'bird_neutral.png' : 'fish_forward.png';
+        const img     = await superExperiment.loadImage(base + imgFile);
+        const imgDist = await superExperiment.loadImage(base + imgDistFile);
         spriteConfig = {
             img, imgDist,
             imgFramesX: 4, imgFramesY: 2,
             imgDistFramesX: 4, imgDistFramesY: 2,
-            objName: 'sideways-facing fish',
-            distName: 'forward-facing fish',
-            allName: 'fish',
+            objName: isBird ? 'oriented bird' : 'sideways-facing fish',
+            distName: isBird ? 'neutral bird' : 'forward-facing fish',
+            allName: isBird ? 'bird' : 'fish',
         };
     }
 
@@ -587,12 +590,13 @@ const Session = (() => {
         // fall back to the interim generator — nothing here touches them.
         await preloadSequences(sessionDef, options);
 
-        // Concrete (sprite) stimuli are the default. Request the abstract circles/triangles
-        // path explicitly with { stimulus: 'abstract' } (wired to ?stimulus=abstract in index.html).
+        // Concrete (sprite) stimuli are the default (birds by default; fish also supported; ?stimulus=abstract for circles/triangles).
         // Load the sprite sheets once, before any trial runs, because init_oobs() reads
         // img.naturalWidth the moment a block starts.
         if (options.stimulus !== 'abstract') {
-            await loadSprites();
+            await loadSprites(options.stimulus || 'bird');
+        } else {
+            spriteConfig = null;
         }
 
 	const questCoherences = { mov: 0.4, or: 0.6}; // some defaults

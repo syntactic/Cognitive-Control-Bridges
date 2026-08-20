@@ -548,8 +548,8 @@
             container.focus();
 
             try {
-                // Stimulus type: concrete fish sprites by default; ?stimulus=abstract for circles/triangles.
-                const stimulus = new URLSearchParams(window.location.search).get('stimulus') || 'fish';
+                // Stimulus type: bird sprites by default; ?stimulus=fish for fish; ?stimulus=abstract for circles/triangles.
+                const stimulus = new URLSearchParams(window.location.search).get('stimulus') || 'bird';
                 await Session.runSession(sessionDef, container, { stimulus, abridged: abridgedCb.checked });
             } catch (e) {
                 console.error('Session error:', e);
