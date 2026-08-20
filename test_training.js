@@ -672,8 +672,11 @@ const CP_EXPECTED = {
     cp_prp: { rso: 'disjoint', keyMaps: CP_DISJOINT_KEY_MAPS, prefix: 'prp_train', s8: 'prp' },
     cp_taskswitch: { rso: 'disjoint', keyMaps: CP_DISJOINT_KEY_MAPS, prefix: 'ts_train', s8: 'switching' },
     cp_taskswitch_asym: { rso: 'disjoint', keyMaps: CP_DISJOINT_KEY_MAPS, prefix: 'tsa_train', s8: 'switching' },
-    cp_stroop: { rso: 'identical', keyMaps: CP_IDENTICAL_KEY_MAPS, prefix: 'stroop_train', s8: 'rehearsal' },
-    cp_stroop_crossed: { rso: 'identical', keyMaps: CP_IDENTICAL_KEY_MAPS, prefix: 'stroopx_train', s8: 'rehearsal' },
+    // Stroop moved to disjoint, task-tied keys 2026-08-18 (one key layout across
+    // all five paradigms); rso stays 'identical' — inert for single-task
+    // extraction, retained as documentation of the shared-response origin.
+    cp_stroop: { rso: 'identical', keyMaps: CP_DISJOINT_KEY_MAPS, prefix: 'stroop_train', s8: 'rehearsal' },
+    cp_stroop_crossed: { rso: 'identical', keyMaps: CP_DISJOINT_KEY_MAPS, prefix: 'stroopx_train', s8: 'rehearsal' },
 };
 
 for (const [id, expected] of Object.entries(CP_EXPECTED)) {
@@ -1054,7 +1057,10 @@ section('canonical sessions — instruction copy is generated from the key maps'
 for (const [id, expected] of Object.entries(CP_EXPECTED)) {
     const copy = CP_SESSIONS[id].filter(b => b.phase === 'training').map(b => b.instructions);
     const all = copy.join('\n');
-    const disjoint = expected.rso === 'disjoint';
+    // Whether the copy names a second hand is driven by the KEY MAPS, not by rso:
+    // Stroop keeps rso 'identical' but now runs disjoint keys (2026-08-18), so its
+    // training names the right hand just like the two-task paradigms.
+    const disjoint = expected.keyMaps === CP_DISJOINT_KEY_MAPS;
 
     assert(/A = left/.test(all) && /D = right/.test(all), `${id}: the A/D map is spelled out`);
     assert(/J = left/.test(all) === disjoint,

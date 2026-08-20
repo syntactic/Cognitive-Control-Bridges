@@ -12,15 +12,21 @@
 // ALL single canvas. Coherence is an explicit experimental factor — NO QUEST here.
 // Congruent/incongruent trials throughout.
 //
-// Response-key scheme — disjoint response sets whenever a paradigm has TWO
-// tasks; shared keys for Stroop, which has one:
-//   - PRP (#1) and switching (#2, #3): DISJOINT keys (mov = A/D left hand,
-//     or = J/L right hand). Two tasks => two response sets. For PRP this is also
-//     what lets the response extractor separate T1 and T2 in the keypress stream.
-//   - Stroop (#4, #5): IDENTICAL A/D mapping for BOTH dimensions (one hand). The
-//     Stroop effect is large because both pathways converge on a SHARED response
-//     set; mapping the distractor onto keys the participant never presses removes
-//     the response-level conflict the paradigm exists to measure.
+// Response-key scheme — ONE disjoint, task-tied key layout across ALL FIVE
+// paradigms (movement = A/D left hand, orientation = J/L right hand):
+//   - PRP (#1) and switching (#2, #3): DISJOINT keys. Two tasks => two response
+//     sets. For PRP this is also what lets the response extractor separate T1 and
+//     T2 in the keypress stream.
+//   - Stroop (#4, #5): DISJOINT keys too, as of 2026-08-18 (Sebastian, l.147-160;
+//     RESPONSE_SET_PROBLEM.md §5). This unifies the key layout and the training
+//     across every paradigm so any behavioural difference is attributable to
+//     paradigm structure, not to how people were instructed. COST, accepted
+//     deliberately: the Stroop distractor now lands on keys the participant never
+//     presses, so there is no response-level conflict — Stroop reduces to
+//     DIMENSIONAL interference (weaker, and possibly absent for fish, since
+//     neither movement nor orientation is over-learned the way word-reading is).
+//     CP_IDENTICAL_KEY_MAPS (shared A/D) is retained below only to document the
+//     superseded design; nothing in these five paradigms references it any more.
 //
 // Cost of the switching change, recorded deliberately: with task-tied disjoint
 // keys a task switch is ALWAYS also an effector switch, so key-level response
@@ -59,7 +65,9 @@ const CP_TARGET_TASK = 'mov';  // Stroop: which dimension is the TARGET (other =
 
 // Key maps (block-config level; config files load before session_helpers.js).
 // Identical mapping: both dimensions answered with the SAME two keys (left hand
-// A/D). Stroop only — see the response-key note at the top of this file.
+// A/D). SUPERSEDED 2026-08-18 — no canonical paradigm uses this any more (Stroop
+// now takes CP_DISJOINT_KEY_MAPS like the rest). Kept only to document the prior
+// shared-response Stroop design; see the response-key note at the top of this file.
 const CP_IDENTICAL_KEY_MAPS = {
     mov: { 180: 'a', 0: 'd' },
     or:  { 180: 'a', 0: 'd' },
@@ -80,6 +88,15 @@ const CP_DIRECTION_WORDS = { 0: 'right', 90: 'up', 180: 'left', 270: 'down' };
 // Reading order for a key line: left/right first, since every canonical paradigm
 // currently uses the horizontal pair.
 const CP_DIRECTION_ORDER = [180, 0, 90, 270];
+
+// Home-row letter sets used by cpHandFor to infer which hand a key map is on.
+// Up here in the constants block (not next to cpHandFor below) because
+// CP_STROOP_INSTRUCTIONS calls cpKeyLine -> cpHandFor AT LOAD TIME now that
+// Stroop uses disjoint keys — CP_STROOP_SESSION is built further down, and a
+// `const` in the temporal dead zone would throw "Cannot access ... before
+// initialization". Same reason CP_DIRECTION_WORDS/ORDER live here.
+const CP_LEFT_HAND_LETTERS = 'qwertasdfgzxcvb';
+const CP_RIGHT_HAND_LETTERS = 'yuiophjklnm';
 
 // ============================================================
 // Shared defaults
@@ -207,7 +224,7 @@ const cpStroop = {
     blockType: 'stroop',
     paradigm: 'single-task',
     rso: 'identical',
-    keyMaps: CP_IDENTICAL_KEY_MAPS,
+    keyMaps: CP_DISJOINT_KEY_MAPS,
     sequenceType: 'Factorial',
     switchRate: 0,            // pure single task
     startTask: CP_TARGET_TASK,
@@ -227,7 +244,7 @@ const cpStroopCrossed = {
     blockType: 'stroop',
     paradigm: 'single-task',
     rso: 'identical',
-    keyMaps: CP_IDENTICAL_KEY_MAPS,
+    keyMaps: CP_DISJOINT_KEY_MAPS,
     sequenceType: 'Factorial',
     switchRate: 0,
     startTask: CP_TARGET_TASK,
@@ -471,9 +488,10 @@ const CP_TASKSWITCH_INSTRUCTIONS =
 // appear in switch-frequency.js and hirsch_block_configs.js — different
 // paradigms, not part of this study, deliberately left alone.
 //
-// The key line is derived from CP_IDENTICAL_KEY_MAPS rather than written out, so
-// it cannot drift from the map the block actually runs. `true` = shared response
-// set, which is what makes cpKeyLine print "Keys:" and not a hand — matching the
+// The key line is derived from CP_DISJOINT_KEY_MAPS rather than written out, so
+// it cannot drift from the map the block actually runs. The target task's OWN
+// keys are shown (mov = A/D left hand, or = J/L right hand); `false` = disjoint
+// response set, which is what makes cpKeyLine print the hand — matching the
 // training screens, which say the same thing for the same reason.
 const CP_STROOP_INSTRUCTIONS = (task) => {
     const target = task === 'mov' ? 'SWIMMING' : 'FACING';
@@ -481,7 +499,7 @@ const CP_STROOP_INSTRUCTIONS = (task) => {
     return `Interference block: the ${target} question only.\n\n`
         + `Respond to which way the fish are ${target}; ignore which way\n`
         + `they are ${other}.\n`
-        + `  ${cpKeyLine(CP_IDENTICAL_KEY_MAPS.mov, true)}\n\n`
+        + `  ${cpKeyLine(CP_DISJOINT_KEY_MAPS[task], false)}\n\n`
         + 'Press any key to begin.';
 };
 
@@ -586,14 +604,13 @@ const CP_STROOP_CROSSED_SESSION = cpTestBlocks(cpStroopCrossed, 108,
 // keys for switching/PRP, one shared A/D map for Stroop) and two copies of the
 // same sentence would drift apart.
 
-// CP_DIRECTION_WORDS / CP_DIRECTION_ORDER used to live here. They moved up to
-// the constants block because cpKeyPhrase reads them and CP_STROOP_INSTRUCTIONS
-// now calls it AT LOAD TIME (CP_STROOP_SESSION is built above). Function
-// declarations hoist; the `const`s they close over do not, so calling one from
-// here threw "Cannot access 'CP_DIRECTION_ORDER' before initialization".
-
-const CP_LEFT_HAND_LETTERS = 'qwertasdfgzxcvb';
-const CP_RIGHT_HAND_LETTERS = 'yuiophjklnm';
+// CP_DIRECTION_WORDS / CP_DIRECTION_ORDER and CP_LEFT_HAND_LETTERS /
+// CP_RIGHT_HAND_LETTERS used to live here. They moved up to the constants block
+// because cpKeyPhrase and cpHandFor read them and CP_STROOP_INSTRUCTIONS now
+// calls both AT LOAD TIME (CP_STROOP_SESSION is built above, and Stroop's
+// disjoint keys make cpKeyLine reach cpHandFor). Function declarations hoist; the
+// `const`s they close over do not, so calling one from here threw "Cannot access
+// '...' before initialization".
 
 /** "A = left, D = right" for one direction->key map. */
 function cpKeyPhrase(keyMap) {
@@ -1087,7 +1104,7 @@ function cpBuildStroopTrainingSession(condition = 'A') {
     const targetTask = condition === 'B' ? 'or' : 'mov';
     return cpBuildTrainingSession({
         blockIdPrefix: 'stroop_train',
-        keyMaps: CP_IDENTICAL_KEY_MAPS,
+        keyMaps: CP_DISJOINT_KEY_MAPS,
         rso: 'identical',
         // The non-target dimension is never a target in the Stroop test block, so
         // S3's ramp bottoms at the strength it actually appears with — CP_DISTRACTOR.
@@ -1117,7 +1134,7 @@ function cpBuildStroopCrossedTrainingSession(condition = 'A') {
     const targetTask = condition === 'B' ? 'or' : 'mov';
     return cpBuildTrainingSession({
         blockIdPrefix: 'stroopx_train',
-        keyMaps: CP_IDENTICAL_KEY_MAPS,
+        keyMaps: CP_DISJOINT_KEY_MAPS,
         rso: 'identical',
         // Easiest of the three crossed levels, per the JUDGMENT CALL note above.
         rampTarget: { mov: CP_STROOP_LEVELS.high, or: CP_STROOP_LEVELS.high },
