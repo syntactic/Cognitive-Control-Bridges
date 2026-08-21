@@ -372,7 +372,7 @@
         // working; a participant URL passes its real condition from the call site
         // below. Without the parameter every `case '*_training'` below threw
         // "cond is not defined" and no training session could start at all.
-        function getSessionDef(id, cond = 'A') {
+        function getSessionDef(id, cond = 'A', scheme) {
             let blocks;
             switch (id) {
                 // Generic demos
@@ -388,39 +388,41 @@
                 case 'demo_dual_same':
                     blocks = DEMO_DUAL_CANVAS_SAME_SESSION;
                     break;
-                // Canonical paradigms
+                // Canonical paradigms (test-only). Built per scheme so ?scheme=fourcue
+                // runs vertically with W/S+I/K and the positional cue; without the
+                // param the descriptor is disjoint and this reproduces CP_*_SESSION.
                 case 'cp_prp':
-                    blocks = CP_PRP_SESSION;
+                    blocks = cpTestSessionFor('cp_prp', cond, scheme);
                     break;
                 case 'cp_taskswitch':
-                    blocks = CP_TASKSWITCH_SESSION;
+                    blocks = cpTestSessionFor('cp_taskswitch', cond, scheme);
                     break;
                 case 'cp_taskswitch_asym':
-                    blocks = CP_TASKSWITCH_ASYM_SESSION;
+                    blocks = cpTestSessionFor('cp_taskswitch_asym', cond, scheme);
                     break;
                 case 'cp_stroop':
-                    blocks = CP_STROOP_SESSION;
+                    blocks = cpTestSessionFor('cp_stroop', cond, scheme);
                     break;
                 case 'cp_stroop_crossed':
-                    blocks = CP_STROOP_CROSSED_SESSION;
+                    blocks = cpTestSessionFor('cp_stroop_crossed', cond, scheme);
                     break;
                 // Canonical paradigms, full participant-facing session:
                 // S1-S6 + S8 training followed by the same
                 // test blocks the five entries above run on their own.
                 case 'cp_prp_training':
-                    blocks = cpBuildPrpTrainingSession(cond);
+                    blocks = cpBuildPrpTrainingSession(cond, scheme);
                     break;
                 case 'cp_taskswitch_training':
-                    blocks = cpBuildTaskSwitchTrainingSession(cond);
+                    blocks = cpBuildTaskSwitchTrainingSession(cond, scheme);
                     break;
                 case 'cp_taskswitch_asym_training':
-                    blocks = cpBuildTaskSwitchAsymTrainingSession(cond);
+                    blocks = cpBuildTaskSwitchAsymTrainingSession(cond, scheme);
                     break;
                 case 'cp_stroop_training':
-                    blocks = cpBuildStroopTrainingSession(cond);
+                    blocks = cpBuildStroopTrainingSession(cond, scheme);
                     break;
                 case 'cp_stroop_crossed_training':
-                    blocks = cpBuildStroopCrossedTrainingSession(cond);
+                    blocks = cpBuildStroopCrossedTrainingSession(cond, scheme);
                     break;
                 // Switch frequency
                 case 'sf_univalent':
@@ -475,7 +477,7 @@
             // and still swaps every test block onto its pool sequence.
             if (participantMode && id === participantMode.sessionId) {
                 blocks = cpApplySweetPea(
-                    blocks, participantMode.condition, participantMode.sequenceIds);
+                    blocks, participantMode.condition, participantMode.sequenceIds, scheme);
             }
 
             const isDualCanvas = blocks.some(b =>
@@ -485,8 +487,14 @@
             // tasks now uses task-tied disjoint keys (07-31 l.49), so the hint has to
             // follow the block's own rso rather than assume one hand.
             const isDisjointKeys = blocks.some(b => b.blockConfig.rso === 'disjoint');
+            // Under the fourcue scheme every canonical block carries vertical W/S+I/K
+            // keyMaps; read the hint straight off the (scheme-stamped) block so it
+            // cannot disagree with what the trial actually listens on.
+            const isFourcue = blocks.some(b => b.blockConfig.cueMode === 'hue+position');
             const infoDiv = document.querySelector('.info');
-            if (isOrthogonal) {
+            if (isFourcue) {
+                infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Movement: W = up, S = down (left hand)<br>Orientation: I = up, K = down (right hand)';
+            } else if (isOrthogonal) {
                 infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Left canvas: A = up, D = down<br>Right canvas: J = up, L = down';
             } else if (isDualCanvas) {
                 infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Left task controls: A = left, D = right<br>Right task controls: J = left, L = right';
@@ -537,8 +545,14 @@
         }
 
         startBtn.addEventListener('click', async () => {
+            // Response-set scheme: ?scheme=disjoint (default, the committed Phase 1
+            // build) or ?scheme=fourcue (vertical W/S+I/K, positional cue). Resolved
+            // once here and threaded into both the session build (keys/geometry/copy)
+            // and runSession (cue rendering). An unknown value falls back to disjoint.
+            const schemeName = new URLSearchParams(window.location.search).get('scheme') || 'disjoint';
+            const scheme = cpResolveScheme(schemeName);
             const sessionDef = getSessionDef(
-                selectEl.value, participantMode ? participantMode.condition : 'A');
+                selectEl.value, participantMode ? participantMode.condition : 'A', scheme);
             if (!sessionDef) return;
 
             startBtn.style.display = 'none';
@@ -550,7 +564,7 @@
             try {
                 // Stimulus type: bird sprites by default; ?stimulus=fish for fish; ?stimulus=abstract for circles/triangles.
                 const stimulus = new URLSearchParams(window.location.search).get('stimulus') || 'bird';
-                await Session.runSession(sessionDef, container, { stimulus, abridged: abridgedCb.checked });
+                await Session.runSession(sessionDef, container, { stimulus, abridged: abridgedCb.checked, scheme });
             } catch (e) {
                 console.error('Session error:', e);
                 document.getElementById('session-status').textContent = `Error: ${e.message}`;

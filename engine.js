@@ -350,11 +350,18 @@ function parseSequenceCSV(csvText) {
     });
 }
 
-/** left -> 180, right -> 0 (parallel mapping; canonical paradigms are parallel). */
-function targetLabelToDegrees(label) {
-    if (label === 'left') return 180;
-    if (label === 'right') return 0;
-    throw new Error(`loadSequenceVectors: unknown target_dir '${label}' (expected left|right)`);
+/**
+ * Concretize a SweetPea `target_dir` LEVEL ('left'/'right' — an abstract 2-level
+ * tag in the scheme-agnostic pool) into an SE angle. `levelToDeg` comes from the
+ * active scheme's geometry (disjoint {left:180,right:0}; fourcue {left:90,right:270});
+ * absent it defaults to horizontal, so any non-scheme caller behaves as before.
+ * This is the ONE place the shared pool's two abstract levels become concrete
+ * degrees — it is why the same CSVs drive both the horizontal and the vertical
+ * scheme without regeneration.
+ */
+function targetLabelToDegrees(label, levelToDeg = { left: 180, right: 0 }) {
+    if (label in levelToDeg) return levelToDeg[label];
+    throw new Error(`loadSequenceVectors: unknown target_dir '${label}' (expected ${Object.keys(levelToDeg).join('|')})`);
 }
 
 /**
@@ -415,7 +422,8 @@ function loadSequenceVectors(csvText, blockConfig) {
         }
         vectors.congruency.push(r.congruency);
 
-        vectors.targetDir.push(targetLabelToDegrees(r.target_dir));
+        vectors.targetDir.push(targetLabelToDegrees(
+            r.target_dir, blockConfig.geometry && blockConfig.geometry.levelToDeg));
 
         if (hasTaskTransition) {
             const t = i === 0 ? 'First' : r.task_transition;

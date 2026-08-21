@@ -23,6 +23,15 @@ const DUMMY_KEYS = { 180: '!', 0: '!' };
 const LEFT_HAND_KEYS_ORTHOGONAL = { 90: 'a', 270: 'd' };
 const RIGHT_HAND_KEYS_ORTHOGONAL = { 90: 'j', 270: 'l' };
 
+// Vertical 2-direction presets for the four-cue scheme (90=up, 270=down) mapped
+// onto the physically-vertical W/S (left hand) and I/K (right hand) keys — a
+// PARALLEL vertical S-R mapping. Distinct from the *_ORTHOGONAL presets, which
+// put up/down onto the horizontal A/D, J/L keys. Deriving a task's direction pool
+// from these keys yields [90, 270], which is what makes the fourcue stimulus
+// vertical without any separate geometry flag in the generator.
+const LEFT_HAND_KEYS_VERTICAL  = { 90: 'w', 270: 's' };
+const RIGHT_HAND_KEYS_VERTICAL = { 90: 'i', 270: 'k' };
+
 /**
  * Selects the left/right hand key-map presets for a given stimulus-response mapping.
  * @param {string} mapping - 'orthogonal' (vertical stimuli, horizontal keys) or
@@ -42,8 +51,78 @@ const NATURAL_IJKL = { 0: 'l', 90: 'i', 180: 'j', 270: 'k' };
 const UNNATURAL_WASD = { 0: 'a', 90: 's', 180: 'd', 270: 'w' };
 
 // ============================================================
+// Response-set SCHEMES (Phase 2)
+// ============================================================
+// The SINGLE source of truth for everything that differs between the two
+// response-set schemes the canonical paradigms can run under. cpApplyScheme
+// (canonical_paradigms.js) stamps these fields onto every blockConfig at session
+// build time, and each consumer reads them off the blockConfig — nothing anywhere
+// branches on the scheme NAME. Adding a third scheme is a new entry here plus its
+// key/geometry constants, not new `if`s across the codebase.
+//
+// Self-contained on purpose: this file is loaded standalone by test_session.js /
+// test_quest.js, so the descriptor may reference only constants defined ABOVE
+// (the hand-key presets), never anything from canonical_paradigms.js. The disjoint
+// keyMaps below therefore duplicate CP_DISJOINT_KEY_MAPS (identical values); the
+// canonical copy stays the load-time default baked into the configs, and this copy
+// is what cpApplyScheme stamps at runtime.
+//
+// Fields:
+//   geometry.levelToDeg — maps the SweetPea `target_dir` LEVELS ('left'/'right',
+//       abstract 2-level tags in the shared pool CSVs) to concrete SE angles.
+//       Horizontal for disjoint, vertical for fourcue. This is the ONE explicit
+//       geometry seam; assignDirections otherwise derives its direction pools from
+//       `keyMaps`, so the rest of the geometry falls out of the keys.
+//   keyMaps — { mov, or } direction->key maps; buildSEConfig consumes them directly.
+//   keyResolution — 'dimension-tied' (a key belongs to its dimension for good) vs
+//       'cue-driven' (the key comes from the cued hand, so both dimensions of a
+//       SINGLE-cue trial resolve onto that one hand — the substrate for a
+//       response-level Stroop effect). For task-tied PRP the two coincide; the
+//       difference only bites in single-cue bivalent trials. Drives TRAINING and
+//       the model; the runtime go-signal is the target's hand either way.
+//   cueMode — 'hue' (full border colored by task) vs 'hue+position' (border
+//       localized to the cued hand's half AND colored by task). The SE fork reads
+//       this to localize the cue.
+const CP_SCHEMES = {
+    disjoint: {
+        name: 'disjoint',
+        geometry: { axis: 'horizontal', levelToDeg: { left: 180, right: 0 } },
+        keyMaps: { mov: { ...LEFT_HAND_KEYS }, or: { ...RIGHT_HAND_KEYS } },
+        keyResolution: 'dimension-tied',
+        cueMode: 'hue',
+    },
+    fourcue: {
+        name: 'fourcue',
+        geometry: { axis: 'vertical', levelToDeg: { left: 90, right: 270 } },
+        keyMaps: { mov: { ...LEFT_HAND_KEYS_VERTICAL }, or: { ...RIGHT_HAND_KEYS_VERTICAL } },
+        keyResolution: 'cue-driven',
+        cueMode: 'hue+position',
+    },
+};
+
+/** Resolve a scheme name to its descriptor, defaulting to disjoint (Phase 1). */
+function cpResolveScheme(name) {
+    return CP_SCHEMES[name] || CP_SCHEMES.disjoint;
+}
+
+// ============================================================
 // SE config builders
 // ============================================================
+
+// Which physical hand a key map sits on, inferred from the key letters (left vs
+// right home-block). Used to tell the fork which half of the canvas a task's
+// positional cue goes on under the fourcue scheme. Mirrors cpHandFor in
+// canonical_paradigms.js; kept here too because session_helpers.js is loaded
+// standalone by the tests and must not depend on that file.
+const SE_LEFT_HAND_LETTERS = 'qwertasdfgzxcvb';
+const SE_RIGHT_HAND_LETTERS = 'yuiophjklnm';
+function seHandSideOf(keyMap) {
+    const keys = Object.values(keyMap || {}).map(k => String(k).toLowerCase());
+    if (keys.length === 0) return null;
+    if (keys.every(k => SE_LEFT_HAND_LETTERS.includes(k))) return 'left';
+    if (keys.every(k => SE_RIGHT_HAND_LETTERS.includes(k))) return 'right';
+    return null;
+}
 
 /**
  * SE config for single-canvas key mappings.
@@ -60,8 +139,12 @@ const UNNATURAL_WASD = { 0: 'a', 90: 's', 180: 'd', 270: 'w' };
  * @param {string} rso - 'disjoint' or 'identical'
  * @param {boolean} earlyResolve
  * @param {{ mov: object, or: object }} [keyMaps] - explicit key maps from block config
+ * @param {string} [cueMode] - 'hue' (default) or 'hue+position'. Passed straight
+ *   into the SE config; the fork's game.js reads it to localize the border to the
+ *   cued hand's half. `movCueSide`/`orCueSide` (inferred from the key hands) tell
+ *   it which half.
  */
-function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps) {
+function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps, cueMode) {
     if (keyMaps) {
         return {
             movementKeyMap: { ...keyMaps.mov },
@@ -70,7 +153,10 @@ function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps
             resolveDelay: RESOLVE_DELAY,
 	    acceptFirstResponse,
 	    feedback,
-            earlyResolve
+            earlyResolve,
+            cueMode: cueMode || 'hue',
+            movCueSide: seHandSideOf(keyMaps.mov),
+            orCueSide: seHandSideOf(keyMaps.or),
         };
     }
     if (rso === 'disjoint') {

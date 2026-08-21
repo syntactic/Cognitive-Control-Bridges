@@ -352,7 +352,7 @@ const Session = (() => {
 		preVec = vectors;
 	    }
 	    trials = generateBlockTrials(blockConfig, preVec ? preVec.task1.length : numTrials, preVec);
-	    seConfig = buildSEConfig(blockConfig.rso, blockConfig.earlyResolve, feedback, acceptFirstResponse, blockConfig.keyMaps);
+	    seConfig = buildSEConfig(blockConfig.rso, blockConfig.earlyResolve, feedback, acceptFirstResponse, blockConfig.keyMaps, blockConfig.cueMode);
 	    canvasContainer.classList.toggle('dual-canvas-mode', false);
 	}
 

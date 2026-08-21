@@ -329,7 +329,7 @@ function cpSequencePath(paradigm, condition, sequenceId) {
  * @param {string} condition - 'A' or 'B'
  * @param {number[]} sequenceIds - drawn ids, one per test block, already distinct
  */
-function cpApplySweetPea(sessionArray, condition, sequenceIds) {
+function cpApplySweetPea(sessionArray, condition, sequenceIds, scheme) {
     if (!Array.isArray(sequenceIds)) {
         throw new Error('cpApplySweetPea: sequenceIds must be an array of drawn sequence ids');
     }
@@ -361,7 +361,7 @@ function cpApplySweetPea(sessionArray, condition, sequenceIds) {
         else if (prefix && prefix.startsWith('stroopx_train')) paradigm = 'cp_stroop_crossed';
         else if (prefix && prefix.startsWith('stroop_train')) paradigm = 'cp_stroop';
         if (paradigm) {
-            const rebuiltTraining = cpTrainingSessionFor(paradigm, condition);
+            const rebuiltTraining = cpTrainingSessionFor(paradigm, condition, scheme);
             const rebuiltTrainingStages = rebuiltTraining.filter(b => b.phase === 'training');
             const testBlocksOnly = sessionArray.filter(b => b.phase !== 'training');
             baseSession = [...rebuiltTrainingStages, ...testBlocksOnly];
@@ -390,10 +390,11 @@ function cpApplySweetPea(sessionArray, condition, sequenceIds) {
         // instead. Overriding null here would put a full instruction screen
         // immediately after every break.
         const condTask = condition === 'B' ? 'or' : 'mov';
+        const km = scheme ? scheme.keyMaps : undefined;   // undefined => generator default (disjoint)
         const swapped = blockId === 'cp_prp'
-            ? CP_PRP_INSTRUCTIONS(condTask)
+            ? CP_PRP_INSTRUCTIONS(condTask, km, scheme)
             : (blockId === 'cp_stroop' || blockId === 'cp_stroop_crossed')
-                ? CP_STROOP_INSTRUCTIONS(condTask)
+                ? CP_STROOP_INSTRUCTIONS(condTask, km)
                 : null;
         // In a training session the first test block's copy is the preamble plus
         // the block's own screen. Swapping the screen for the condition's version
@@ -412,6 +413,48 @@ function cpApplySweetPea(sessionArray, condition, sequenceIds) {
 // Instructions
 // ============================================================
 
+// Instruction vocabulary derived from a scheme descriptor. The KEY LINES already
+// adapt on their own (cpKeyLine reads CP_DIRECTION_WORDS, which knows 90->up,
+// 270->down); this helper covers the remaining hard-coded prose — the two
+// direction WORDS a task's stimulus can take, and whether the cue carries a side.
+//
+// Deliberately CP_SCHEMES-free: the load-time CP_*_SESSION builds call the
+// instruction generators before session_helpers.js has defined CP_SCHEMES, so a
+// missing/undefined scheme resolves to the disjoint defaults inline (left/right,
+// hue) rather than by looking the descriptor up.
+function cpSchemeVocab(scheme) {
+    const levelToDeg = (scheme && scheme.geometry && scheme.geometry.levelToDeg)
+        || { left: 180, right: 0 };
+    const cueMode = (scheme && scheme.cueMode) || 'hue';
+    const words = CP_DIRECTION_ORDER
+        .filter(d => Object.values(levelToDeg).includes(d))
+        .map(d => CP_DIRECTION_WORDS[d]);   // ['left','right'] | ['up','down']
+    return {
+        dirA: words[0],
+        dirB: words[1],
+        eitherOr: `${words[0]} or ${words[1]}`,
+        positional: cueMode === 'hue+position',
+    };
+}
+
+// The cue is a COLORED border (src/game.js: movCueColor '#fb0' orange,
+// orCueColor '#0af' blue). Under the fourcue scheme the border is ALSO localized
+// to the hand's half of the screen (cueMode 'hue+position'), so the legend then
+// names the side too; the side is inferred from the task's key hand, not declared,
+// so it cannot disagree with the keys. Dashes vs dots separate the FIRST from the
+// SECOND task of a dual-task trial, not movement from orientation — see the note
+// above CP_TASKSWITCH_INSTRUCTIONS.
+function cpBorderLegend(keyMaps, scheme) {
+    const positional = cpSchemeVocab(scheme).positional;
+    const side = (task) => {
+        if (!positional) return '';
+        const hand = keyMaps ? cpHandFor(keyMaps[task]) : null;
+        return hand === 'left' ? ' on your LEFT' : hand === 'right' ? ' on your RIGHT' : '';
+    };
+    return `  ORANGE border${side('mov')}  ->  answer the SWIMMING question.\n`
+        + `  BLUE border${side('or')}    ->  answer the FACING question.`;
+}
+
 // PRP task order is fixed per session and assigned between subjects by the
 // `condition` URL param (A = movement first, B = orientation first), so the
 // instructions are a function of the T1 task — same pattern as
@@ -424,16 +467,17 @@ function cpApplySweetPea(sessionArray, condition, sequenceIds) {
 // the scroll keys is not an option either, because every screen ends with "press
 // any key" and that has to stay true. This screen was 819 px before it was
 // trimmed; measure with `node analysis/measure_instructions.js` after any edit.
-const CP_PRP_INSTRUCTIONS = (t1Task) => {
+const CP_PRP_INSTRUCTIONS = (t1Task, keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
     const movFirst = t1Task === 'mov';
+    const vocab = cpSchemeVocab(scheme);
     const movItem = 'MOVEMENT — which way are the fish SWIMMING?\n'
-        + '   Left hand: A = left, D = right.';
+        + `   ${cpHandLabel(keyMaps.mov)}${cpKeyPhrase(keyMaps.mov)}.`;
     const orItem = 'ORIENTATION — which way are the fish FACING?\n'
-        + '   Right hand: J = left, L = right.';
+        + `   ${cpHandLabel(keyMaps.or)}${cpKeyPhrase(keyMaps.or)}.`;
     // Which dimension is static at trial onset depends on which task is T1.
     const stimulusStory = movFirst
-        ? 'The fish swim first, then turn to face left or right.'
-        : 'The fish face left or right first, then start to swim.';
+        ? `The fish swim first, then turn to face ${vocab.eitherOr}.`
+        : `The fish face ${vocab.eitherOr} first, then start to swim.`;
     return 'Two tasks on every trial, always in this order:\n\n'
         + `1) ${movFirst ? movItem : orItem}\n\n`
         + `2) ${movFirst ? orItem : movItem}\n\n`
@@ -452,15 +496,23 @@ const CP_PRP_INSTRUCTIONS = (t1Task) => {
 // from cue2 (i.e. the first from the second task of a dual-task trial), NOT
 // movement from orientation. This block previously told participants
 // "Dotted = MOVEMENT, Dashed = ORIENTATION", which is wrong on both counts.
-const CP_TASKSWITCH_INSTRUCTIONS =
-    'ONE task per trial. It may switch from trial to trial.\n\n'
-    + 'The border color tells you which task:\n\n'
-    + '  ORANGE = MOVEMENT (which way are the fish SWIMMING?)\n'
-    + '     Left hand: A = left, D = right.\n'
-    + '  BLUE = ORIENTATION (which way are they FACING?)\n'
-    + '     Right hand: J = left, L = right.\n\n'
-    + 'Ignore the other dimension.\n\n'
-    + 'Press any key to begin.';
+const cpTaskSwitchInstructions = (keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
+    const positional = cpSchemeVocab(scheme).positional;
+    // Under the positional (fourcue) cue the side is also informative, so name it.
+    const cueIntro = positional
+        ? 'The border — its color and its side — tells you which task:'
+        : 'The border color tells you which task:';
+    const movSide = positional ? ' (LEFT side)' : '';
+    const orSide  = positional ? ' (RIGHT side)' : '';
+    return 'ONE task per trial. It may switch from trial to trial.\n\n'
+        + cueIntro + '\n\n'
+        + `  ORANGE = MOVEMENT${movSide} (which way are the fish SWIMMING?)\n`
+        + `     ${cpHandLabel(keyMaps.mov)}${cpKeyPhrase(keyMaps.mov)}.\n`
+        + `  BLUE = ORIENTATION${orSide} (which way are they FACING?)\n`
+        + `     ${cpHandLabel(keyMaps.or)}${cpKeyPhrase(keyMaps.or)}.\n\n`
+        + 'Ignore the other dimension.\n\n'
+        + 'Press any key to begin.';
+};
 
 // NOTE: cp_taskswitch_asym deliberately gets NO extra copy. Its screen used to
 // append "(Note: one task is systematically harder than the other.)", which was
@@ -493,13 +545,13 @@ const CP_TASKSWITCH_INSTRUCTIONS =
 // keys are shown (mov = A/D left hand, or = J/L right hand); `false` = disjoint
 // response set, which is what makes cpKeyLine print the hand — matching the
 // training screens, which say the same thing for the same reason.
-const CP_STROOP_INSTRUCTIONS = (task) => {
+const CP_STROOP_INSTRUCTIONS = (task, keyMaps = CP_DISJOINT_KEY_MAPS) => {
     const target = task === 'mov' ? 'SWIMMING' : 'FACING';
     const other = task === 'mov' ? 'FACING' : 'SWIMMING';
     return `Interference block: the ${target} question only.\n\n`
         + `Respond to which way the fish are ${target}; ignore which way\n`
         + `they are ${other}.\n`
-        + `  ${cpKeyLine(CP_DISJOINT_KEY_MAPS[task], false)}\n\n`
+        + `  ${cpKeyLine(keyMaps[task], cpKeysAreShared(keyMaps))}\n\n`
         + 'Press any key to begin.';
 };
 
@@ -565,11 +617,11 @@ function cpTestBlocks(blockConfig, numTrials, instructions) {
 // ?paradigm=&condition=, cpApplySweetPea overrides them per condition.
 const CP_PRP_SESSION = cpTestBlocks(cpPRP, 96, CP_PRP_INSTRUCTIONS('mov'));
 
-const CP_TASKSWITCH_SESSION = cpTestBlocks(cpTaskSwitch, 96, CP_TASKSWITCH_INSTRUCTIONS);
+const CP_TASKSWITCH_SESSION = cpTestBlocks(cpTaskSwitch, 96, cpTaskSwitchInstructions());
 
 // Same screen as cp_taskswitch, verbatim — see the note by
 // CP_TASKSWITCH_INSTRUCTIONS on why the "one task is harder" line was dropped.
-const CP_TASKSWITCH_ASYM_SESSION = cpTestBlocks(cpTaskSwitchAsym, 96, CP_TASKSWITCH_INSTRUCTIONS);
+const CP_TASKSWITCH_ASYM_SESSION = cpTestBlocks(cpTaskSwitchAsym, 96, cpTaskSwitchInstructions());
 
 const CP_STROOP_SESSION = cpTestBlocks(cpStroop, 96, CP_STROOP_INSTRUCTIONS(CP_TARGET_TASK));
 
@@ -647,24 +699,31 @@ function cpKeyLine(keyMap, shared) {
     return prefix + cpKeyPhrase(keyMap) + '.';
 }
 
-// The cue is a COLORED border (src/game.js: movCueColor '#fb0' orange,
-// orCueColor '#0af' blue). Dashes vs dots separate the FIRST from the SECOND
-// task of a dual-task trial, not movement from orientation — see the note above
-// CP_TASKSWITCH_INSTRUCTIONS.
-const CP_BORDER_LEGEND =
-    '  ORANGE border  ->  answer the SWIMMING question.\n'
-    + '  BLUE border    ->  answer the FACING question.';
+/** Compact key label ("Left hand: " — ONE space after the colon) used by the
+ *  PRP / task-switch TEST screens, whose lines were authored tighter than
+ *  cpKeyLine's two-space training-screen form. Hand inferred from the keys. */
+function cpHandLabel(keyMap) {
+    const hand = cpHandFor(keyMap);
+    return hand === 'left' ? 'Left hand: ' : hand === 'right' ? 'Right hand: ' : 'Keys: ';
+}
+
+// CP_BORDER_LEGEND became cpBorderLegend(keyMaps, scheme) up by the Instructions
+// header, so it can add the hand's side under the fourcue scheme's positional cue.
 
 /**
  * The seven instruction screens for one paradigm's training + test session.
  *
  * @param {{mov: object, or: object}} keyMaps - the paradigm's own key maps
  * @param {object} finalStage - { kind, t1Task?, task? }, matching the S8 spec
+ * @param {object} [scheme] - response-set scheme descriptor; drives axis words
+ *   (left/right vs up/down) and the cue legend. Absent => disjoint defaults.
  * @returns {{S1..S6: string, S8: string, test: string}} plain text, '\n'
  *   separated, the convention showInstructions() renders.
  */
-function cpTrainingInstructions(keyMaps, finalStage) {
+function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     const shared = cpKeysAreShared(keyMaps);
+    const vocab = cpSchemeVocab(scheme);
+    const legend = cpBorderLegend(keyMaps, scheme);
     const movLine = cpKeyLine(keyMaps.mov, shared);
     const orLine = cpKeyLine(keyMaps.or, shared);
     const bothLines = `  Swimming:  ${cpKeyPhrase(keyMaps.mov)}.\n`
@@ -724,7 +783,7 @@ function cpTrainingInstructions(keyMaps, finalStage) {
     const S3 =
         'STEP 3 of 7 — a second question: which way are the fish FACING?\n\n'
         + 'This time the fish do not swim at all. They stay in place, FACING\n'
-        + 'either left or right.\n\n'
+        + `either ${vocab.eitherOr}.\n\n`
         + `  ${orLine}\n\n`
         + secondMapNote + '\n\n'
         + 'The border is a different color this time. Still ignore it — it\n'
@@ -741,7 +800,7 @@ function cpTrainingInstructions(keyMaps, finalStage) {
         + 'From now on the two questions are mixed, and can change every trial.\n\n'
         + 'The border you have been ignoring is what tells you which — and it\n'
         + 'now appears just BEFORE the fish, so you can get ready.\n\n'
-        + CP_BORDER_LEGEND + '\n\n'
+        + legend + '\n\n'
         + bothLines + '\n\n'
         + 'Press any key to begin.';
 
@@ -749,9 +808,9 @@ function cpTrainingInstructions(keyMaps, finalStage) {
         'STEP 5 of 7 — the fish now do both things at once.\n\n'
         + 'From here on the fish are BOTH swimming AND facing on every trial.\n'
         + 'Only one of those is your job, and the border still tells you which:\n\n'
-        + CP_BORDER_LEGEND + '\n\n'
-        + 'In this step the two always agree — fish swimming left are also\n'
-        + 'facing left — so you cannot go wrong by looking at the wrong one.\n'
+        + legend + '\n\n'
+        + `In this step the two always agree — fish swimming ${vocab.dirA} are also\n`
+        + `facing ${vocab.dirA} — so you cannot go wrong by looking at the wrong one.\n`
         + 'It is practice at answering the question you were actually asked.\n\n'
         + 'Press any key to begin.';
 
@@ -769,7 +828,7 @@ function cpTrainingInstructions(keyMaps, finalStage) {
         + 'Some fish are harder to read than others. That is normal.\n\n'
         + 'Press any key to begin.';
 
-    return { S1, S2, S3, S4, S5, S6, S8: cpFinalStageInstructions(keyMaps, finalStage) };
+    return { S1, S2, S3, S4, S5, S6, S8: cpFinalStageInstructions(keyMaps, finalStage, scheme) };
 }
 
 /**
@@ -795,77 +854,97 @@ function cpTrainingInstructions(keyMaps, finalStage) {
  * @param {object} finalStage - { kind, t1Task?, task? }, matching the S8 spec
  * @returns {{S1..S6: object, S8: object}} demo specs
  */
-function cpTrainingDemos(keyMaps, finalStage) {
-    // 180 = leftward, 0 = rightward (engine.js). The keycap graphic is chosen
-    // from the key character itself, so a paradigm that changes its maps changes
-    // its cartoon for free — and throws in demoKeycap() if the new keys have no
-    // pixel art rather than depicting the wrong finger.
-    const movL = keyMaps.mov[180], movR = keyMaps.mov[0];
-    const orL = keyMaps.or[180], orR = keyMaps.or[0];
+/** The two direction angles a key map covers, in reading order: [180,0] (disjoint
+ *  horizontal) or [90,270] (fourcue vertical). */
+function cpDirsOf(keyMap) {
+    return CP_DIRECTION_ORDER.filter(d => d in keyMap);
+}
 
-    // S1/S2: swim left, then swim right. `orientation: null` is what makes SE's
+function cpTrainingDemos(keyMaps, finalStage, scheme) {
+    // Angles come from the KEY MAPS, not from literals, so a scheme with vertical
+    // geometry (fourcue: mov {90:'w',270:'s'}, or {90:'i',270:'k'}) draws up/down
+    // instead of left/right with no second code path — and the keycap graphic is
+    // still chosen from the key character, so demoKeycap() throws for a key with no
+    // pixel art rather than depicting the wrong finger. dirsOf gives the two
+    // directions in reading order; movA/orA is the FIRST, movB/orB the second.
+    const [movA, movB] = cpDirsOf(keyMaps.mov);
+    const [orA, orB]   = cpDirsOf(keyMaps.or);
+
+    // Cue rendering metadata, attached to every stage spec so the demo cartoon
+    // draws the same cue the real trial does: full hue border under disjoint, and
+    // a half-border localized to the task's hand under the fourcue positional cue.
+    // Sides are inferred from the keys so they cannot disagree with the fork.
+    const cueMeta = {
+        cueMode: (scheme && scheme.cueMode) || 'hue',
+        cueSides: { mov: cpHandFor(keyMaps.mov), or: cpHandFor(keyMaps.or) },
+    };
+    const withCue = (demo) => ({ ...demo, ...cueMeta });
+
+    // S1/S2: swim one way, then the other. `orientation: null` is what makes SE's
     // forward-facing sprite the one drawn, i.e. fish that swim without facing.
     const swimBoth = [
-        { movement: 180, orientation: null, border: null, key: movL },
-        { movement: 0, orientation: null, border: null, key: movR },
+        { movement: movA, orientation: null, border: null, key: keyMaps.mov[movA] },
+        { movement: movB, orientation: null, border: null, key: keyMaps.mov[movB] },
     ];
 
     // S3: stationary, facing. `movement: null` is the stimulus its copy promises
     // ("the fish do not swim at all").
     const faceBoth = [
-        { movement: null, orientation: 180, border: null, key: orL },
-        { movement: null, orientation: 0, border: null, key: orR },
+        { movement: null, orientation: orA, border: null, key: keyMaps.or[orA] },
+        { movement: null, orientation: orB, border: null, key: keyMaps.or[orB] },
     ];
 
     return {
-        S1: { segments: swimBoth },
+        S1: withCue({ segments: swimBoth }),
         // The only stage whose cartoon is degraded, matching the one line of copy
         // that promises it. 0.75 of 8 fish leaves two moving at random — visible
         // as noise without making the cartoon unreadable at 150 px.
-        S2: { segments: swimBoth, coherence: 0.75 },
-        S3: { segments: faceBoth },
+        S2: withCue({ segments: swimBoth, coherence: 0.75 }),
+        S3: withCue({ segments: faceBoth }),
         // S4: univalent still, but now cued and mixed — one segment per task, so
         // the colour change and the hand change happen together.
-        S4: {
+        S4: withCue({
             segments: [
-                { movement: 180, orientation: null, border: 'mov', key: movL },
-                { movement: null, orientation: 0, border: 'or', key: orR },
+                { movement: movA, orientation: null, border: 'mov', key: keyMaps.mov[movA] },
+                { movement: null, orientation: orB, border: 'or', key: keyMaps.or[orB] },
             ],
-        },
+        }),
         // S5: bivalent, congruent. Both pathways on, always agreeing, so the
         // answer is the same whichever the border asks for.
-        S5: {
+        S5: withCue({
             segments: [
-                { movement: 180, orientation: 180, border: 'mov', key: movL },
-                { movement: 0, orientation: 0, border: 'or', key: orR },
+                { movement: movA, orientation: orA, border: 'mov', key: keyMaps.mov[movA] },
+                { movement: movB, orientation: orB, border: 'or', key: keyMaps.or[orB] },
             ],
-        },
+        }),
         // S6: bivalent, INCONGRUENT — the same stimulus twice, changing only the
         // border and therefore the correct key. That contrast is the whole lesson
         // of the stage, and is why CP_BORDER_LEGEND could come out of the copy.
-        S6: {
+        S6: withCue({
             segments: [
-                { movement: 180, orientation: 0, border: 'mov', key: movL },
-                { movement: 180, orientation: 0, border: 'or', key: orR },
+                { movement: movA, orientation: orB, border: 'mov', key: keyMaps.mov[movA] },
+                { movement: movA, orientation: orB, border: 'or', key: keyMaps.or[orB] },
             ],
-        },
-        S8: cpFinalStageDemo(keyMaps, finalStage),
+        }),
+        S8: withCue(cpFinalStageDemo(keyMaps, finalStage)),
     };
 }
 
 /** S8's cartoon. Three shapes, matching cpFinalStageInstructions'. */
 function cpFinalStageDemo(keyMaps, finalStage) {
-    const movL = keyMaps.mov[180], movR = keyMaps.mov[0];
-    const orL = keyMaps.or[180], orR = keyMaps.or[0];
+    // Same angle-from-keys convention as cpTrainingDemos, so disjoint is
+    // unchanged and fourcue draws vertically.
+    const [movA, movB] = cpDirsOf(keyMaps.mov);
+    const [orA, orB]   = cpDirsOf(keyMaps.or);
 
     if (finalStage.kind === 'switching') {
         // A repeat then a switch, which is the manipulation the test block
         // measures and the one thing S6's cartoon does not show.
         return {
             segments: [
-                { movement: 180, orientation: 0, border: 'mov', key: movL },
-                { movement: 0, orientation: 180, border: 'mov', key: movR },
-                { movement: 0, orientation: 180, border: 'or', key: orL },
+                { movement: movA, orientation: orB, border: 'mov', key: keyMaps.mov[movA] },
+                { movement: movB, orientation: orA, border: 'mov', key: keyMaps.mov[movB] },
+                { movement: movB, orientation: orA, border: 'or', key: keyMaps.or[orA] },
             ],
         };
     }
@@ -875,10 +954,11 @@ function cpFinalStageDemo(keyMaps, finalStage) {
         // that is what the Stroop test block is made of.
         const task = finalStage.task === 'or' ? 'or' : 'mov';
         const keys = keyMaps[task];
+        const [dA, dB] = cpDirsOf(keys);
         return {
             segments: [
-                { movement: 180, orientation: 0, border: task, key: keys[180] },
-                { movement: 0, orientation: 180, border: task, key: keys[0] },
+                { movement: dA, orientation: dB, border: task, key: keys[dA] },
+                { movement: dB, orientation: dA, border: task, key: keys[dB] },
             ],
         };
     }
@@ -892,13 +972,13 @@ function cpFinalStageDemo(keyMaps, finalStage) {
         const movFirst = finalStage.t1Task !== 'or';
         const seg = (at) => (movFirst
             ? {
-                movement: 180, orientation: null, border: 'mov', key: movL,
-                then: { at, orientation: 0, border: ['mov', 'or'], key: orR },
+                movement: movA, orientation: null, border: 'mov', key: keyMaps.mov[movA],
+                then: { at, orientation: orB, border: ['mov', 'or'], key: keyMaps.or[orB] },
                 duration: at + 2100,
             }
             : {
-                movement: null, orientation: 180, border: 'or', key: orL,
-                then: { at, movement: 0, border: ['or', 'mov'], key: movR },
+                movement: null, orientation: orA, border: 'or', key: keyMaps.or[orA],
+                then: { at, movement: movB, border: ['or', 'mov'], key: keyMaps.mov[movB] },
                 duration: at + 2100,
             });
         return { segments: [seg(1000), seg(400)] };
@@ -913,8 +993,9 @@ function cpFinalStageDemo(keyMaps, finalStage) {
  * two answers on one trial for the first time, and 'rehearsal' narrows back down
  * to a single task after S4-S6 taught both.
  */
-function cpFinalStageInstructions(keyMaps, finalStage) {
+function cpFinalStageInstructions(keyMaps, finalStage, scheme) {
     const shared = cpKeysAreShared(keyMaps);
+    const vocab = cpSchemeVocab(scheme);
     const bothLines = `  Swimming:  ${cpKeyPhrase(keyMaps.mov)}.\n`
         + `  Facing:    ${cpKeyPhrase(keyMaps.or)}.`;
 
@@ -923,7 +1004,7 @@ function cpFinalStageInstructions(keyMaps, finalStage) {
             + 'This is exactly the task you are about to do for real: one\n'
             + 'question per trial, switching between swimming and facing, with\n'
             + 'the border telling you which.\n\n'
-            + CP_BORDER_LEGEND + '\n\n'
+            + cpBorderLegend(keyMaps, scheme) + '\n\n'
             + bothLines + '\n\n'
             + 'Fast and accurate. Press any key to begin.';
     }
@@ -937,7 +1018,7 @@ function cpFinalStageInstructions(keyMaps, finalStage) {
             + `From now on there is only ONE question: which way are the fish\n`
             + `${targetName}?\n\n`
             + `  ${targetLine}\n\n`
-            + `The fish will still be ${otherName} left or right as well, and\n`
+            + `The fish will still be ${otherName} ${vocab.eitherOr} as well, and\n`
             + `that will often disagree with your answer. Ignore it completely —\n`
             + `you will never be asked about it again.\n\n`
             + 'Press any key to begin.';
@@ -991,13 +1072,62 @@ const CP_TEST_BLOCK_PREAMBLE =
 // the shared CSI, that is a cost of keeping training "identical across all the
 // paradigms".
 
+// Stamp the active response-set scheme onto a blockConfig so every downstream
+// consumer reads it off the config: engine.js (geometry.levelToDeg for the CSV
+// path), buildSEConfig (keyMaps), session.js (cueMode for the cue renderer), and
+// the fork's key routing (keyResolution). Returns the config UNCHANGED when no
+// scheme is given — that is the disjoint default the load-time statics build
+// under, and it is why an un-stamped config still behaves exactly as Phase 1
+// (geometry undefined -> horizontal; cueMode undefined -> hue). The scheme is a
+// full descriptor passed in, so this never needs CP_SCHEMES and is safe at load
+// time. Shallow clone so the shared load-time config objects are never mutated.
+function cpStampScheme(blockConfig, scheme) {
+    if (!scheme) return blockConfig;
+    return {
+        ...blockConfig,
+        keyMaps: scheme.keyMaps,
+        geometry: scheme.geometry,
+        cueMode: scheme.cueMode,
+        keyResolution: scheme.keyResolution,
+    };
+}
+
+/**
+ * Build one paradigm's five test blocks for a condition and scheme. Mirrors the
+ * static CP_*_SESSION load-time builds, but with the blockConfig scheme-stamped
+ * and the first block's instruction copy generated from the scheme's key maps.
+ * `scheme` absent => disjoint (the generators' own default), so this reproduces
+ * the static sessions exactly.
+ */
+function cpTestSessionFor(paradigm, condition = 'A', scheme) {
+    const condTask = condition === 'B' ? 'or' : 'mov';
+    const km = scheme ? scheme.keyMaps : undefined;   // undefined => generator default (disjoint)
+    const stamp = (bc) => cpStampScheme(bc, scheme);
+    switch (paradigm) {
+        case 'cp_prp':
+            return cpTestBlocks(stamp(cpPRP), 96, CP_PRP_INSTRUCTIONS(condTask, km, scheme));
+        case 'cp_taskswitch':
+            return cpTestBlocks(stamp(cpTaskSwitch), 96, cpTaskSwitchInstructions(km, scheme));
+        case 'cp_taskswitch_asym':
+            return cpTestBlocks(stamp(cpTaskSwitchAsym), 96, cpTaskSwitchInstructions(km, scheme));
+        case 'cp_stroop':
+            return cpTestBlocks(stamp(cpStroop), 96, CP_STROOP_INSTRUCTIONS(condTask, km));
+        case 'cp_stroop_crossed':
+            return cpTestBlocks(stamp(cpStroopCrossed), 108, CP_STROOP_INSTRUCTIONS(condTask, km));
+        default: throw new Error(`cpTestSessionFor: unknown paradigm '${paradigm}'`);
+    }
+}
+
 /** Assemble one paradigm's full session: S1-S6, then S8, then its test blocks. */
 function cpBuildTrainingSession(spec) {
     const finalStage = spec.finalStage;
-    const instructions = cpTrainingInstructions(spec.keyMaps, finalStage);
+    const scheme = spec.scheme;
+    const instructions = cpTrainingInstructions(spec.keyMaps, finalStage, scheme);
     // Built from the same two inputs as the copy, so a condition that swaps S8's
     // task swaps the cartoon with the sentence describing it — they cannot drift.
-    const demos = cpTrainingDemos(spec.keyMaps, finalStage);
+    // The demo angles/keys come from spec.keyMaps, so a vertical scheme draws
+    // vertically without any scheme branch in the demo builder.
+    const demos = cpTrainingDemos(spec.keyMaps, finalStage, scheme);
     const shared = buildSharedTrainingStages({
         keyMaps: spec.keyMaps,
         rso: spec.rso,
@@ -1017,25 +1147,30 @@ function cpBuildTrainingSession(spec) {
         instructions: instructions.S8,
         demo: demos.S8,
     });
+    // The training stages carry spec.keyMaps already; stamp the rest of the scheme
+    // (geometry/cueMode/keyResolution) onto them. The test blocks were already
+    // stamped by cpTestSessionFor.
+    const stampStage = (blockDef) => ({ ...blockDef, blockConfig: cpStampScheme(blockDef.blockConfig, scheme) });
     const testBlocks = spec.testSession.map((blockDef, i) => (i === 0
         ? { ...blockDef, instructions: CP_TEST_BLOCK_PREAMBLE + blockDef.instructions }
         : blockDef));
-    return [...shared, s8, ...testBlocks];
+    return [...shared.map(stampStage), stampStage(s8), ...testBlocks];
 }
 
-function cpBuildPrpTrainingSession(condition = 'A') {
+function cpBuildPrpTrainingSession(condition = 'A', scheme) {
     const t1Task = condition === 'B' ? 'or' : 'mov';
     return cpBuildTrainingSession({
         blockIdPrefix: 'prp_train',
-        keyMaps: CP_DISJOINT_KEY_MAPS,
+        keyMaps: scheme ? scheme.keyMaps : CP_DISJOINT_KEY_MAPS,
         rso: 'disjoint',
+        scheme,
         rampTarget: { mov: CP_EASY, or: CP_EASY },
         // Bivalent stimuli in training even though cp_prp's test block is univalent
         // (its `coherence.distractor` is 0). Deliberately NOT passing
         // testCoherence, which would make S5/S6 univalent and skip bivalence
         // entirely.
         trainingDistractor: CP_DISTRACTOR,
-        testSession: CP_PRP_SESSION,
+        testSession: cpTestSessionFor('cp_prp', condition, scheme),
         finalStage: {
             kind: 'prp',
             csi: cpPRP.csi,                  // 0 — S8 matches the test block exactly
@@ -1049,18 +1184,19 @@ function cpBuildPrpTrainingSession(condition = 'A') {
     });
 }
 
-function cpBuildTaskSwitchTrainingSession(condition = 'A') {
+function cpBuildTaskSwitchTrainingSession(condition = 'A', scheme) {
     return cpBuildTrainingSession({
         blockIdPrefix: 'ts_train',
-        keyMaps: CP_DISJOINT_KEY_MAPS,
+        keyMaps: scheme ? scheme.keyMaps : CP_DISJOINT_KEY_MAPS,
         rso: 'disjoint',
+        scheme,
         // Each task carries both levels here, so the ramp bottoms at the easy one —
         // see the JUDGMENT CALL note above.
         rampTarget: { mov: CP_EASY, or: CP_EASY },
         trainingDistractor: CP_DISTRACTOR,
         testCoherence: cpTaskSwitch.coherence,
         levelFactors: cpTaskSwitch.levelFactors,
-        testSession: CP_TASKSWITCH_SESSION,
+        testSession: cpTestSessionFor('cp_taskswitch', condition, scheme),
         finalStage: {
             kind: 'switching',
             csi: cpTaskSwitch.csi,
@@ -1071,7 +1207,7 @@ function cpBuildTaskSwitchTrainingSession(condition = 'A') {
     });
 }
 
-function cpBuildTaskSwitchAsymTrainingSession(condition = 'A') {
+function cpBuildTaskSwitchAsymTrainingSession(condition = 'A', scheme) {
     const easyTask = condition === 'B' ? 'or' : 'mov';
     const targetCoherence = {
         mov: easyTask === 'mov' ? CP_EASY : CP_HARD,
@@ -1085,12 +1221,13 @@ function cpBuildTaskSwitchAsymTrainingSession(condition = 'A') {
         };
     return cpBuildTrainingSession({
         blockIdPrefix: 'tsa_train',
-        keyMaps: CP_DISJOINT_KEY_MAPS,
+        keyMaps: scheme ? scheme.keyMaps : CP_DISJOINT_KEY_MAPS,
         rso: 'disjoint',
+        scheme,
         rampTarget: targetCoherence,
         trainingDistractor: CP_DISTRACTOR,
         testCoherence: coherence,
-        testSession: CP_TASKSWITCH_ASYM_SESSION,
+        testSession: cpTestSessionFor('cp_taskswitch_asym', condition, scheme),
         finalStage: {
             kind: 'switching',
             csi: cpTaskSwitchAsym.csi,
@@ -1100,12 +1237,13 @@ function cpBuildTaskSwitchAsymTrainingSession(condition = 'A') {
     });
 }
 
-function cpBuildStroopTrainingSession(condition = 'A') {
+function cpBuildStroopTrainingSession(condition = 'A', scheme) {
     const targetTask = condition === 'B' ? 'or' : 'mov';
     return cpBuildTrainingSession({
         blockIdPrefix: 'stroop_train',
-        keyMaps: CP_DISJOINT_KEY_MAPS,
+        keyMaps: scheme ? scheme.keyMaps : CP_DISJOINT_KEY_MAPS,
         rso: 'identical',
+        scheme,
         // The non-target dimension is never a target in the Stroop test block, so
         // S3's ramp bottoms at the strength it actually appears with — CP_DISTRACTOR.
         // S3 is required even for Stroop, because a distractor with no trained
@@ -1116,7 +1254,7 @@ function cpBuildStroopTrainingSession(condition = 'A') {
         },
         trainingDistractor: CP_DISTRACTOR,
         testCoherence: cpStroop.coherence,
-        testSession: CP_STROOP_SESSION,
+        testSession: cpTestSessionFor('cp_stroop', condition, scheme),
         finalStage: {
             kind: 'rehearsal',
             csi: cpStroop.csi,
@@ -1130,12 +1268,13 @@ function cpBuildStroopTrainingSession(condition = 'A') {
     });
 }
 
-function cpBuildStroopCrossedTrainingSession(condition = 'A') {
+function cpBuildStroopCrossedTrainingSession(condition = 'A', scheme) {
     const targetTask = condition === 'B' ? 'or' : 'mov';
     return cpBuildTrainingSession({
         blockIdPrefix: 'stroopx_train',
-        keyMaps: CP_DISJOINT_KEY_MAPS,
+        keyMaps: scheme ? scheme.keyMaps : CP_DISJOINT_KEY_MAPS,
         rso: 'identical',
+        scheme,
         // Easiest of the three crossed levels, per the JUDGMENT CALL note above.
         rampTarget: { mov: CP_STROOP_LEVELS.high, or: CP_STROOP_LEVELS.high },
         // S5 needs ONE distractor strength; the middle level is the least
@@ -1143,7 +1282,7 @@ function cpBuildStroopCrossedTrainingSession(condition = 'A') {
         trainingDistractor: CP_STROOP_LEVELS.mid,
         testCoherence: cpStroopCrossed.coherence,
         levelFactors: cpStroopCrossed.levelFactors,
-        testSession: CP_STROOP_CROSSED_SESSION,
+        testSession: cpTestSessionFor('cp_stroop_crossed', condition, scheme),
         finalStage: {
             kind: 'rehearsal',
             csi: cpStroopCrossed.csi,
@@ -1155,13 +1294,13 @@ function cpBuildStroopCrossedTrainingSession(condition = 'A') {
     });
 }
 
-function cpTrainingSessionFor(paradigm, condition = 'A') {
+function cpTrainingSessionFor(paradigm, condition = 'A', scheme) {
     switch (paradigm) {
-        case 'cp_prp': return cpBuildPrpTrainingSession(condition);
-        case 'cp_taskswitch': return cpBuildTaskSwitchTrainingSession(condition);
-        case 'cp_taskswitch_asym': return cpBuildTaskSwitchAsymTrainingSession(condition);
-        case 'cp_stroop': return cpBuildStroopTrainingSession(condition);
-        case 'cp_stroop_crossed': return cpBuildStroopCrossedTrainingSession(condition);
+        case 'cp_prp': return cpBuildPrpTrainingSession(condition, scheme);
+        case 'cp_taskswitch': return cpBuildTaskSwitchTrainingSession(condition, scheme);
+        case 'cp_taskswitch_asym': return cpBuildTaskSwitchAsymTrainingSession(condition, scheme);
+        case 'cp_stroop': return cpBuildStroopTrainingSession(condition, scheme);
+        case 'cp_stroop_crossed': return cpBuildStroopCrossedTrainingSession(condition, scheme);
         default: throw new Error(`cpTrainingSessionFor: unknown paradigm '${paradigm}'`);
     }
 }

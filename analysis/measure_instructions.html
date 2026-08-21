@@ -146,6 +146,11 @@ function measure(text, demo = null) {
     return result;
 }
 
+// Four-cue scheme (?scheme=fourcue): its copy differs from disjoint — the border
+// legend gains " on your LEFT/RIGHT", the task-switch cue line names the side, and
+// the demo draws a half-border with vertically-rotated birds. Measured alongside
+// disjoint so a wrapped legend line cannot silently overflow one scheme only.
+const FOURCUE = cpResolveScheme('fourcue');
 const SESSIONS = {
     cp_prp_training: CP_PRP_TRAINING_SESSION,
     cp_taskswitch_training: CP_TASKSWITCH_TRAINING_SESSION,
@@ -159,6 +164,17 @@ const SESSIONS = {
     cp_taskswitch_asym: CP_TASKSWITCH_ASYM_SESSION,
     cp_stroop: CP_STROOP_SESSION,
     cp_stroop_crossed: CP_STROOP_CROSSED_SESSION,
+    // Four-cue scheme, both paths.
+    cp_prp_training_fourcue: cpBuildPrpTrainingSession('A', FOURCUE),
+    cp_taskswitch_training_fourcue: cpBuildTaskSwitchTrainingSession('A', FOURCUE),
+    cp_taskswitch_asym_training_fourcue: cpBuildTaskSwitchAsymTrainingSession('A', FOURCUE),
+    cp_stroop_training_fourcue: cpBuildStroopTrainingSession('A', FOURCUE),
+    cp_stroop_crossed_training_fourcue: cpBuildStroopCrossedTrainingSession('A', FOURCUE),
+    cp_prp_fourcue: cpTestSessionFor('cp_prp', 'A', FOURCUE),
+    cp_taskswitch_fourcue: cpTestSessionFor('cp_taskswitch', 'A', FOURCUE),
+    cp_taskswitch_asym_fourcue: cpTestSessionFor('cp_taskswitch_asym', 'A', FOURCUE),
+    cp_stroop_fourcue: cpTestSessionFor('cp_stroop', 'A', FOURCUE),
+    cp_stroop_crossed_fourcue: cpTestSessionFor('cp_stroop_crossed', 'A', FOURCUE),
 };
 
 const lines = [];

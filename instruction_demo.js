@@ -56,8 +56,13 @@ const DEMO_SOA_MS = 700;        // default gap before a `then` event (PRP)
 const DEMO_CUE_COLORS = { mov: '#fb0', or: '#0af' };
 
 // Pixel-art keycaps. frame_00 is the idle keyboard, frame_01 the LEFT key
-// depressed, frame_03 the RIGHT key. (frame_02 is byte-identical to frame_00 and
-// is deliberately unused — the source was authored as a 4-frame loop.)
+// depressed, frame_03 the RIGHT key (frame_02 is byte-identical to frame_00 and
+// is deliberately unused — the source was authored as a 4-frame loop). frame_up
+// and frame_down are the VERTICAL keys depressed (W/S on wasd, I/K on ijkl),
+// generated from the same pixel-art source (Python/KeyboardAnimation/ai.py,
+// draw_keyboard('W'/'S'/'I'/'K')) so they match the horizontal frames exactly.
+// The disjoint scheme uses only the horizontal (a/d, j/l) frames; the fourcue
+// scheme uses only the vertical (w/s, i/k) frames.
 const DEMO_KEY_IDLE = {
     wasd: 'frames_wasd/frame_00.png',
     ijkl: 'frames_ijkl/frame_00.png',
@@ -68,8 +73,12 @@ const DEMO_KEY_IDLE = {
 const DEMO_KEYCAPS = {
     a: { set: 'wasd', src: 'frames_wasd/frame_01.png' },
     d: { set: 'wasd', src: 'frames_wasd/frame_03.png' },
+    w: { set: 'wasd', src: 'frames_wasd/frame_up.png' },
+    s: { set: 'wasd', src: 'frames_wasd/frame_down.png' },
     j: { set: 'ijkl', src: 'frames_ijkl/frame_01.png' },
     l: { set: 'ijkl', src: 'frames_ijkl/frame_03.png' },
+    i: { set: 'ijkl', src: 'frames_ijkl/frame_up.png' },
+    k: { set: 'ijkl', src: 'frames_ijkl/frame_down.png' },
 };
 
 function demoKeycap(key) {
@@ -160,12 +169,14 @@ class DemoFish {
  *     segments:   [ Segment, ... ] played in order, then looped
  *   }
  *   Segment = {
- *     movement:    0 | 180 | null    (null = stationary)
- *     orientation: 0 | 180 | null    (null = forward-facing sprite, i.e. univalent
- *                                     movement — see the geometry note above)
+ *     movement:    0 | 180 | 90 | 270 | null   (null = stationary; 90/270 = up/down,
+ *                                     the fourcue vertical geometry)
+ *     orientation: 0 | 180 | 90 | 270 | null   (null = forward-facing sprite, i.e.
+ *                                     univalent movement — see the geometry note above;
+ *                                     90/270 render by rotating the right-facing frame)
  *     border:      'mov' | 'or' | ['mov','or'] | null   (an array nests two cues,
  *                                     as a dual-task trial has both on screen)
- *     key:         'a'|'d'|'j'|'l' | null   keycap to depress at DEMO_KEY_AT_MS
+ *     key:         'a'|'d'|'w'|'s'|'j'|'l'|'i'|'k' | null   keycap to depress at DEMO_KEY_AT_MS
  *     duration?:   ms (default DEMO_SEGMENT_MS)
  *     then?:       { at?, movement?, orientation?, border?, key? }
  *                  a second event mid-segment. This is how the PRP stage shows a
@@ -294,6 +305,21 @@ function createInstructionDemo(spec, sprites) {
             const t = 16;   // fish_forward.png tile
             ctx.drawImage(sprites.imgDist, f.frame * t, f.variant * t, t, t,
                           f.x - s / 2, f.y - s / 2, s, s);
+        } else if (f.or === 90 || f.or === 270) {
+            // VERTICAL facing (fourcue). SE's OobImg.drawOrientated has no baked
+            // up/down rows; it ROTATES the right-facing frame instead (fork
+            // src/oob.js:193-206): up (90) -> -90deg, down (270) -> -270deg. Match
+            // that exactly so the cartoon birds face up/down the same way the real
+            // stimulus does. Horizontal facing (0/180) keeps its baked-row path
+            // below, unchanged, so the disjoint cartoon is untouched.
+            const t = 18;
+            const rowIdx = f.variant * 2;   // right-facing row, then rotate
+            ctx.save();
+            ctx.translate(f.x, f.y);
+            ctx.rotate((-Math.PI * f.or) / 180);
+            ctx.drawImage(sprites.img, f.frame * t, rowIdx * t, t, t,
+                          -s / 2, -s / 2, s, s);
+            ctx.restore();
         } else {
             const t = 18;   // fish_2.png tile
             const facingLeft = f.or > 90 && f.or < 270;
@@ -316,12 +342,33 @@ function createInstructionDemo(spec, sprites) {
             // dots); the cartoon nests them instead, which reads better at 150 px.
             const lw = Math.round(canvas.width * 0.05);
             const cues = Array.isArray(border) ? border : [border];
+            const positional = spec.cueMode === 'hue+position';
+            const halfW = canvas.width / 2;
             ctx.lineWidth = lw;
             cues.forEach((cue, i) => {
                 const inset = lw / 2 + i * lw;
                 ctx.strokeStyle = DEMO_CUE_COLORS[cue];
-                ctx.strokeRect(inset, inset,
-                               canvas.width - 2 * inset, canvas.height - 2 * inset);
+                const side = positional && spec.cueSides ? spec.cueSides[cue] : null;
+                if (side === 'left') {
+                    // Open 3-sided bracket on the left: top half, left vertical, bottom half
+                    ctx.beginPath();
+                    ctx.moveTo(halfW, inset);
+                    ctx.lineTo(inset, inset);
+                    ctx.lineTo(inset, canvas.height - inset);
+                    ctx.lineTo(halfW, canvas.height - inset);
+                    ctx.stroke();
+                } else if (side === 'right') {
+                    // Open 3-sided bracket on the right: top half, right vertical, bottom half
+                    ctx.beginPath();
+                    ctx.moveTo(halfW, inset);
+                    ctx.lineTo(canvas.width - inset, inset);
+                    ctx.lineTo(canvas.width - inset, canvas.height - inset);
+                    ctx.lineTo(halfW, canvas.height - inset);
+                    ctx.stroke();
+                } else {
+                    ctx.strokeRect(inset, inset,
+                                   canvas.width - 2 * inset, canvas.height - 2 * inset);
+                }
             });
         }
         raf = requestAnimationFrame(frame);
