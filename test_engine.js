@@ -2324,6 +2324,64 @@ assert(prpTrials[1].meta.t1_target_dir === 0 && prpTrials[1].meta.t2_target_dir 
 }
 
 // ============================================================
+section('integration — FOURCUE CSV (hand column, vertical geometry)');
+{
+    // Vertical geometry + hand column — a fourcue-shaped taskswitch block. The
+    // `hand` column is the only thing that makes the client route per trial.
+    const fcCsv = [
+        'block_id,condition,trial_index,task,hand,task_transition,hand_transition,response_transition,congruency,target_coh_level,target_dir',
+        'cp_taskswitch,A,0,mov,left,First,First,First,congruent,easy,left',
+        'cp_taskswitch,A,1,or,right,Switch,Switch,Repeat,incongruent,hard,right',
+        'cp_taskswitch,A,2,mov,right,Switch,Repeat,Switch,congruent,easy,left',
+    ].join('\n');
+    const fcCfg = {
+        paradigm: 'single-task', rso: 'disjoint',
+        keyMaps: { mov: { 90: 'w', 270: 's' }, or: { 90: 'i', 270: 'k' } },
+        geometry: { axis: 'vertical', levelToDeg: { left: 90, right: 270 } },
+        cueMode: 'hue+position',
+        iti: { type: 'fixed', value: 0 },
+        csi: 0, stimulusDuration: 100, responseWindow: 100,
+        coherence: { target: { easy: 0.8, hard: 0.4 }, distractor: 0 },
+        levelFactors: { target: ['easy', 'hard'] },
+    };
+    const fcVec = loadSequenceVectors(fcCsv, fcCfg);
+    assert(JSON.stringify(fcVec.hand) === JSON.stringify(['left', 'right', 'right']),
+        'fourcue loader: hand column parsed');
+    assert(JSON.stringify(fcVec.targetDir) === JSON.stringify([90, 270, 90]),
+        'fourcue loader: target_dir uses vertical geometry (90/270)');
+    const fcTrials = generateBlockTrials(fcCfg, fcVec.task1.length, fcVec);
+    assert(fcTrials[0].meta.hand === 'left' && fcTrials[1].meta.hand === 'right',
+        'fourcue integration: meta.hand carried onto each trial');
+
+    // An unknown hand value must throw rather than silently run.
+    let threwHand = false;
+    try {
+        loadSequenceVectors(fcCsv.replace('mov,left', 'mov,middle'), fcCfg);
+    } catch (e) { threwHand = true; }
+    assert(threwHand, 'fourcue loader: unknown hand value throws');
+
+    // Disjoint CSVs have no hand column, so the hand vector stays absent and
+    // meta.hand is null — the disjoint path is untouched.
+    const djCsv = [
+        'block_id,condition,trial_index,task,task_transition,response_transition,congruency,target_coh_level,target_dir',
+        'cp_taskswitch,A,0,mov,First,First,congruent,easy,left',
+        'cp_taskswitch,A,1,or,Switch,Repeat,incongruent,hard,right',
+    ].join('\n');
+    const djCfg = {
+        paradigm: 'single-task', rso: 'disjoint',
+        keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } },
+        iti: { type: 'fixed', value: 0 },
+        csi: 0, stimulusDuration: 100, responseWindow: 100,
+        coherence: { target: { easy: 0.8, hard: 0.4 }, distractor: 0 },
+        levelFactors: { target: ['easy', 'hard'] },
+    };
+    const djVec = loadSequenceVectors(djCsv, djCfg);
+    const djTrials = generateBlockTrials(djCfg, djVec.task1.length, djVec);
+    assert(djVec.hand === undefined, 'disjoint loader: no hand vector');
+    assert(djTrials[0].meta.hand === null, 'disjoint integration: meta.hand null');
+}
+
+// ============================================================
 // Summary
 console.log(`\n============================`);
 console.log(`PASSED: ${passed}`);

@@ -29,11 +29,18 @@ from collections import Counter, defaultdict
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import generate  # noqa: E402  (DEFAULT_TRIALS, for the row-count check)
 
-SEQ_DIR = os.path.join(os.path.dirname(__file__), "..", "sequences")
+SEQ_DIRS = {
+    "disjoint": os.path.join(os.path.dirname(__file__), "..", "sequences"),
+    "fourcue": os.path.join(os.path.dirname(__file__), "..", "sequences_fourcue"),
+}
+SEQ_DIR = SEQ_DIRS["disjoint"]   # default; main() overrides per --scheme
 
 # `condition` itself, plus the two columns a condition label is allowed to change:
 # `task` (which dimension is the Stroop target / PRP's T1) and `target_coh_level`
-# (asymmetric switching resolves easy/hard per task).
+# (asymmetric switching resolves easy/hard per task). Under fourcue, PRP's `hand`
+# is also condition-determined (T1 left in A, right in B), so it is added for
+# cp_prp only (see check_condition_pairs) — for the switching/Stroop paradigms
+# `hand` is a SAMPLED factor and must be identical across A/B.
 CONDITION_LABEL_COLUMNS = {"condition", "task", "target_coh_level"}
 
 FILENAME_RE = re.compile(r"^(?P<paradigm>.+)_(?P<condition>[A-Z])_s(?P<seq>\d+)\.csv$")
@@ -74,6 +81,45 @@ def check_switching(path, rows, verbose):
             print(f"    task x target_coh_level: {dict(tc)}")
 
 
+def check_hand(path, rows, verbose):
+    """Fourcue only: `hand` must be present and balanced 50/50 across the block,
+    and (for switching paradigms) `hand_transition` must be balanced WITHIN each
+    `task_transition` level, i.e. a task switch is not forced to be a hand switch.
+    """
+    name = os.path.basename(path)
+    if "hand" not in rows[0]:
+        failures.append(f"{name}: fourcue file missing `hand` column")
+        return
+
+    hands = Counter(r["hand"] for r in rows)
+    left, right = hands.get("left", 0), hands.get("right", 0)
+    # PRP hand is condition-determined (all one hand in a file); every other
+    # paradigm samples it and must be balanced.
+    is_prp = "soa_level" in rows[0]
+    if not is_prp and abs(left - right) > 1:
+        failures.append(f"{name}: hand NOT balanced (left={left} right={right})")
+    if verbose:
+        print(f"    hand: left={left} right={right}"
+              + ("  (PRP: condition-tied)" if is_prp else ""))
+
+    if "hand_transition" in rows[0]:
+        tr = [r for r in rows if r["task_transition"] not in ("First", "")]
+        by_tt = {}
+        for r in tr:
+            by_tt.setdefault(r["task_transition"], Counter())[r["hand_transition"]] += 1
+        for tt, counter in sorted(by_tt.items()):
+            rep, sw = counter.get("Repeat", 0), counter.get("Switch", 0)
+            if abs(rep - sw) > 1:
+                failures.append(f"{name}: hand_transition NOT balanced within "
+                                f"task_transition={tt} (Repeat={rep} Switch={sw})")
+            if verbose:
+                print(f"    task_transition={tt:<7} hand Repeat={rep} Switch={sw}"
+                      f"  {'OK' if abs(rep - sw) <= 1 else 'IMBALANCED'}")
+        if verbose:
+            cell = Counter((r["task"], r["hand"]) for r in rows)
+            print(f"    task x hand cells: {dict(cell)}")
+
+
 def check_generic(path, rows, verbose):
     if not verbose:
         return
@@ -112,7 +158,10 @@ def check_condition_pairs(by_key, verbose):
                 for col in ra:
                     if ra[col] != rb.get(col):
                         differing.add(col)
-            bad = differing - CONDITION_LABEL_COLUMNS
+            # PRP's hand is condition-determined, so it may differ across A/B;
+            # for every other paradigm `hand` is sampled and must match.
+            allowed = CONDITION_LABEL_COLUMNS | ({"hand"} if paradigm == "cp_prp" else set())
+            bad = differing - allowed
             if bad:
                 failures.append(
                     f"{paradigm} s{seq:03d}: {base_c} and {other_c} differ in "
@@ -140,11 +189,17 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--verbose", action="store_true",
                     help="per-file balance tables (unreadable for a 500-file pool)")
+    ap.add_argument("--scheme", choices=list(SEQ_DIRS), default="disjoint",
+                    help="which pool to verify: 'disjoint' -> sequences/ (default), "
+                         "'fourcue' -> sequences_fourcue/ (also checks hand balance "
+                         "and hand_transition orthogonality)")
     args = ap.parse_args()
 
-    paths = sorted(glob.glob(os.path.join(SEQ_DIR, "*.csv")))
+    seq_dir = SEQ_DIRS[args.scheme]
+    paths = sorted(glob.glob(os.path.join(seq_dir, "*.csv")))
     if not paths:
-        print(f"No CSVs found in {os.path.normpath(SEQ_DIR)}. Run generate.py first.")
+        print(f"No CSVs found in {os.path.normpath(seq_dir)}. "
+              f"Run generate.py --scheme {args.scheme} first.")
         sys.exit(1)
 
     counts = Counter()
@@ -172,6 +227,8 @@ def main():
             check_switching(path, rows, args.verbose)
         else:
             check_generic(path, rows, args.verbose)
+        if rows and "hand" in rows[0]:
+            check_hand(path, rows, args.verbose)
 
     print()
     for (paradigm, condition), n in sorted(counts.items()):

@@ -1088,6 +1088,39 @@ drawThrows(() => drawSequenceIds('seed', 50, 0), 'a draw count of 0 is refused')
 drawThrows(() => drawSequenceIds('seed', 50.5, 5), 'a non-integer pool size is refused');
 
 // ============================================================
+section('fourcueSingleTaskKeyMaps — 2x2 hand routing');
+// The cued task takes the cued hand's vertical keys; the other task takes the
+// other hand's, so buildSEConfig places the cue on the cued side and a wrong-hand
+// press still lands in a real key map. Covers all four color x side combos.
+{
+    const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const W = { 90: 'w', 270: 's' };   // left-hand vertical
+    const I = { 90: 'i', 270: 'k' };   // right-hand vertical
+
+    let km = fourcueSingleTaskKeyMaps('mov', 'left');
+    assert(eq(km.mov, W) && eq(km.or, I), 'mov+left: mov on left (W/S), or on right (I/K)');
+    assert(seHandSideOf(km.mov) === 'left', 'mov+left: cue side left');
+
+    km = fourcueSingleTaskKeyMaps('mov', 'right');
+    assert(eq(km.mov, I) && eq(km.or, W), 'mov+right: mov on right (I/K), or on left (W/S)');
+    assert(seHandSideOf(km.mov) === 'right', 'mov+right: cue side right');
+
+    km = fourcueSingleTaskKeyMaps('or', 'left');
+    assert(eq(km.or, W) && eq(km.mov, I), 'or+left: or on left (W/S), mov on right (I/K)');
+    assert(seHandSideOf(km.or) === 'left', 'or+left: cue side left');
+
+    km = fourcueSingleTaskKeyMaps('or', 'right');
+    assert(eq(km.or, I) && eq(km.mov, W), 'or+right: or on right (I/K), mov on left (W/S)');
+    assert(seHandSideOf(km.or) === 'right', 'or+right: cue side right');
+
+    // The two maps are always disjoint (distinct fingers), so a wrong-hand press
+    // is a scorable error rather than an unmatched (dropped) key.
+    const all = fourcueSingleTaskKeyMaps('mov', 'left');
+    const movK = Object.values(all.mov), orK = Object.values(all.or);
+    assert(!movK.some(k => orK.includes(k)), 'fourcue single-task maps are disjoint');
+}
+
+// ============================================================
 // Summary
 // ============================================================
 

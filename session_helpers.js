@@ -183,6 +183,29 @@ function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps
 }
 
 /**
+ * Per-trial key maps for a SINGLE-TASK fourcue trial.
+ *
+ * The fourcue scheme decouples hand from task: the cued task is answered with the
+ * cued HAND (border side), which varies trial-to-trial. Given the trial's task and
+ * hand, the CUED task takes the cued hand's vertical keys and the OTHER task takes
+ * the other hand's — so buildSEConfig's `seHandSideOf` places the cue on the right
+ * half (movCueSide/orCueSide fall out of the keys), and a wrong-HAND press still
+ * lands in a real key map and is scored as an error rather than being dropped.
+ * Only the cued task's go signal fires, so the other map is never a correct answer.
+ *
+ * @param {'mov'|'or'} task - the cued (target) task
+ * @param {'left'|'right'} hand - the cued response hand
+ * @returns {{ mov: object, or: object }} key maps to hand to buildSEConfig
+ */
+function fourcueSingleTaskKeyMaps(task, hand) {
+    const cued = hand === 'right' ? RIGHT_HAND_KEYS_VERTICAL : LEFT_HAND_KEYS_VERTICAL;
+    const other = hand === 'right' ? LEFT_HAND_KEYS_VERTICAL : RIGHT_HAND_KEYS_VERTICAL;
+    return task === 'mov'
+        ? { mov: { ...cued }, or: { ...other } }
+        : { mov: { ...other }, or: { ...cued } };
+}
+
+/**
  * Build SE configs for simultaneous dual-canvas display.
  * Left canvas uses left-hand keys, right canvas uses right-hand keys.
  * The inactive pathway on each canvas gets dummy (unmatchable) keys.

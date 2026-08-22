@@ -324,6 +324,17 @@ function generateSequenceVectors(blockConfig, numTrials) {
         );
     }
 
+    // Fourcue scheme: single-task blocks vary the RESPONSE HAND trial-to-trial
+    // (the cue's side, and the vertical key set that answers). The counterbalanced
+    // pool owns this on the participant path; here on the JS-fallback / training
+    // path we sample it balanced (50/50). Dual-task PRP does NOT get a per-trial
+    // hand — its hands are task-tied by condition (T1 one hand, T2 the other), so
+    // the block-level key maps already place them.
+    if (blockConfig.varyHand
+        && !isDualTaskParadigm && blockConfig.paradigm !== 'prp-baseline') {
+        sequenceData.hand = generateCongruencySequence(numTrials, ['left', 'right'], [0.5, 0.5]);
+    }
+
     return sequenceData;
 }
 
@@ -396,10 +407,15 @@ function loadSequenceVectors(csvText, blockConfig) {
     const hasSoa = cols.has('soa_level');
     const hasTargetLevel = cols.has('target_coh_level');
     const hasDistractorLevel = cols.has('distractor_coh_level');
+    // The fourcue pool carries a per-trial response HAND ('left'/'right'). Its
+    // presence is what makes the client route keys/cue-side per trial; the
+    // disjoint pool has no such column and the whole hand path stays dormant.
+    const hasHand = cols.has('hand');
 
     const validTasks = new Set(['mov', 'or']);
     const validCongruency = new Set(['congruent', 'incongruent', 'neutral', 'univalent']);
     const validTransition = new Set(['First', 'Repeat', 'Switch']);
+    const validHand = new Set(['left', 'right']);
 
     const vectors = {
         task1: [], task2: [], transition: [], soa: [], iti: [],
@@ -407,6 +423,7 @@ function loadSequenceVectors(csvText, blockConfig) {
     };
     if (hasTargetLevel) vectors.targetLevel = [];
     if (hasDistractorLevel) vectors.distractorLevel = [];
+    if (hasHand) vectors.hand = [];
 
     for (let i = 0; i < n; i++) {
         const r = rows[i];
@@ -439,6 +456,13 @@ function loadSequenceVectors(csvText, blockConfig) {
 
         if (hasTargetLevel) vectors.targetLevel.push(r.target_coh_level);
         if (hasDistractorLevel) vectors.distractorLevel.push(r.distractor_coh_level);
+
+        if (hasHand) {
+            if (!validHand.has(r.hand)) {
+                throw new Error(`loadSequenceVectors: row ${i} unknown hand '${r.hand}' (expected left|right)`);
+            }
+            vectors.hand.push(r.hand);
+        }
     }
 
     // Transition: use SweetPea's column when present, else classify from task1.
@@ -859,6 +883,10 @@ function generateBlockTrials(blockConfig, numTrials, preloadedVectors = null) {
             t1_task: task1,
             t2_task: task2,
             transitionType: vectors.transition[i],
+            // Fourcue: the response hand for this single-task trial ('left'/'right'),
+            // from the pool CSV or the balanced fallback. null under disjoint (no
+            // hand column, no fallback vector), where hand is fixed by task.
+            hand: vectors.hand ? vectors.hand[i] : null,
             iti: iti,
             soa: soa,
             earlyResolve: blockConfig.earlyResolve ?? false,

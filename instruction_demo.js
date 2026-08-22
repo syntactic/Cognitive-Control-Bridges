@@ -230,6 +230,12 @@ function createInstructionDemo(spec, sprites) {
 
     let fish = [];
     let border = null;
+    // Which side each active cue draws on, under the fourcue positional cue. A
+    // segment sets it per-cue: `side` for a single-cue segment (the 2x2 puts the
+    // same task's border on either hand), or `cueSides` {mov,or} for a two-cue
+    // (PRP) segment. Falls back to spec.cueSides (the task-tied default) so the
+    // disjoint/PRP paths are unchanged.
+    let activeCueSides = {};
     let raf = null;
     let last = null;
     let stopped = false;
@@ -249,6 +255,15 @@ function createInstructionDemo(spec, sprites) {
         timers.push(setTimeout(() => { img.src = DEMO_KEY_IDLE[set]; }, at + DEMO_KEY_HOLD_MS));
     };
 
+    // Per-cue sides declared by a segment (or a `then` event): explicit `cueSides`
+    // {mov,or}, or `side` paired with a single-cue `border`. Empty when neither is
+    // given, so frame() falls back to spec.cueSides.
+    function cueSidesOf(entry) {
+        if (entry.cueSides) return { ...entry.cueSides };
+        if (entry.side && typeof entry.border === 'string') return { [entry.border]: entry.side };
+        return {};
+    }
+
     function runSegment() {
         if (stopped) return;
         clearTimers();
@@ -264,6 +279,7 @@ function createInstructionDemo(spec, sprites) {
             fish.push(f);
         }
         border = seg.border || null;
+        activeCueSides = cueSidesOf(seg);
 
         if (seg.key) flashKey(seg.key, DEMO_KEY_AT_MS);
 
@@ -274,6 +290,9 @@ function createInstructionDemo(spec, sprites) {
                 if (stopped) return;
                 for (const f of fish) f.setState(t.movement, t.orientation);
                 if (t.border !== undefined) border = t.border;
+                // Merge the `then` event's sides so a PRP second cue lands on its
+                // own hand without clearing the first cue's side.
+                activeCueSides = { ...activeCueSides, ...cueSidesOf(t) };
                 if (t.key) flashKey(t.key, DEMO_KEY_AT_MS);
             }, at));
         }
@@ -348,7 +367,9 @@ function createInstructionDemo(spec, sprites) {
             cues.forEach((cue, i) => {
                 const inset = lw / 2 + i * lw;
                 ctx.strokeStyle = DEMO_CUE_COLORS[cue];
-                const side = positional && spec.cueSides ? spec.cueSides[cue] : null;
+                const side = positional
+                    ? (activeCueSides[cue] ?? (spec.cueSides && spec.cueSides[cue]) ?? null)
+                    : null;
                 if (side === 'left') {
                     // Open 3-sided bracket on the left: top half, left vertical, bottom half
                     ctx.beginPath();

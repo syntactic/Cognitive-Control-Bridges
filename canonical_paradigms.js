@@ -312,12 +312,15 @@ const CP_TEST_BLOCKS_PER_SESSION = 5;
  * Path to one pool block. `sequenceId` is 1-based and zero-padded to three
  * digits, matching sweetpea/generate.py's `sequence_filename`.
  */
-function cpSequencePath(paradigm, condition, sequenceId) {
+function cpSequencePath(paradigm, condition, sequenceId, schemeName) {
     if (!Number.isInteger(sequenceId) || sequenceId < 1) {
         throw new Error(`cpSequencePath: sequenceId must be a positive integer, got ${sequenceId}`);
     }
     const nnn = String(sequenceId).padStart(3, '0');
-    return `sequences/${paradigm}_${condition}_s${nnn}.csv`;
+    // The fourcue pool lives in its own directory (sequences_fourcue/); everything
+    // else, including a missing/unknown scheme, reads the disjoint pool.
+    const dir = schemeName === 'fourcue' ? 'sequences_fourcue' : 'sequences';
+    return `${dir}/${paradigm}_${condition}_s${nnn}.csv`;
 }
 
 /**
@@ -376,7 +379,7 @@ function cpApplySweetPea(sessionArray, condition, sequenceIds, scheme) {
         const sequenceId = sequenceIds[testBlockIndex++];
         const blockConfig = {
             ...blockDef.blockConfig,
-            sequenceSource: cpSequencePath(blockId, condition, sequenceId),
+            sequenceSource: cpSequencePath(blockId, condition, sequenceId, scheme && scheme.name),
             // Recorded on every row of this block. With no assignment table this
             // is the only surviving record of the draw.
             sequenceId,
@@ -438,21 +441,36 @@ function cpSchemeVocab(scheme) {
 }
 
 // The cue is a COLORED border (src/game.js: movCueColor '#fb0' orange,
-// orCueColor '#0af' blue). Under the fourcue scheme the border is ALSO localized
-// to the hand's half of the screen (cueMode 'hue+position'), so the legend then
-// names the side too; the side is inferred from the task's key hand, not declared,
-// so it cannot disagree with the keys. Dashes vs dots separate the FIRST from the
-// SECOND task of a dual-task trial, not movement from orientation — see the note
-// above CP_TASKSWITCH_INSTRUCTIONS.
+// orCueColor '#0af' blue). Dashes vs dots separate the FIRST from the SECOND task
+// of a dual-task trial, not movement from orientation — see the note above
+// CP_TASKSWITCH_INSTRUCTIONS.
+//
+// DISJOINT: colour alone carries the task, and each task is answered with a fixed
+// hand, so the two-line colour legend is the whole rule.
+//
+// FOURCUE: the cue is a 2x2 (cueMode 'hue+position'). Colour is the QUESTION and
+// SIDE is the HAND, and the two are INDEPENDENT — orange can appear on either
+// side, blue on either side. So the legend teaches the two rules separately; it
+// must not tie a colour to a side (the pre-2x2 version did, inferring the side
+// from the task's key hand, which is only correct while hand is task-tied).
 function cpBorderLegend(keyMaps, scheme) {
-    const positional = cpSchemeVocab(scheme).positional;
-    const side = (task) => {
-        if (!positional) return '';
-        const hand = keyMaps ? cpHandFor(keyMaps[task]) : null;
-        return hand === 'left' ? ' on your LEFT' : hand === 'right' ? ' on your RIGHT' : '';
-    };
-    return `  ORANGE border${side('mov')}  ->  answer the SWIMMING question.\n`
-        + `  BLUE border${side('or')}    ->  answer the FACING question.`;
+    if (!cpSchemeVocab(scheme).positional) {
+        return '  ORANGE border  ->  answer the SWIMMING question.\n'
+            + '  BLUE border    ->  answer the FACING question.';
+    }
+    return '  COLOR is the QUESTION:  ORANGE = SWIMMING,  BLUE = FACING.\n'
+        + '  SIDE is the HAND:\n'
+        + cpFourcueHandLines(keyMaps);
+}
+
+/** The two hand rules for the fourcue positional cue, as two lines. The left- and
+ *  right-hand key maps are found from the keys themselves (whichever map sits on
+ *  which hand), so hand is never assumed to follow task. */
+function cpFourcueHandLines(keyMaps) {
+    const leftMap = cpHandFor(keyMaps.mov) === 'left' ? keyMaps.mov : keyMaps.or;
+    const rightMap = cpHandFor(keyMaps.mov) === 'right' ? keyMaps.mov : keyMaps.or;
+    return `    LEFT border  -> left hand:  ${cpKeyPhrase(leftMap)}.\n`
+        + `    RIGHT border -> right hand: ${cpKeyPhrase(rightMap)}.`;
 }
 
 // PRP task order is fixed per session and assigned between subjects by the
@@ -497,18 +515,22 @@ const CP_PRP_INSTRUCTIONS = (t1Task, keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => 
 // movement from orientation. This block previously told participants
 // "Dotted = MOVEMENT, Dashed = ORIENTATION", which is wrong on both counts.
 const cpTaskSwitchInstructions = (keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
-    const positional = cpSchemeVocab(scheme).positional;
-    // Under the positional (fourcue) cue the side is also informative, so name it.
-    const cueIntro = positional
-        ? 'The border — its color and its side — tells you which task:'
-        : 'The border color tells you which task:';
-    const movSide = positional ? ' (LEFT side)' : '';
-    const orSide  = positional ? ' (RIGHT side)' : '';
+    // FOURCUE: colour is the QUESTION and side is the HAND, independently. The
+    // border legend teaches both rules; the key lines are hand-based (per side),
+    // not task-based, because either task can appear on either hand.
+    if (cpSchemeVocab(scheme).positional) {
+        return 'ONE task per trial. It may switch from trial to trial.\n\n'
+            + 'The border tells you TWO things — its COLOR and its SIDE:\n\n'
+            + cpBorderLegend(keyMaps, scheme) + '\n\n'
+            + 'So the color says WHICH question, and the side says WHICH hand.\n'
+            + 'Answer that question with that hand; ignore the other dimension.\n\n'
+            + 'Press any key to begin.';
+    }
     return 'ONE task per trial. It may switch from trial to trial.\n\n'
-        + cueIntro + '\n\n'
-        + `  ORANGE = MOVEMENT${movSide} (which way are the fish SWIMMING?)\n`
+        + 'The border color tells you which task:\n\n'
+        + `  ORANGE = MOVEMENT (which way are the fish SWIMMING?)\n`
         + `     ${cpHandLabel(keyMaps.mov)}${cpKeyPhrase(keyMaps.mov)}.\n`
-        + `  BLUE = ORIENTATION${orSide} (which way are they FACING?)\n`
+        + `  BLUE = ORIENTATION (which way are they FACING?)\n`
         + `     ${cpHandLabel(keyMaps.or)}${cpKeyPhrase(keyMaps.or)}.\n\n`
         + 'Ignore the other dimension.\n\n'
         + 'Press any key to begin.';
@@ -726,8 +748,13 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     const legend = cpBorderLegend(keyMaps, scheme);
     const movLine = cpKeyLine(keyMaps.mov, shared);
     const orLine = cpKeyLine(keyMaps.or, shared);
-    const bothLines = `  Swimming:  ${cpKeyPhrase(keyMaps.mov)}.\n`
-        + `  Facing:    ${cpKeyPhrase(keyMaps.or)}.`;
+    // Under fourcue the hand is NOT tied to the task (it follows the border side),
+    // so a per-task "Swimming: <keys>" line would be wrong. The border legend
+    // already gives the keys per hand, so this collapses to a one-line reminder.
+    const bothLines = vocab.positional
+        ? '  (Up-key = up, down-key = down, on the hand the border points to.)'
+        : `  Swimming:  ${cpKeyPhrase(keyMaps.mov)}.\n`
+          + `  Facing:    ${cpKeyPhrase(keyMaps.or)}.`;
     // The single most confusable thing about the key policy, said out loud at
     // the moment the second map is introduced (S3).
     const secondMapNote = shared
@@ -872,13 +899,49 @@ function cpTrainingDemos(keyMaps, finalStage, scheme) {
 
     // Cue rendering metadata, attached to every stage spec so the demo cartoon
     // draws the same cue the real trial does: full hue border under disjoint, and
-    // a half-border localized to the task's hand under the fourcue positional cue.
-    // Sides are inferred from the keys so they cannot disagree with the fork.
+    // a half-border localized to the cued hand under the fourcue positional cue.
+    // cueSides is the TASK-TIED default (mov's hand, or's hand) — used by the PRP
+    // S8 cartoon, whose two cues are task-tied; the single-cue fourcue stages set
+    // a per-segment `side` instead, so the same task's border can appear on either
+    // hand (the 2x2).
+    const positional = cpSchemeVocab(scheme).positional;
     const cueMeta = {
         cueMode: (scheme && scheme.cueMode) || 'hue',
         cueSides: { mov: cpHandFor(keyMaps.mov), or: cpHandFor(keyMaps.or) },
     };
     const withCue = (demo) => ({ ...demo, ...cueMeta });
+
+    // Under fourcue the response hand follows the border SIDE, not the task, so a
+    // segment can put either task on either hand. `keyFor(hand, dir)` picks the
+    // keycap for that hand+direction from whichever key map sits on that hand.
+    const leftMap = cpHandFor(keyMaps.mov) === 'left' ? keyMaps.mov : keyMaps.or;
+    const rightMap = cpHandFor(keyMaps.mov) === 'right' ? keyMaps.mov : keyMaps.or;
+    const keyFor = (hand, dir) => (hand === 'left' ? leftMap : rightMap)[dir];
+
+    // S4-S6 fourcue variants: four segments each, cycling all four cues
+    // (orange-left, blue-right, orange-right, blue-left) with the matching
+    // depressed keycap (W/S left, I/K right). `movA`/`orA` = up (90), `movB`/`orB`
+    // = down (270) under the vertical geometry.
+    const s4Fourcue = [
+        { movement: movA, orientation: null, border: 'mov', side: 'left',  key: keyFor('left', movA) },
+        { movement: null, orientation: orB,  border: 'or',  side: 'right', key: keyFor('right', orB) },
+        { movement: movB, orientation: null, border: 'mov', side: 'right', key: keyFor('right', movB) },
+        { movement: null, orientation: orA,  border: 'or',  side: 'left',  key: keyFor('left', orA) },
+    ];
+    const s5Fourcue = [
+        { movement: movA, orientation: orA, border: 'mov', side: 'left',  key: keyFor('left', movA) },
+        { movement: movB, orientation: orB, border: 'or',  side: 'right', key: keyFor('right', orB) },
+        { movement: movA, orientation: orA, border: 'mov', side: 'right', key: keyFor('right', movA) },
+        { movement: movB, orientation: orB, border: 'or',  side: 'left',  key: keyFor('left', orB) },
+    ];
+    // S6 incongruent: movement and facing disagree; the depressed key follows the
+    // CUED task, so the same stimulus yields a different answer on each border.
+    const s6Fourcue = [
+        { movement: movA, orientation: orB, border: 'mov', side: 'left',  key: keyFor('left', movA) },
+        { movement: movA, orientation: orB, border: 'or',  side: 'right', key: keyFor('right', orB) },
+        { movement: movB, orientation: orA, border: 'mov', side: 'right', key: keyFor('right', movB) },
+        { movement: movB, orientation: orA, border: 'or',  side: 'left',  key: keyFor('left', orA) },
+    ];
 
     // S1/S2: swim one way, then the other. `orientation: null` is what makes SE's
     // forward-facing sprite the one drawn, i.e. fish that swim without facing.
@@ -901,10 +964,11 @@ function cpTrainingDemos(keyMaps, finalStage, scheme) {
         // as noise without making the cartoon unreadable at 150 px.
         S2: withCue({ segments: swimBoth, coherence: 0.75 }),
         S3: withCue({ segments: faceBoth }),
-        // S4: univalent still, but now cued and mixed — one segment per task, so
-        // the colour change and the hand change happen together.
+        // S4: univalent still, but now cued and mixed. Disjoint shows one segment
+        // per task (colour + task-tied hand change together); fourcue shows all
+        // four colour x side cues.
         S4: withCue({
-            segments: [
+            segments: positional ? s4Fourcue : [
                 { movement: movA, orientation: null, border: 'mov', key: keyMaps.mov[movA] },
                 { movement: null, orientation: orB, border: 'or', key: keyMaps.or[orB] },
             ],
@@ -912,34 +976,50 @@ function cpTrainingDemos(keyMaps, finalStage, scheme) {
         // S5: bivalent, congruent. Both pathways on, always agreeing, so the
         // answer is the same whichever the border asks for.
         S5: withCue({
-            segments: [
+            segments: positional ? s5Fourcue : [
                 { movement: movA, orientation: orA, border: 'mov', key: keyMaps.mov[movA] },
                 { movement: movB, orientation: orB, border: 'or', key: keyMaps.or[orB] },
             ],
         }),
-        // S6: bivalent, INCONGRUENT — the same stimulus twice, changing only the
-        // border and therefore the correct key. That contrast is the whole lesson
-        // of the stage, and is why CP_BORDER_LEGEND could come out of the copy.
+        // S6: bivalent, INCONGRUENT — changing only the border (and, under fourcue,
+        // its side) flips the correct key. That contrast is the whole lesson of the
+        // stage, and is why the legend could come out of the copy.
         S6: withCue({
-            segments: [
+            segments: positional ? s6Fourcue : [
                 { movement: movA, orientation: orB, border: 'mov', key: keyMaps.mov[movA] },
                 { movement: movA, orientation: orB, border: 'or', key: keyMaps.or[orB] },
             ],
         }),
-        S8: withCue(cpFinalStageDemo(keyMaps, finalStage)),
+        S8: withCue(cpFinalStageDemo(keyMaps, finalStage, scheme)),
     };
 }
 
 /** S8's cartoon. Three shapes, matching cpFinalStageInstructions'. */
-function cpFinalStageDemo(keyMaps, finalStage) {
+function cpFinalStageDemo(keyMaps, finalStage, scheme) {
     // Same angle-from-keys convention as cpTrainingDemos, so disjoint is
     // unchanged and fourcue draws vertically.
     const [movA, movB] = cpDirsOf(keyMaps.mov);
     const [orA, orB]   = cpDirsOf(keyMaps.or);
+    const positional = cpSchemeVocab(scheme).positional;
+    const leftMap = cpHandFor(keyMaps.mov) === 'left' ? keyMaps.mov : keyMaps.or;
+    const rightMap = cpHandFor(keyMaps.mov) === 'right' ? keyMaps.mov : keyMaps.or;
+    const keyFor = (hand, dir) => (hand === 'left' ? leftMap : rightMap)[dir];
 
     if (finalStage.kind === 'switching') {
         // A repeat then a switch, which is the manipulation the test block
-        // measures and the one thing S6's cartoon does not show.
+        // measures and the one thing S6's cartoon does not show. Under fourcue the
+        // hand also varies with the border side, so the switch is shown as a task
+        // AND hand change (all four cues appear across the loop).
+        if (positional) {
+            return {
+                segments: [
+                    { movement: movA, orientation: orB, border: 'mov', side: 'left',  key: keyFor('left', movA) },
+                    { movement: movB, orientation: orA, border: 'mov', side: 'right', key: keyFor('right', movB) },
+                    { movement: movB, orientation: orA, border: 'or',  side: 'left',  key: keyFor('left', orA) },
+                    { movement: movA, orientation: orB, border: 'or',  side: 'right', key: keyFor('right', orB) },
+                ],
+            };
+        }
         return {
             segments: [
                 { movement: movA, orientation: orB, border: 'mov', key: keyMaps.mov[movA] },
@@ -951,10 +1031,22 @@ function cpFinalStageDemo(keyMaps, finalStage) {
 
     if (finalStage.kind === 'rehearsal') {
         // One task for the rest of the session. Both segments conflict, because
-        // that is what the Stroop test block is made of.
+        // that is what the Stroop test block is made of. Under fourcue the COLOUR
+        // is fixed (the target task) but the HAND still varies with the side, so
+        // the cartoon shows the one task on both hands.
         const task = finalStage.task === 'or' ? 'or' : 'mov';
         const keys = keyMaps[task];
         const [dA, dB] = cpDirsOf(keys);
+        if (positional) {
+            // Conflicting stimulus (target dir vs the other direction) on each
+            // hand; the depressed key answers the TARGET task on that hand's keys.
+            const conflict = (targetDir, hand) => ({
+                movement: task === 'mov' ? targetDir : (targetDir === dA ? dB : dA),
+                orientation: task === 'or' ? targetDir : (targetDir === dA ? dB : dA),
+                border: task, side: hand, key: keyFor(hand, targetDir),
+            });
+            return { segments: [conflict(dA, 'left'), conflict(dB, 'right')] };
+        }
         return {
             segments: [
                 { movement: dA, orientation: dB, border: task, key: keys[dA] },
@@ -996,8 +1088,10 @@ function cpFinalStageDemo(keyMaps, finalStage) {
 function cpFinalStageInstructions(keyMaps, finalStage, scheme) {
     const shared = cpKeysAreShared(keyMaps);
     const vocab = cpSchemeVocab(scheme);
-    const bothLines = `  Swimming:  ${cpKeyPhrase(keyMaps.mov)}.\n`
-        + `  Facing:    ${cpKeyPhrase(keyMaps.or)}.`;
+    const bothLines = vocab.positional
+        ? '  (Up-key = up, down-key = down, on the hand the border points to.)'
+        : `  Swimming:  ${cpKeyPhrase(keyMaps.mov)}.\n`
+          + `  Facing:    ${cpKeyPhrase(keyMaps.or)}.`;
 
     if (finalStage.kind === 'switching') {
         return 'STEP 7 of 7 — a full practice run.\n\n'
@@ -1089,6 +1183,13 @@ function cpStampScheme(blockConfig, scheme) {
         geometry: scheme.geometry,
         cueMode: scheme.cueMode,
         keyResolution: scheme.keyResolution,
+        // Fourcue single-task blocks vary the response hand trial-to-trial. This
+        // drives the JS-fallback / live-training hand vector (engine.js) and the
+        // per-trial key/cue routing (session.js). Test blocks that load a CSV read
+        // the hand column directly, so the flag is harmless there; the early
+        // single-task training stages (S1-S3) clear it — see cpBuildTrainingSession.
+        // Dual-task PRP is task-tied and never varies hand.
+        varyHand: scheme.cueMode === 'hue+position' && blockConfig.paradigm !== 'dual-task',
     };
 }
 
@@ -1150,7 +1251,18 @@ function cpBuildTrainingSession(spec) {
     // The training stages carry spec.keyMaps already; stamp the rest of the scheme
     // (geometry/cueMode/keyResolution) onto them. The test blocks were already
     // stamped by cpTestSessionFor.
-    const stampStage = (blockDef) => ({ ...blockDef, blockConfig: cpStampScheme(blockDef.blockConfig, scheme) });
+    // S1-S3 teach ONE task at a time on its default (task-tied) hand, so the hand
+    // does not vary there even under fourcue — the 2x2 (color x side) is introduced
+    // at S4 with the informative cue. Later single-task stages (S4-S6, S8 switching/
+    // rehearsal) vary hand like the test blocks; PRP's S8 is dual-task and never does.
+    const EARLY_SINGLE_HAND_STAGES = new Set(['S1', 'S2', 'S3']);
+    const stampStage = (blockDef) => {
+        const stamped = cpStampScheme(blockDef.blockConfig, scheme);
+        if (EARLY_SINGLE_HAND_STAGES.has(blockDef.stage) && stamped.varyHand) {
+            return { ...blockDef, blockConfig: { ...stamped, varyHand: false } };
+        }
+        return { ...blockDef, blockConfig: stamped };
+    };
     const testBlocks = spec.testSession.map((blockDef, i) => (i === 0
         ? { ...blockDef, instructions: CP_TEST_BLOCK_PREAMBLE + blockDef.instructions }
         : blockDef));

@@ -316,6 +316,12 @@ const Session = (() => {
 	const feedback = blockConfig.feedback ?? true;
 	const acceptFirstResponse = blockConfig.acceptFirstResponse ?? false;
 	const canvasType = blockConfig.paradigm ?? 'single-canvas';
+	// Fourcue single-task blocks route keys + cue side per trial from meta.hand
+	// (see the single-canvas trial branch below). PRP (dual-task) is task-tied and
+	// excluded; disjoint has cueMode 'hue' and is untouched.
+	const fourcueSingleTask = blockConfig.cueMode === 'hue+position'
+	    && canvasType !== 'dual-canvas' && canvasType !== 'alternating'
+	    && canvasType !== 'prp-baseline' && blockConfig.paradigm !== 'dual-task';
 	const t1Side = blockConfig.t1Side ?? 'left';
 	let leftParent, rightParent;
 	if (canvasType === 'dual-canvas') {
@@ -430,7 +436,19 @@ const Session = (() => {
                 const config = buildAlternatingSEConfig(trials[i].meta.t2_task, trials[i].meta.side, trials[i].meta.earlyResolve, feedback, acceptFirstResponse, computeDualCanvasSize(), blockConfig.mapping);
                 trialData = await runBaselinePRPTrial(trials[i], config, leftParent, rightParent);
             } else {
-                trialData = await runTrial(trials[i], seConfig, prevResponseTime);
+                // Fourcue single-task: the response hand (and therefore the key
+                // set and the cue's side) varies per trial, so the SE config is
+                // rebuilt from this trial's hand. Dual-task PRP is excluded — its
+                // hands are task-tied by condition, so the block-level seConfig
+                // already places them. Disjoint has no meta.hand and keeps seConfig.
+                let trialSeConfig = seConfig;
+                if (fourcueSingleTask && trials[i].meta.hand) {
+                    const km = fourcueSingleTaskKeyMaps(task_1, trials[i].meta.hand);
+                    trialSeConfig = buildSEConfig(
+                        blockConfig.rso, blockConfig.earlyResolve, feedback,
+                        acceptFirstResponse, km, blockConfig.cueMode);
+                }
+                trialData = await runTrial(trials[i], trialSeConfig, prevResponseTime);
             }
 
             if (blockDef.isTraining) {

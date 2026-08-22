@@ -45,14 +45,21 @@ DEFAULT_ACCEPTABLE_ERROR = {
     "cp_stroop_crossed": 0,
 }
 
-OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "sequences")
+# Output directory per scheme. The disjoint pool lives in sequences/ (unchanged);
+# the fourcue pool is a SEPARATE directory so the two never collide and the client
+# can point at one or the other by scheme name alone.
+OUT_DIRS = {
+    "disjoint": os.path.join(os.path.dirname(__file__), "..", "sequences"),
+    "fourcue": os.path.join(os.path.dirname(__file__), "..", "sequences_fourcue"),
+}
+OUT_DIR = OUT_DIRS["disjoint"]   # default; main() overrides per --scheme
 
 # Default pool size per paradigm per condition. 50 blocks drawn 5 at a time gives
 # 50x49x48x47x46 ~ 254 million distinct sessions, so uniqueness across
 # participants is free; at ~60 participants per cell each block is seen ~6 times.
 DEFAULT_POOL_SIZE = 50
 
-# Column order per paradigm
+# Column order per paradigm (disjoint scheme)
 COLUMNS = {
     "cp_prp": ["block_id", "condition", "sequence_id", "trial_index", "task",
                "soa_level", "congruency", "target_dir"],
@@ -68,6 +75,28 @@ COLUMNS = {
                           "congruency", "target_coh_level", "distractor_coh_level",
                           "target_dir"],
 }
+
+# Column order per paradigm (fourcue scheme). Same as disjoint plus a `hand`
+# column everywhere, and `hand_transition` for the two switching paradigms.
+COLUMNS_FOURCUE = {
+    "cp_prp": ["block_id", "condition", "sequence_id", "trial_index", "task",
+               "hand", "soa_level", "congruency", "target_dir"],
+    "cp_taskswitch": ["block_id", "condition", "sequence_id", "trial_index", "task",
+                      "hand", "task_transition", "hand_transition",
+                      "response_transition", "congruency",
+                      "target_coh_level", "target_dir"],
+    "cp_taskswitch_asym": ["block_id", "condition", "sequence_id", "trial_index", "task",
+                           "hand", "task_transition", "hand_transition",
+                           "response_transition", "congruency",
+                           "target_coh_level", "target_dir"],
+    "cp_stroop": ["block_id", "condition", "sequence_id", "trial_index", "task",
+                  "hand", "congruency", "target_dir", "response_transition"],
+    "cp_stroop_crossed": ["block_id", "condition", "sequence_id", "trial_index", "task",
+                          "hand", "congruency", "target_coh_level",
+                          "distractor_coh_level", "target_dir"],
+}
+
+COLUMNS_BY_SCHEME = {"disjoint": COLUMNS, "fourcue": COLUMNS_FOURCUE}
 
 # Trials per BLOCK. One file is one block, and a participant runs five of them,
 # so these are per-block counts (480 test trials, 540 for crossed Stroop) -- not
@@ -86,10 +115,10 @@ def sequence_filename(paradigm, condition, sequence_id):
     return f"{paradigm}_{condition}_s{sequence_id:03d}.csv"
 
 
-def write_csv(paradigm, condition, sequence_id, rows):
-    os.makedirs(OUT_DIR, exist_ok=True)
-    path = os.path.join(OUT_DIR, sequence_filename(paradigm, condition, sequence_id))
-    cols = COLUMNS[paradigm]
+def write_csv(paradigm, condition, sequence_id, rows, out_dir, columns):
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, sequence_filename(paradigm, condition, sequence_id))
+    cols = columns[paradigm]
     with open(path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=cols)
         w.writeheader()
@@ -104,16 +133,18 @@ def _sequence_signature(rows):
 
 
 def generate(paradigm, conditions, ids, trials, sampler, acceptable_error,
-             skip_existing=False):
+             skip_existing=False, scheme="disjoint"):
     """Sample one sequence per id in `ids` and write it under every condition."""
+    out_dir = OUT_DIRS[scheme]
+    columns = COLUMNS_BY_SCHEME[scheme]
     # Refuse to stamp two condition labels on one sample unless that is still
     # sound for this paradigm.
-    designs.assert_condition_agnostic(paradigm, trials, tuple(conditions))
+    designs.assert_condition_agnostic(paradigm, trials, tuple(conditions), scheme=scheme)
 
     todo = ids
     if skip_existing:
         todo = [i for i in ids
-                if not all(os.path.exists(os.path.join(OUT_DIR,
+                if not all(os.path.exists(os.path.join(out_dir,
                                                        sequence_filename(paradigm, c, i)))
                            for c in conditions)]
         skipped = len(ids) - len(todo)
@@ -126,7 +157,7 @@ def generate(paradigm, conditions, ids, trials, sampler, acceptable_error,
     t0 = time.time()
     dict_lists = designs.sample_trial_dicts(
         paradigm, n_trials=trials, n_samples=len(todo),
-        sampler=sampler, acceptable_error=acceptable_error,
+        sampler=sampler, acceptable_error=acceptable_error, scheme=scheme,
     )
     elapsed = time.time() - t0
     print(f"  sampled {len(dict_lists)} sequence(s) in {elapsed:.0f}s "
@@ -135,10 +166,10 @@ def generate(paradigm, conditions, ids, trials, sampler, acceptable_error,
     seen = {}
     for sequence_id, trials_dicts in zip(todo, dict_lists):
         for condition in conditions:
-            rows = designs.rows_for(paradigm, trials_dicts, condition, trials)
+            rows = designs.rows_for(paradigm, trials_dicts, condition, trials, scheme=scheme)
             for r in rows:
                 r["sequence_id"] = sequence_id
-            path = write_csv(paradigm, condition, sequence_id, rows)
+            path = write_csv(paradigm, condition, sequence_id, rows, out_dir, columns)
             print(f"  wrote {path}  ({len(rows)} trials)")
             if condition == conditions[0]:
                 # Duplicate pool members are waste, not a correctness bug (the
@@ -176,6 +207,10 @@ def main():
                          "(default: paradigm-specific, see DEFAULT_ACCEPTABLE_ERROR)")
     ap.add_argument("--all", action="store_true",
                     help="generate the pool for every paradigm")
+    ap.add_argument("--scheme", choices=list(OUT_DIRS), default="disjoint",
+                    help="response-set scheme: 'disjoint' -> sequences/ (default), "
+                         "'fourcue' -> sequences_fourcue/ (adds the `hand` column and "
+                         "the 2x2 task x hand crossing)")
     args = ap.parse_args()
 
     if args.start_id < 1:
@@ -194,10 +229,11 @@ def main():
         trials = args.trials or DEFAULT_TRIALS[paradigm]
         err = (args.acceptable_error if args.acceptable_error is not None
                else DEFAULT_ACCEPTABLE_ERROR[paradigm])
-        print(f"[{paradigm}] trials/block={trials} conditions={args.conditions} "
-              f"ids={ids[0]}-{ids[-1]} sampler={args.sampler} acceptable_error={err}")
+        print(f"[{paradigm}] scheme={args.scheme} trials/block={trials} "
+              f"conditions={args.conditions} ids={ids[0]}-{ids[-1]} "
+              f"sampler={args.sampler} acceptable_error={err}")
         generate(paradigm, args.conditions, ids, trials, args.sampler, err,
-                 skip_existing=args.skip_existing)
+                 skip_existing=args.skip_existing, scheme=args.scheme)
     print(f"done in {(time.time() - started) / 60:.1f} min")
 
 

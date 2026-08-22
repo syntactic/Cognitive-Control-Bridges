@@ -293,6 +293,247 @@ def build_stroop_crossed(n_trials=108, condition="A",
     return block, to_rows
 
 
+# ==================================================================
+# FOUR-CUE scheme builders  (?scheme=fourcue)
+# ==================================================================
+# The four-cue scheme decouples RESPONSE HAND from TASK. In the disjoint scheme
+# above, movement is always the left hand and orientation always the right, so a
+# task's hand is fixed and never a factor. Here the cue carries BOTH the task
+# (hue: orange=mov, blue=or) AND the responding hand (border SIDE: left/right),
+# and `hand` varies trial-to-trial as a full 2x2 crossing with task.
+#
+# What each builder adds over its disjoint twin:
+#   * a `hand` Factor ("left"/"right"), emitted as a CSV column the client reads
+#     to pick the vertical key map (left -> W/S, right -> I/K) and the cue side;
+#   * for the switching paradigms, a `hand_transition` derived factor, so the
+#     hand switch is counterbalanced ORTHOGONALLY to the task switch (a task
+#     switch is no longer forced to be a hand switch, and vice versa);
+#   * run-length caps on `task` AND `hand` directly (AtMostKInARow), so neither
+#     the attended dimension nor the responding hand sticks for more than 3.
+#
+# Condition still reaches `to_rows` ONLY (asserted by assert_condition_agnostic):
+#   * switching / Stroop: block construction is condition-independent; `hand` is a
+#     sampled factor, so one sampled sequence is still valid under both A and B.
+#   * PRP: `hand` is DETERMINISTIC given the T1/T2 role and condition (T1 left +
+#     T2 right for A; reversed for B), so it is written in to_rows like `task`,
+#     and the block is condition-independent exactly as the disjoint PRP is.
+
+def build_taskswitch_fourcue(n_trials=96, condition="A"):
+    task = Factor("task", ["mov", "or"])
+    hand = Factor("hand", ["left", "right"])
+    target_dir = Factor("target_dir", ["left", "right"])
+    congruency = Factor("congruency", ["congruent", "incongruent"])
+    target_coh = Factor("target_coh_level", ["easy", "hard"])
+
+    task_transition = _transition_factor("task_transition", task)
+    hand_transition = _transition_factor("hand_transition", hand)
+    response_transition = _transition_factor("response_transition", target_dir)
+
+    design = [task, hand, target_dir, congruency, target_coh,
+              task_transition, hand_transition, response_transition]
+    # Primary crossing (the 2x2 confound fix): task_transition x hand_transition x
+    # response_transition x congruency x target_coh = 32 cells. 96 = 3 x 32.
+    # Secondary crossing balances task x hand x coh (8 cells) so every task appears
+    # on each hand equally often, each at easy and hard equally.
+    crossings = [
+        [task_transition, hand_transition, response_transition, congruency, target_coh],
+        [task, hand, target_coh],
+    ]
+    constraints = [
+        AtMostKInARow(3, task),
+        AtMostKInARow(3, hand),
+        MinimumTrials(n_trials),
+    ]
+    block = MultiCrossBlock(design, crossings, constraints,
+                            alignment=AlignmentMode.POST_PREAMBLE,
+                            mode=RepeatMode.WEIGHT)
+
+    def to_rows(trials):
+        rows = []
+        for i, t in enumerate(trials):
+            rows.append({
+                "block_id": "cp_taskswitch",
+                "condition": condition,
+                "trial_index": i,
+                "task": t["task"],
+                "hand": t["hand"],
+                "task_transition": "First" if i == 0 else _cap(t["task_transition"]),
+                "hand_transition": "First" if i == 0 else _cap(t["hand_transition"]),
+                "response_transition": "First" if i == 0 else _cap(t["response_transition"]),
+                "congruency": t["congruency"],
+                "target_coh_level": t["target_coh_level"],
+                "target_dir": t["target_dir"],
+            })
+        return rows
+
+    return block, to_rows
+
+
+def build_taskswitch_asym_fourcue(n_trials=96, condition="A"):
+    easy_task = "mov" if condition == "A" else "or"
+
+    task = Factor("task", ["mov", "or"])
+    hand = Factor("hand", ["left", "right"])
+    target_dir = Factor("target_dir", ["left", "right"])
+    congruency = Factor("congruency", ["congruent", "incongruent"])
+
+    task_transition = _transition_factor("task_transition", task)
+    hand_transition = _transition_factor("hand_transition", hand)
+    response_transition = _transition_factor("response_transition", target_dir)
+
+    design = [task, hand, target_dir, congruency,
+              task_transition, hand_transition, response_transition]
+    # No target-coh factor here (coherence is tied to task, resolved in to_rows).
+    # Primary crossing: task_transition x hand_transition x response_transition x
+    # congruency = 16 cells; 96 = 6 x 16. Secondary balances task x hand (4 cells).
+    crossings = [
+        [task_transition, hand_transition, response_transition, congruency],
+        [task, hand],
+    ]
+    constraints = [
+        AtMostKInARow(3, task),
+        AtMostKInARow(3, hand),
+        MinimumTrials(n_trials),
+    ]
+    block = MultiCrossBlock(design, crossings, constraints,
+                            alignment=AlignmentMode.POST_PREAMBLE,
+                            mode=RepeatMode.WEIGHT)
+
+    def to_rows(trials):
+        rows = []
+        for i, t in enumerate(trials):
+            coh = "easy" if t["task"] == easy_task else "hard"
+            rows.append({
+                "block_id": "cp_taskswitch_asym",
+                "condition": condition,
+                "trial_index": i,
+                "task": t["task"],
+                "hand": t["hand"],
+                "task_transition": "First" if i == 0 else _cap(t["task_transition"]),
+                "hand_transition": "First" if i == 0 else _cap(t["hand_transition"]),
+                "response_transition": "First" if i == 0 else _cap(t["response_transition"]),
+                "congruency": t["congruency"],
+                "target_coh_level": coh,
+                "target_dir": t["target_dir"],
+            })
+        return rows
+
+    return block, to_rows
+
+
+def build_prp_fourcue(n_trials=96, condition="A", soa_levels=(100, 300, 600)):
+    target_task = "mov" if condition == "A" else "or"
+    # T1 responds with the LEFT hand in condition A (T2 right); reversed in B.
+    # Deterministic, so it is written in to_rows -- not a sampled factor -- which
+    # keeps block construction condition-independent (assert_condition_agnostic).
+    t1_hand = "left" if condition == "A" else "right"
+
+    soa = Factor("soa", list(soa_levels))
+    cross_congruency = Factor("congruency", ["congruent", "incongruent"])
+    t1_target_dir = Factor("target_dir", ["left", "right"])
+
+    design = [soa, cross_congruency, t1_target_dir]
+    crossing = [soa, cross_congruency, t1_target_dir]
+    constraints = [MinimumTrials(n_trials)]
+    block = CrossBlock(design, crossing, constraints)
+
+    def to_rows(trials):
+        rows = []
+        for i, t in enumerate(trials):
+            rows.append({
+                "block_id": "cp_prp",
+                "condition": condition,
+                "trial_index": i,
+                "task": target_task,            # T1 task; T2 derived client-side
+                "hand": t1_hand,                # T1 hand; T2 hand is the opposite
+                "soa_level": t["soa"],
+                "congruency": t["congruency"],
+                "target_dir": t["target_dir"],
+            })
+        return rows
+
+    return block, to_rows
+
+
+def build_stroop_fourcue(n_trials=96, condition="A"):
+    target_task = "mov" if condition == "A" else "or"
+
+    hand = Factor("hand", ["left", "right"])
+    congruency = Factor("congruency", ["congruent", "incongruent"])
+    target_dir = Factor("target_dir", ["left", "right"])
+    response_transition = _transition_factor("response_transition", target_dir)
+
+    design = [hand, congruency, target_dir, response_transition]
+    # hand x target_dir x congruency = 8 cells; 96 = 12 x 8.
+    crossing = [hand, target_dir, congruency]
+    constraints = [
+        AtMostKInARow(3, response_transition),
+        AtMostKInARow(3, hand),
+        MinimumTrials(n_trials),
+    ]
+    block = CrossBlock(design, crossing, constraints)
+
+    def to_rows(trials):
+        rows = []
+        for i, t in enumerate(trials):
+            rows.append({
+                "block_id": "cp_stroop",
+                "condition": condition,
+                "trial_index": i,
+                "task": target_task,
+                "hand": t["hand"],
+                "congruency": t["congruency"],
+                "target_dir": t["target_dir"],
+                "response_transition": "First" if i == 0 else _cap(t["response_transition"]),
+            })
+        return rows
+
+    return block, to_rows
+
+
+def build_stroop_crossed_fourcue(n_trials=108, condition="A",
+                                 levels=("low", "mid", "high")):
+    target_task = "mov" if condition == "A" else "or"
+
+    target_coh = Factor("target_coh_level", list(levels))
+    distractor_coh = Factor("distractor_coh_level", list(levels))
+    congruency = Factor("congruency", ["congruent", "incongruent"])
+    target_dir = Factor("target_dir", ["left", "right"])
+    hand = Factor("hand", ["left", "right"])
+
+    design = [target_coh, distractor_coh, congruency, target_dir, hand]
+    # The coherence crossing (36) IS the point of crossed Stroop, so it stays the
+    # PRIMARY crossing and the trial count stays 108 (= 3 x 36). Folding hand into
+    # it would force 72 cells / 144 trials, so hand is balanced by a SECONDARY
+    # crossing instead (54/54), with a run-length cap.
+    crossings = [
+        [target_coh, distractor_coh, congruency, target_dir],
+        [hand],
+    ]
+    constraints = [AtMostKInARow(3, hand), MinimumTrials(n_trials)]
+    block = MultiCrossBlock(design, crossings, constraints,
+                            alignment=AlignmentMode.POST_PREAMBLE,
+                            mode=RepeatMode.WEIGHT)
+
+    def to_rows(trials):
+        rows = []
+        for i, t in enumerate(trials):
+            rows.append({
+                "block_id": "cp_stroop_crossed",
+                "condition": condition,
+                "trial_index": i,
+                "task": target_task,
+                "hand": t["hand"],
+                "congruency": t["congruency"],
+                "target_coh_level": t["target_coh_level"],
+                "distractor_coh_level": t["distractor_coh_level"],
+                "target_dir": t["target_dir"],
+            })
+        return rows
+
+    return block, to_rows
+
+
 # ------------------------------------------------------------------
 # Registry + sampler helper
 # ------------------------------------------------------------------
@@ -304,6 +545,30 @@ BUILDERS = {
     "cp_stroop": build_stroop,
     "cp_stroop_crossed": build_stroop_crossed,
 }
+
+BUILDERS_FOURCUE = {
+    "cp_prp": build_prp_fourcue,
+    "cp_taskswitch": build_taskswitch_fourcue,
+    "cp_taskswitch_asym": build_taskswitch_asym_fourcue,
+    "cp_stroop": build_stroop_fourcue,
+    "cp_stroop_crossed": build_stroop_crossed_fourcue,
+}
+
+# Scheme name -> builder registry. `generate.py --scheme` selects one; everything
+# downstream (sampling, row stamping, the condition-agnostic assertion) reads the
+# registry through `builders_for`, so the disjoint path is byte-for-byte unchanged.
+BUILDER_REGISTRIES = {
+    "disjoint": BUILDERS,
+    "fourcue": BUILDERS_FOURCUE,
+}
+
+
+def builders_for(scheme):
+    try:
+        return BUILDER_REGISTRIES[scheme]
+    except KeyError:
+        raise ValueError(f"unknown scheme '{scheme}' (expected one of "
+                         f"{'/'.join(BUILDER_REGISTRIES)})")
 
 # Natural full-crossing size per paradigm (one balanced replication). Trial
 # counts default to a multiple of this via MinimumTrials. These are the SWEETPEA
@@ -320,11 +585,33 @@ CROSSING_SIZE = {
     "cp_stroop_crossed": 36,
 }
 
+# Primary-crossing size per fourcue paradigm (the `hand` factor and, for the
+# switching paradigms, `hand_transition`, enlarge it). A row count that divides
+# these divides the disjoint ones too, so the JS block-size invariants still hold.
+#   cp_prp:            soa(3) x congruency(2) x target_dir(2)                  = 12
+#   cp_taskswitch:     tt x ht x rt x congruency x coh                        = 32
+#   cp_taskswitch_asym:tt x ht x rt x congruency                             = 16
+#   cp_stroop:         hand x target_dir x congruency                         = 8
+#   cp_stroop_crossed: target_coh x distractor_coh x congruency x target_dir  = 36
+#                      (hand balanced by the secondary crossing, not the primary)
+CROSSING_SIZE_FOURCUE = {
+    "cp_prp": 12,
+    "cp_taskswitch": 32,
+    "cp_taskswitch_asym": 16,
+    "cp_stroop": 8,
+    "cp_stroop_crossed": 36,
+}
+
+CROSSING_SIZES = {
+    "disjoint": CROSSING_SIZE,
+    "fourcue": CROSSING_SIZE_FOURCUE,
+}
+
 SAMPLERS = {"CMSGen": CMSGen, "IterateGen": IterateGen, "RandomGen": RandomGen}
 
 
 def sample_trial_dicts(paradigm, n_trials, n_samples, sampler="CMSGen",
-                       acceptable_error=0, condition="A"):
+                       acceptable_error=0, condition="A", scheme="disjoint"):
     """Sample `n_samples` sequences and return them as raw trial dict-lists.
 
     Deliberately stops short of CSV rows: the pool stamps ONE sampled sequence
@@ -333,7 +620,7 @@ def sample_trial_dicts(paradigm, n_trials, n_samples, sampler="CMSGen",
     builder call constructs the block, and `assert_condition_agnostic` is what
     guarantees that choice cannot matter.
     """
-    block, _ = BUILDERS[paradigm](n_trials=n_trials, condition=condition)
+    block, _ = builders_for(scheme)[paradigm](n_trials=n_trials, condition=condition)
     if sampler == "RandomGen":
         strategy = RandomGen(acceptable_error=acceptable_error)
     else:
@@ -342,13 +629,13 @@ def sample_trial_dicts(paradigm, n_trials, n_samples, sampler="CMSGen",
     return experiments_to_dicts(block, exps)
 
 
-def rows_for(paradigm, trials, condition, n_trials):
+def rows_for(paradigm, trials, condition, n_trials, scheme="disjoint"):
     """Stamp one sampled sequence with one condition's labels -> CSV rows.
 
     Rebuilding the block costs nothing (no synthesis) and keeps `to_rows` the
     single place a condition label is ever applied.
     """
-    _, to_rows = BUILDERS[paradigm](n_trials=n_trials, condition=condition)
+    _, to_rows = builders_for(scheme)[paradigm](n_trials=n_trials, condition=condition)
     return to_rows(trials)
 
 
@@ -372,7 +659,8 @@ def _block_signature(block):
     )
 
 
-def assert_condition_agnostic(paradigm, n_trials, conditions=("A", "B")):
+def assert_condition_agnostic(paradigm, n_trials, conditions=("A", "B"),
+                              scheme="disjoint"):
     """Fail if `condition` reaches block CONSTRUCTION for this paradigm.
 
     The pool writes one sampled sequence out under every condition label. That
@@ -383,7 +671,7 @@ def assert_condition_agnostic(paradigm, n_trials, conditions=("A", "B")):
     quietly mislabelled -- an error nothing downstream could detect. So it throws
     here instead, and generation falls back to per-condition sampling.
     """
-    sigs = {c: _block_signature(BUILDERS[paradigm](n_trials=n_trials, condition=c)[0])
+    sigs = {c: _block_signature(builders_for(scheme)[paradigm](n_trials=n_trials, condition=c)[0])
             for c in conditions}
     first = sigs[conditions[0]]
     for c in conditions[1:]:
@@ -396,8 +684,10 @@ def assert_condition_agnostic(paradigm, n_trials, conditions=("A", "B")):
             )
 
 
-def sample_rows(paradigm, n_trials, condition, n_samples, sampler="CMSGen", acceptable_error=0):
+def sample_rows(paradigm, n_trials, condition, n_samples, sampler="CMSGen",
+                acceptable_error=0, scheme="disjoint"):
     """Return a list of `n_samples` row-lists, all labelled `condition`."""
     dict_lists = sample_trial_dicts(paradigm, n_trials, n_samples, sampler,
-                                    acceptable_error, condition=condition)
-    return [rows_for(paradigm, trials, condition, n_trials) for trials in dict_lists]
+                                    acceptable_error, condition=condition, scheme=scheme)
+    return [rows_for(paradigm, trials, condition, n_trials, scheme=scheme)
+            for trials in dict_lists]
