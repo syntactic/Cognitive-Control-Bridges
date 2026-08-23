@@ -312,14 +312,16 @@ const CP_TEST_BLOCKS_PER_SESSION = 5;
  * Path to one pool block. `sequenceId` is 1-based and zero-padded to three
  * digits, matching sweetpea/generate.py's `sequence_filename`.
  */
-function cpSequencePath(paradigm, condition, sequenceId, schemeName) {
+function cpSequencePath(paradigm, condition, sequenceId, scheme) {
     if (!Number.isInteger(sequenceId) || sequenceId < 1) {
         throw new Error(`cpSequencePath: sequenceId must be a positive integer, got ${sequenceId}`);
     }
     const nnn = String(sequenceId).padStart(3, '0');
-    // The fourcue pool lives in its own directory (sequences_fourcue/); everything
-    // else, including a missing/unknown scheme, reads the disjoint pool.
-    const dir = schemeName === 'fourcue' ? 'sequences_fourcue' : 'sequences';
+    // Read the directory from the scheme descriptor's sequenceDir field so
+    // nothing branches on the scheme NAME — that was the one existing violation
+    // of the codebase's stated invariant. Default to the disjoint dir when no
+    // scheme is provided.
+    const dir = (scheme && scheme.sequenceDir) || 'sequences';
     return `${dir}/${paradigm}_${condition}_s${nnn}.csv`;
 }
 
@@ -379,7 +381,7 @@ function cpApplySweetPea(sessionArray, condition, sequenceIds, scheme) {
         const sequenceId = sequenceIds[testBlockIndex++];
         const blockConfig = {
             ...blockDef.blockConfig,
-            sequenceSource: cpSequencePath(blockId, condition, sequenceId, scheme && scheme.name),
+            sequenceSource: cpSequencePath(blockId, condition, sequenceId, scheme),
             // Recorded on every row of this block. With no assignment table this
             // is the only surviving record of the draw.
             sequenceId,

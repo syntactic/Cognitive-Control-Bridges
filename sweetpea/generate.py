@@ -51,6 +51,7 @@ DEFAULT_ACCEPTABLE_ERROR = {
 OUT_DIRS = {
     "disjoint": os.path.join(os.path.dirname(__file__), "..", "sequences"),
     "fourcue": os.path.join(os.path.dirname(__file__), "..", "sequences_fourcue"),
+    "fourcue_cse": os.path.join(os.path.dirname(__file__), "..", "sequences_fourcue_cse"),
 }
 OUT_DIR = OUT_DIRS["disjoint"]   # default; main() overrides per --scheme
 
@@ -97,6 +98,22 @@ COLUMNS_FOURCUE = {
 }
 
 COLUMNS_BY_SCHEME = {"disjoint": COLUMNS, "fourcue": COLUMNS_FOURCUE}
+
+# Column order per paradigm (fourcue_cse scheme). Same as fourcue for the three
+# unchanged paradigms; cp_stroop and cp_prp gain their prev-congruency column.
+COLUMNS_FOURCUE_CSE = {
+    "cp_prp": ["block_id", "condition", "sequence_id", "trial_index", "task",
+               "hand", "soa_level", "congruency", "prev_cross_congruency",
+               "target_dir"],
+    "cp_taskswitch": COLUMNS_FOURCUE["cp_taskswitch"],
+    "cp_taskswitch_asym": COLUMNS_FOURCUE["cp_taskswitch_asym"],
+    "cp_stroop": ["block_id", "condition", "sequence_id", "trial_index", "task",
+                  "hand", "congruency", "prev_congruency", "target_dir",
+                  "response_transition"],
+    "cp_stroop_crossed": COLUMNS_FOURCUE["cp_stroop_crossed"],
+}
+
+COLUMNS_BY_SCHEME["fourcue_cse"] = COLUMNS_FOURCUE_CSE
 
 # Trials per BLOCK. One file is one block, and a participant runs five of them,
 # so these are per-block counts (480 test trials, 540 for crossed Stroop) -- not

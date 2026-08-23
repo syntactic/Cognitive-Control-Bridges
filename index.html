@@ -546,7 +546,8 @@
 
         startBtn.addEventListener('click', async () => {
             // Response-set scheme: ?scheme=disjoint (default, the committed Phase 1
-            // build) or ?scheme=fourcue (vertical W/S+I/K, positional cue). Resolved
+            // build), ?scheme=fourcue (vertical W/S+I/K, positional cue), or
+            // ?scheme=fourcue_cse (fourcue plus n−1 congruency in cp_stroop/cp_prp). Resolved
             // once here and threaded into both the session build (keys/geometry/copy)
             // and runSession (cue rendering). An unknown value falls back to disjoint.
             const schemeName = new URLSearchParams(window.location.search).get('scheme') || 'disjoint';

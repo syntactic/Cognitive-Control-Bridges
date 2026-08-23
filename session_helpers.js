@@ -90,6 +90,7 @@ const CP_SCHEMES = {
         keyMaps: { mov: { ...LEFT_HAND_KEYS }, or: { ...RIGHT_HAND_KEYS } },
         keyResolution: 'dimension-tied',
         cueMode: 'hue',
+        sequenceDir: 'sequences',
     },
     fourcue: {
         name: 'fourcue',
@@ -97,6 +98,15 @@ const CP_SCHEMES = {
         keyMaps: { mov: { ...LEFT_HAND_KEYS_VERTICAL }, or: { ...RIGHT_HAND_KEYS_VERTICAL } },
         keyResolution: 'cue-driven',
         cueMode: 'hue+position',
+        sequenceDir: 'sequences_fourcue',
+    },
+    fourcue_cse: {
+        name: 'fourcue_cse',
+        geometry: { axis: 'vertical', levelToDeg: { left: 90, right: 270 } },
+        keyMaps: { mov: { ...LEFT_HAND_KEYS_VERTICAL }, or: { ...RIGHT_HAND_KEYS_VERTICAL } },
+        keyResolution: 'cue-driven',
+        cueMode: 'hue+position',
+        sequenceDir: 'sequences_fourcue_cse',
     },
 };
 

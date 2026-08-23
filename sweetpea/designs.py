@@ -554,12 +554,151 @@ BUILDERS_FOURCUE = {
     "cp_stroop_crossed": build_stroop_crossed_fourcue,
 }
 
+
+# ==================================================================
+# FOUR-CUE + CSE scheme builders  (?scheme=fourcue_cse)
+# ==================================================================
+# Adds an n−1 congruency (congruency-sequence) factor to cp_stroop and cp_prp
+# ON TOP of the fourcue scheme. The other three paradigms are unchanged from
+# fourcue (task switching / crossed Stroop excluded on cost — see README §6).
+#
+# The CSE factor is a property of the SEQUENCE and analysis-only: it does NOT
+# change how any trial renders. `prev_congruency` / `prev_cross_congruency` are
+# extra CSV columns the client ignores; the rendering path is identical to fourcue.
+
+def build_stroop_fourcue_cse(n_trials=96, condition="A"):
+    """Stroop basic + n−1 congruency (CSE) + response_transition in the crossing.
+
+    PRIMARY crossing: congruency × prev_congruency × response_transition = 8.
+    This PROMOTES response_transition into the crossing (today it's only
+    run-length-capped in fourcue Stroop) — required so the CSE isn't confounded
+    with feature integration / partial repetition (Sebastian's 08-18 point,
+    Tim's original objection).
+
+    SECONDARY crossing: hand × target_dir = 4.  Keeps hand balanced.
+    96 = 12 × 8; a ±1 first-trial residual is expected/acceptable.
+    """
+    target_task = "mov" if condition == "A" else "or"
+
+    hand = Factor("hand", ["left", "right"])
+    congruency = Factor("congruency", ["congruent", "incongruent"])
+    target_dir = Factor("target_dir", ["left", "right"])
+
+    # n−1 congruency: the congruency of the PREVIOUS trial.
+    # SweetPea Transition window: a[-1] is previous (-1), a[0] is current (0).
+    prev_congruency = Factor("prev_congruency", [
+        DerivedLevel("congruent", Transition(lambda a: a[-1] == "congruent", [congruency])),
+        DerivedLevel("incongruent", Transition(lambda a: a[-1] == "incongruent", [congruency])),
+    ])
+
+    response_transition = _transition_factor("response_transition", target_dir)
+
+    design = [hand, congruency, target_dir, prev_congruency, response_transition]
+    # Primary crossing (interpretable CSE, per README §6):
+    #   congruency × prev_congruency × response_transition = 8 cells.
+    # Secondary crossing balances hand × target_dir (4 cells).
+    crossings = [
+        [congruency, prev_congruency, response_transition],
+        [hand, target_dir],
+    ]
+    constraints = [
+        AtMostKInARow(3, response_transition),
+        AtMostKInARow(3, hand),
+        MinimumTrials(n_trials),
+    ]
+    block = MultiCrossBlock(design, crossings, constraints,
+                            alignment=AlignmentMode.POST_PREAMBLE,
+                            mode=RepeatMode.WEIGHT)
+
+    def to_rows(trials):
+        rows = []
+        for i, t in enumerate(trials):
+            rows.append({
+                "block_id": "cp_stroop",
+                "condition": condition,
+                "trial_index": i,
+                "task": target_task,
+                "hand": t["hand"],
+                "congruency": t["congruency"],
+                "prev_congruency": "First" if i == 0 else _cap(t["prev_congruency"]),
+                "target_dir": t["target_dir"],
+                "response_transition": "First" if i == 0 else _cap(t["response_transition"]),
+            })
+        return rows
+
+    return block, to_rows
+
+
+def build_prp_fourcue_cse(n_trials=96, condition="A", soa_levels=(100, 300, 600)):
+    """PRP / dual-task + n−1 cross-congruency (CSE).
+
+    Crossing: soa × congruency × prev_cross_congruency × target_dir = 24.
+    96 = 4 × 24.
+
+    NOTE: response_transition is NOT added here. PRP has two responses per trial
+    (T1 and T2), so "response repetition" is ill-defined: T1's response could
+    repeat while T2's switches, or vice versa. This is a known limitation; the
+    CSE will be interpretable but its interaction with response repetition cannot
+    be controlled within PRP. Flag for Tim to review.
+    """
+    target_task = "mov" if condition == "A" else "or"
+    # T1 responds with the LEFT hand in condition A (T2 right); reversed in B.
+    # Deterministic, so it is written in to_rows — not a sampled factor — which
+    # keeps block construction condition-independent (assert_condition_agnostic).
+    t1_hand = "left" if condition == "A" else "right"
+
+    soa = Factor("soa", list(soa_levels))
+    cross_congruency = Factor("congruency", ["congruent", "incongruent"])
+    t1_target_dir = Factor("target_dir", ["left", "right"])
+
+    # n−1 cross-congruency: the cross-task congruency of the PREVIOUS trial.
+    prev_cross_congruency = Factor("prev_cross_congruency", [
+        DerivedLevel("congruent", Transition(lambda a: a[-1] == "congruent", [cross_congruency])),
+        DerivedLevel("incongruent", Transition(lambda a: a[-1] == "incongruent", [cross_congruency])),
+    ])
+
+    design = [soa, cross_congruency, t1_target_dir, prev_cross_congruency]
+    crossing = [soa, cross_congruency, prev_cross_congruency, t1_target_dir]
+    constraints = [MinimumTrials(n_trials)]
+    block = CrossBlock(design, crossing, constraints)
+
+    def to_rows(trials):
+        rows = []
+        for i, t in enumerate(trials):
+            rows.append({
+                "block_id": "cp_prp",
+                "condition": condition,
+                "trial_index": i,
+                "task": target_task,            # T1 task; T2 derived client-side
+                "hand": t1_hand,                # T1 hand; T2 hand is the opposite
+                "soa_level": t["soa"],
+                "congruency": t["congruency"],  # cross-task congruency
+                "prev_cross_congruency": "First" if i == 0 else _cap(t["prev_cross_congruency"]),
+                "target_dir": t["target_dir"],  # T1 target dir; T2 derived
+            })
+        return rows
+
+    return block, to_rows
+
+
+# Four-cue + CSE registry: cp_stroop and cp_prp get CSE-aware builders; the
+# other three reuse the fourcue builders unchanged (the CSE is excluded from
+# task switching and crossed Stroop on cost — see README §6).
+BUILDERS_FOURCUE_CSE = {
+    "cp_prp": build_prp_fourcue_cse,
+    "cp_taskswitch": build_taskswitch_fourcue,
+    "cp_taskswitch_asym": build_taskswitch_asym_fourcue,
+    "cp_stroop": build_stroop_fourcue_cse,
+    "cp_stroop_crossed": build_stroop_crossed_fourcue,
+}
+
 # Scheme name -> builder registry. `generate.py --scheme` selects one; everything
 # downstream (sampling, row stamping, the condition-agnostic assertion) reads the
 # registry through `builders_for`, so the disjoint path is byte-for-byte unchanged.
 BUILDER_REGISTRIES = {
     "disjoint": BUILDERS,
     "fourcue": BUILDERS_FOURCUE,
+    "fourcue_cse": BUILDERS_FOURCUE_CSE,
 }
 
 
@@ -602,9 +741,24 @@ CROSSING_SIZE_FOURCUE = {
     "cp_stroop_crossed": 36,
 }
 
+# Primary-crossing size per fourcue_cse paradigm. cp_stroop and cp_prp have
+# enlarged crossings (the CSE factor doubles them); the other three inherit
+# fourcue's crossing unchanged.
+#   cp_prp:            soa(3) x congruency(2) x prev_cross_congruency(2) x target_dir(2) = 24
+#   cp_stroop:         congruency(2) x prev_congruency(2) x response_transition(2)       = 8
+#                      (hand x target_dir balanced by secondary crossing)
+CROSSING_SIZE_FOURCUE_CSE = {
+    "cp_prp": 24,
+    "cp_taskswitch": 32,        # inherited from fourcue
+    "cp_taskswitch_asym": 16,   # inherited from fourcue
+    "cp_stroop": 8,             # was 8 in fourcue; still 8 but from a different crossing
+    "cp_stroop_crossed": 36,    # inherited from fourcue
+}
+
 CROSSING_SIZES = {
     "disjoint": CROSSING_SIZE,
     "fourcue": CROSSING_SIZE_FOURCUE,
+    "fourcue_cse": CROSSING_SIZE_FOURCUE_CSE,
 }
 
 SAMPLERS = {"CMSGen": CMSGen, "IterateGen": IterateGen, "RandomGen": RandomGen}
