@@ -130,8 +130,8 @@ const RESPOND_INCORRECT = () => ({
 // actually runs; it is loaded so a syntax error there fails this suite rather
 // than only the browser.
 const sources = [
-    './engine.js', './training_stages.js', './canonical_paradigms.js',
-    './session_helpers.js', './instruction_demo.js', './session.js',
+    './engine.js', './training_stages.js', './instruction_demo.js',
+    './canonical_paradigms.js', './session_helpers.js', './session.js',
 ].map(f => fs.readFileSync(f, 'utf8')).join('\n;\n');
 
 eval(sources + `
@@ -164,6 +164,7 @@ eval(sources + `
     CP_SEQUENCE_POOL_SIZE,
     CP_TEST_BLOCKS_PER_SESSION,
     DEMO_KEYCAPS,
+    INSTRUCTION_DEMO_ANCHOR,
 };
 `);
 
@@ -174,7 +175,7 @@ const {
     Session, TRAINING_CAP, TRAINING_RAMP_LENGTH, TRAINING_SOA_SCHEDULE_LENGTH,
     CP_SESSIONS, CP_TEST_SESSIONS, CP_DISJOINT_KEY_MAPS, CP_IDENTICAL_KEY_MAPS,
     CP_PRP_SOA_LEVELS, CP_SEQUENCE_POOL_SIZE, CP_TEST_BLOCKS_PER_SESSION,
-    DEMO_KEYCAPS,
+    DEMO_KEYCAPS, INSTRUCTION_DEMO_ANCHOR,
 } = globalThis.__T;
 
 // ============================================================
@@ -1227,10 +1228,40 @@ for (const id of Object.keys(CP_EXPECTED)) {
             `${id}/${stage}: every cartoon segment is cued`);
     }
 
-    // Test blocks get no cartoon: the participant has just seen S8's, and
-    // cp_prp's test screen is the tallest in the whole session (552 px of 598).
-    for (const blockDef of CP_SESSIONS[id].filter(b => b.phase !== 'training')) {
-        assert(!blockDef.demo, `${id}: test blocks carry no demo`);
+    // The test screen carries a cartoon too (2026-08-23). It rides with the
+    // SCREEN, so only the first of the five blocks has one — blocks 2-5 are
+    // preceded by the break screen, not an instruction screen.
+    const testBlocks = CP_SESSIONS[id].filter(b => b.phase !== 'training');
+    assert(testBlocks[0].demo && testBlocks[0].demo.segments.length > 0,
+        `${id}: the first test block has a cartoon`);
+    assert(testBlocks.slice(1).every(b => !b.demo),
+        `${id}: only the block that shows a screen carries a cartoon`);
+
+    // A cartoon with no anchor would be placed by the fallback rule — after the
+    // first paragraph break, which on a test screen belongs to
+    // CP_TEST_BLOCK_PREAMBLE, i.e. above the copy it illustrates.
+    const testText = testBlocks[0].instructions;
+    assert(testText.includes(INSTRUCTION_DEMO_ANCHOR),
+        `${id}: the test screen names where its cartoon goes`);
+    assert(testText.split(INSTRUCTION_DEMO_ANCHOR).length === 2,
+        `${id}: exactly one cartoon anchor on the test screen`);
+    // The marker is markup, not copy: it must never reach the participant,
+    // whether or not a cartoon is placed on the screen.
+    for (const hasDemo of [true, false]) {
+        assert(!instructionHtml(testText, hasDemo).includes(INSTRUCTION_DEMO_ANCHOR),
+            `${id}: the anchor is consumed when rendered (hasDemo=${hasDemo})`);
+    }
+
+    // Same key-validity rule as the training cartoons: depicting a key this
+    // paradigm does not use would teach the wrong finger.
+    for (const seg of testBlocks[0].demo.segments) {
+        for (const ev of [seg, ...(seg.then ? [seg.then] : [])]) {
+            if (!ev.key) continue;
+            assert(validKeys.has(String(ev.key).toLowerCase()),
+                `${id}/test: demo key '${ev.key}' is one of this paradigm's own keys`);
+            assert(DEMO_KEYCAPS[String(ev.key).toLowerCase()] !== undefined,
+                `${id}/test: demo key '${ev.key}' has a keycap graphic`);
+        }
     }
 }
 

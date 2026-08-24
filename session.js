@@ -123,26 +123,28 @@ const Session = (() => {
         return new Promise(resolve => {
             const overlay = document.createElement('div');
             overlay.className = 'instructions-overlay';
-            overlay.innerHTML = `<div class="instructions-content">${text.replace(/\n/g, '<br>')}</div>`;
+            // Whether the cartoon can actually be placed has to be settled BEFORE
+            // the copy is rendered, because a `[[demo]]` marker whose cartoon
+            // never arrives must not survive into the text the participant reads.
+            // The headless DOM stub in test_training.js has no querySelector (the
+            // same tell showBreak uses), and that is the intended degradation:
+            // the cartoon is pure presentation and no training assertion depends
+            // on it.
+            const willDemo = Boolean(demo && typeof overlay.querySelector === 'function');
+            overlay.innerHTML =
+                `<div class="instructions-content">${instructionHtml(text, willDemo)}</div>`;
 
-            // The animated cartoon, if this screen has one. It goes after the
-            // first paragraph — under the "STEP n of 7" heading, above the
-            // explanation — and REPLACES the paragraph break it lands on, which
-            // is why it costs ~148 px of the height budget rather than its full
-            // height. `content` is undefined under the headless DOM stub in
-            // test_training.js, which is the intended degradation: the cartoon is
-            // pure presentation and no training assertion depends on it.
+            // The animated cartoon, if this screen has one. WHERE it lands is
+            // instruction_demo.js's business (placeInstructionDemo): a training
+            // screen carries no marker and takes the after-the-first-paragraph
+            // rule, eating that break — which is why it costs ~148 px of the
+            // height budget rather than its full height — while a test screen
+            // names the spot with `[[demo]]`, because its own first paragraph
+            // belongs to CP_TEST_BLOCK_PREAMBLE.
             let running = null;
             const content = overlay.firstElementChild;
-            if (demo && content) {
-                running = createInstructionDemo(demo, spriteConfig);
-                const firstBreak = content.querySelector('br + br');
-                if (firstBreak) {
-                    content.insertBefore(running.element, firstBreak.nextSibling);
-                    firstBreak.remove();
-                } else {
-                    content.appendChild(running.element);
-                }
+            if (willDemo && content) {
+                running = placeInstructionDemo(content, demo, spriteConfig);
             }
             canvasContainer.appendChild(overlay);
 

@@ -465,9 +465,84 @@ function createInstructionDemo(spec, sprites) {
     };
 }
 
+// ---- Placement on an instruction screen ------------------------------------
+// Where the cartoon lands used to be decided by showInstructions alone: insert
+// after the FIRST paragraph break and eat that break. That rule was written for
+// the training screens, every one of which opens with a "STEP n of 8 — title"
+// heading, so "after the first paragraph" means "under the heading".
+//
+// It does NOT generalize to the test screens. Those are prefixed at assembly
+// time with CP_TEST_BLOCK_PREAMBLE ("Practice is over ..."), whose own paragraph
+// break is the first one on the screen — so the same rule would drop the cartoon
+// between the preamble and its `- - -` divider, i.e. above the copy it
+// illustrates. Rather than special-case the preamble, copy can now name the spot
+// with a marker on its own line:
+//
+//     ...FACING?\n   Right hand: J = leftward, L = rightward.\n\n[[demo]]\n\nAnswer them...
+//
+// The marker is consumed whether or not a demo is supplied, so a screen that
+// carries one is safe to render without one (the audit harness measures both,
+// and a blockDef whose demo is null still reads correctly).
+const INSTRUCTION_DEMO_ANCHOR = '[[demo]]';
+const INSTRUCTION_DEMO_ANCHOR_CLASS = 'demo-anchor';
+// Any run of newlines around the marker collapses to ONE <br> before the cartoon
+// and none after — the same spacing the eat-a-paragraph-break rule produces, so
+// an anchored screen costs exactly what an unanchored one does.
+const INSTRUCTION_DEMO_ANCHOR_RE = /\n*\[\[demo\]\]\n*/;
+
+/**
+ * Turn instruction copy into the innerHTML of `.instructions-content`.
+ * Call this instead of `text.replace(/\n/g, '<br>')` so the demo marker is
+ * resolved rather than shown to the participant as literal `[[demo]]`.
+ *
+ * @param {string} text - the screen's copy, optionally containing the marker
+ * @param {boolean} hasDemo - whether a cartoon will be placed on this screen
+ */
+function instructionHtml(text, hasDemo) {
+    const resolved = hasDemo
+        ? text.replace(INSTRUCTION_DEMO_ANCHOR_RE,
+            `\n<span class="${INSTRUCTION_DEMO_ANCHOR_CLASS}"></span>`)
+        // No cartoon: the marker leaves a plain paragraph break behind.
+        : text.replace(INSTRUCTION_DEMO_ANCHOR_RE, '\n\n');
+    return resolved.replace(/\n/g, '<br>');
+}
+
+/**
+ * Build the cartoon and put it in its place inside an already-rendered
+ * `.instructions-content`. Anchored screens win; screens with no marker keep the
+ * original behaviour (after the first paragraph break, which it eats), which is
+ * what every S2-S8 training screen relies on.
+ *
+ * Shared by showInstructions (session.js) and the height audit
+ * (analysis/measure_instructions.html) so the two cannot drift — the audit
+ * measuring a different placement from the one that ships is the failure this
+ * consolidation exists to prevent.
+ *
+ * @returns {{element: HTMLElement, stop: function}} the running demo — the
+ *   CALLER MUST call stop(); it owns an rAF loop and timers.
+ */
+function placeInstructionDemo(content, demo, sprites) {
+    const running = createInstructionDemo(demo, sprites);
+    const anchor = content.querySelector('.' + INSTRUCTION_DEMO_ANCHOR_CLASS);
+    if (anchor) {
+        content.insertBefore(running.element, anchor);
+        anchor.remove();
+        return running;
+    }
+    const firstBreak = content.querySelector('br + br');
+    if (firstBreak) {
+        content.insertBefore(running.element, firstBreak.nextSibling);
+        firstBreak.remove();
+    } else {
+        content.appendChild(running.element);
+    }
+    return running;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         INSTRUCTION_DEMO_PX, INSTRUCTION_DEMO_BACKING,
         DEMO_KEYCAPS, DEMO_KEY_IDLE, demoKeycap, createInstructionDemo,
+        INSTRUCTION_DEMO_ANCHOR, instructionHtml, placeInstructionDemo,
     };
 }

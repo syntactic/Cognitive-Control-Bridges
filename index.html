@@ -248,9 +248,19 @@
     <script src="demo_block_configs.js"></script>
     <script src="hirsch_block_configs.js"></script>
     <script src="switch-frequency.js"></script>
+    <!-- instruction_demo.js BEFORE canonical_paradigms.js: it declares
+         INSTRUCTION_DEMO_ANCHOR, the `[[demo]]` marker that the canonical test
+         screens embed in their copy, and canonical_paradigms.js builds those
+         screens AT LOAD TIME (the CP_*_SESSION statics). A top-level `const` in
+         one classic script is in the shared lexical environment but still in its
+         TDZ until its own script runs, so the later order threw
+         "Cannot access 'INSTRUCTION_DEMO_ANCHOR' before initialization". The file
+         is self-contained (constants, a class, two functions; no DOM at load
+         time), so it is safe this early — and this is the order
+         analysis/measure_instructions.html already used. -->
+    <script src="instruction_demo.js"></script>
     <script src="canonical_paradigms.js"></script>
     <script src="session_helpers.js"></script>
-    <script src="instruction_demo.js"></script>
     <script src="session.js"></script>
 
     <script>

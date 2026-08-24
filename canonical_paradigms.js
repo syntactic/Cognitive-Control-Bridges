@@ -498,11 +498,16 @@ const CP_PRP_INSTRUCTIONS = (t1Task, keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => 
     const stimulusStory = movFirst
         ? `The birds fly first, then turn to face ${vocab.eitherOr}.`
         : `The birds face ${vocab.eitherOr} first, then start to fly.`;
-    return 'Two tasks on every trial, always in this order:\n\n'
-        + `1) ${movFirst ? movItem : orItem}\n\n`
+    // The blank lines INSIDE the numbered list were spent on the cartoon (see
+    // cpTestDemo). Nothing the screen says was cut to pay for it — the numbering
+    // separates the two items as well as a blank line did, and this is the
+    // tallest screen in the session, so it is the one with no slack to spare.
+    return 'Two tasks on every trial, always in this order:\n'
+        + `1) ${movFirst ? movItem : orItem}\n`
         + `2) ${movFirst ? orItem : movItem}\n\n`
+        + INSTRUCTION_DEMO_ANCHOR + '\n\n'
         + stimulusStory + '\n'
-        + 'The gap between the two varies, and can be very short.\n\n'
+        + 'The gap between the two varies, and can be very short.\n'
         + 'Answer them in that order, even if you work out\n'
         + 'the second one early. Be fast but accurate.\n\n'
         + 'Press any key to begin.';
@@ -521,9 +526,10 @@ const cpTaskSwitchInstructions = (keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
     // border legend teaches both rules; the key lines are hand-based (per side),
     // not task-based, because either task can appear on either hand.
     if (cpSchemeVocab(scheme).positional) {
-        return 'ONE task per trial. It may switch from trial to trial.\n\n'
+        return 'ONE task per trial. It may switch from trial to trial.\n'
             + 'The border tells you TWO things — its COLOR and its SIDE:\n\n'
             + cpBorderLegend(keyMaps, scheme) + '\n\n'
+            + INSTRUCTION_DEMO_ANCHOR + '\n\n'
             + 'So the color says WHICH question, and the side says WHICH hand.\n'
             + 'Answer that question with that hand; ignore the other dimension.\n\n'
             + 'Press any key to begin.';
@@ -534,6 +540,7 @@ const cpTaskSwitchInstructions = (keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
         + `     ${cpHandLabel(keyMaps.mov)}${cpKeyPhrase(keyMaps.mov)}.\n`
         + `  BLUE = ORIENTATION (which way are they FACING?)\n`
         + `     ${cpHandLabel(keyMaps.or)}${cpKeyPhrase(keyMaps.or)}.\n\n`
+        + INSTRUCTION_DEMO_ANCHOR + '\n\n'
         + 'Ignore the other dimension.\n\n'
         + 'Press any key to begin.';
 };
@@ -576,6 +583,7 @@ const CP_STROOP_INSTRUCTIONS = (task, keyMaps = CP_DISJOINT_KEY_MAPS) => {
         + `Respond to which way the birds are ${target}; ignore which way\n`
         + `they are ${other}.\n`
         + `  ${cpKeyLine(keyMaps[task], cpKeysAreShared(keyMaps))}\n\n`
+        + INSTRUCTION_DEMO_ANCHOR + '\n\n'
         + 'Press any key to begin.';
 };
 
@@ -626,12 +634,35 @@ const CP_STROOP_INSTRUCTIONS = (task, keyMaps = CP_DISJOINT_KEY_MAPS) => {
 // break screen, which already says what it needs to; a second instruction screen
 // there would just be one more thing to dismiss.
 
-/** Five blockDefs on one blockConfig: the first with a screen, the rest without. */
-function cpTestBlocks(blockConfig, numTrials, instructions) {
+/**
+ * The test screen's cartoon. The SAME builder the paradigm's S8 uses, because a
+ * test block IS that paradigm's shape — cp_prp's test trials are S8's PRP trials
+ * without the descending SOA schedule, and the switching / Stroop ones likewise.
+ * Reusing cpFinalStageDemo is what keeps the two from drifting apart; a separate
+ * test-only cartoon would be one more thing to keep in step with the copy.
+ *
+ * Test screens carry the cartoon for a different reason than training ones do.
+ * In training it teaches; here it re-states, wordlessly, the thing the copy is
+ * longest about — which border means which question, and which finger answers
+ * it — at the exact moment trial-by-trial feedback is being taken away
+ * (CP_DEFAULTS' `feedback: false`). That is also what paid for the copy trims
+ * below: the illustration says it, so the sentence need not.
+ */
+function cpTestDemo(keyMaps, finalStage, scheme) {
+    return { ...cpFinalStageDemo(keyMaps, finalStage, scheme), ...cpCueMeta(keyMaps, scheme) };
+}
+
+/**
+ * Five blockDefs on one blockConfig: the first with a screen, the rest without.
+ * The cartoon rides along with the screen, so blocks 2-5 (which are preceded by
+ * the break screen, not an instruction screen) carry neither.
+ */
+function cpTestBlocks(blockConfig, numTrials, instructions, demo = null) {
     return Array.from({ length: CP_TEST_BLOCKS_PER_SESSION }, (_, i) => ({
         blockConfig,
         numTrials,
         instructions: i === 0 ? instructions : null,
+        demo: i === 0 ? demo : null,
     }));
 }
 
@@ -639,19 +670,35 @@ function cpTestBlocks(blockConfig, numTrials, instructions) {
 // demo-only — cpApplySweetPea never runs, so the JS-generator fallback's trial
 // sequence does not necessarily match these instructions. With
 // ?paradigm=&condition=, cpApplySweetPea overrides them per condition.
-const CP_PRP_SESSION = cpTestBlocks(cpPRP, 96, CP_PRP_INSTRUCTIONS('mov'));
+// The cartoon each test screen carries. Declared next to the sessions rather than
+// inline so the load-time statics and cpTestSessionFor (which rebuilds these per
+// condition and scheme) demonstrably ask for the SAME shape per paradigm.
+const CP_TEST_FINAL_STAGE = {
+    cp_prp: (task) => ({ kind: 'prp', t1Task: task }),
+    cp_taskswitch: () => ({ kind: 'switching' }),
+    cp_taskswitch_asym: () => ({ kind: 'switching' }),
+    cp_stroop: (task) => ({ kind: 'stroop', task }),
+    cp_stroop_crossed: (task) => ({ kind: 'stroop', task }),
+};
 
-const CP_TASKSWITCH_SESSION = cpTestBlocks(cpTaskSwitch, 96, cpTaskSwitchInstructions());
+const CP_PRP_SESSION = cpTestBlocks(cpPRP, 96, CP_PRP_INSTRUCTIONS('mov'),
+    cpTestDemo(CP_DISJOINT_KEY_MAPS, CP_TEST_FINAL_STAGE.cp_prp('mov')));
+
+const CP_TASKSWITCH_SESSION = cpTestBlocks(cpTaskSwitch, 96, cpTaskSwitchInstructions(),
+    cpTestDemo(CP_DISJOINT_KEY_MAPS, CP_TEST_FINAL_STAGE.cp_taskswitch()));
 
 // Same screen as cp_taskswitch, verbatim — see the note by
 // CP_TASKSWITCH_INSTRUCTIONS on why the "one task is harder" line was dropped.
-const CP_TASKSWITCH_ASYM_SESSION = cpTestBlocks(cpTaskSwitchAsym, 96, cpTaskSwitchInstructions());
+const CP_TASKSWITCH_ASYM_SESSION = cpTestBlocks(cpTaskSwitchAsym, 96, cpTaskSwitchInstructions(),
+    cpTestDemo(CP_DISJOINT_KEY_MAPS, CP_TEST_FINAL_STAGE.cp_taskswitch_asym()));
 
-const CP_STROOP_SESSION = cpTestBlocks(cpStroop, 96, CP_STROOP_INSTRUCTIONS(CP_TARGET_TASK));
+const CP_STROOP_SESSION = cpTestBlocks(cpStroop, 96, CP_STROOP_INSTRUCTIONS(CP_TARGET_TASK),
+    cpTestDemo(CP_DISJOINT_KEY_MAPS, CP_TEST_FINAL_STAGE.cp_stroop(CP_TARGET_TASK)));
 
 // 108, not 96: the crossed design's 36-cell crossing does not divide 96.
 const CP_STROOP_CROSSED_SESSION = cpTestBlocks(cpStroopCrossed, 108,
-    CP_STROOP_INSTRUCTIONS(CP_TARGET_TASK));
+    CP_STROOP_INSTRUCTIONS(CP_TARGET_TASK),
+    cpTestDemo(CP_DISJOINT_KEY_MAPS, CP_TEST_FINAL_STAGE.cp_stroop_crossed(CP_TARGET_TASK)));
 
 // ============================================================
 // Training / shaping sessions
@@ -891,6 +938,28 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
  * @param {object} finalStage - { kind, t1Task?, task? }, matching the S8 spec
  * @returns {{S2..S6: object, S8: object}} demo specs
  */
+/**
+ * Cue rendering metadata, spread onto every demo spec so the cartoon draws the
+ * same cue the real trial does: a full hue border under disjoint, and a
+ * half-border localized to the cued hand under the fourcue positional cue.
+ *
+ * cueSides is the TASK-TIED default (mov's hand, or's hand) — used by the PRP
+ * cartoon, whose two cues are task-tied; the single-cue fourcue stages set a
+ * per-segment `side` instead, so the same task's border can appear on either
+ * hand (the 2x2). Shared by the training cartoons (cpTrainingDemos) and the
+ * test-block ones (cpTestDemo), which must depict the identical cue.
+ */
+function cpCueMeta(keyMaps, scheme) {
+    return {
+        cueMode: (scheme && scheme.cueMode) || 'hue',
+        cueSides: { mov: cpHandFor(keyMaps.mov), or: cpHandFor(keyMaps.or) },
+        // The task word printed under each keycap cluster (08-18 l.105). Kept in
+        // step with the FLYING/FACING copy; instruction_demo reads it off the
+        // spec, so the vocabulary is declared once, here.
+        taskWords: { mov: 'flying', or: 'facing' },
+    };
+}
+
 /** The two direction angles a key map covers, in reading order: [180,0] (disjoint
  *  horizontal) or [90,270] (fourcue vertical). */
 function cpDirsOf(keyMap) {
@@ -907,23 +976,8 @@ function cpTrainingDemos(keyMaps, finalStage, scheme) {
     const [movA, movB] = cpDirsOf(keyMaps.mov);
     const [orA, orB]   = cpDirsOf(keyMaps.or);
 
-    // Cue rendering metadata, attached to every stage spec so the demo cartoon
-    // draws the same cue the real trial does: full hue border under disjoint, and
-    // a half-border localized to the cued hand under the fourcue positional cue.
-    // cueSides is the TASK-TIED default (mov's hand, or's hand) — used by the PRP
-    // S8 cartoon, whose two cues are task-tied; the single-cue fourcue stages set
-    // a per-segment `side` instead, so the same task's border can appear on either
-    // hand (the 2x2).
     const positional = cpSchemeVocab(scheme).positional;
-    const cueMeta = {
-        cueMode: (scheme && scheme.cueMode) || 'hue',
-        cueSides: { mov: cpHandFor(keyMaps.mov), or: cpHandFor(keyMaps.or) },
-        // The task word printed under each keycap cluster (08-18 l.105). Kept in
-        // step with the FLYING/FACING copy above; instruction_demo reads it off the
-        // spec, so the vocabulary is declared once, here.
-        taskWords: { mov: 'flying', or: 'facing' },
-    };
-    const withCue = (demo) => ({ ...demo, ...cueMeta });
+    const withCue = (demo) => ({ ...demo, ...cpCueMeta(keyMaps, scheme) });
 
     // Under fourcue the response hand follows the border SIDE, not the task, so a
     // segment can put either task on either hand. `keyFor(hand, dir)` picks the
@@ -1134,10 +1188,15 @@ function cpFinalStageInstructions(keyMaps, finalStage, scheme) {
 // Lines kept under ~58 characters so neither wraps at .instructions-content's
 // max-width: 80% — this prefix is on all five test screens, so one wrapped line
 // here costs every one of them a line (analysis/measure_instructions.js).
+//
+// The `- - -` rule that used to sit under these two lines is gone (2026-08-23).
+// It was there to separate "practice is over" from the block's own copy, and the
+// test screens now carry a cartoon that separates them far more strongly. It was
+// also the most expensive decoration on the screen: two rendered lines (52 px) on
+// every one of the five, which is most of what the cartoon needed on cp_prp.
 const CP_TEST_BLOCK_PREAMBLE =
     'Practice is over — the real task starts now.\n'
-    + 'You will no longer be told whether each answer was right.\n\n'
-    + '- - -\n\n';
+    + 'You will no longer be told whether each answer was right.\n\n';
 
 // ------------------------------------------------------------
 // Per-paradigm training specs
@@ -1187,25 +1246,35 @@ function cpStampScheme(blockConfig, scheme) {
 /**
  * Build one paradigm's five test blocks for a condition and scheme. Mirrors the
  * static CP_*_SESSION load-time builds, but with the blockConfig scheme-stamped
- * and the first block's instruction copy generated from the scheme's key maps.
- * `scheme` absent => disjoint (the generators' own default), so this reproduces
- * the static sessions exactly.
+ * and the first block's instruction copy AND cartoon generated from the scheme's
+ * key maps. `scheme` absent => disjoint (the generators' own default), so this
+ * reproduces the static sessions exactly.
  */
 function cpTestSessionFor(paradigm, condition = 'A', scheme) {
     const condTask = condition === 'B' ? 'or' : 'mov';
     const km = scheme ? scheme.keyMaps : undefined;   // undefined => generator default (disjoint)
     const stamp = (bc) => cpStampScheme(bc, scheme);
+    // The cartoon's angles and keycaps come from the key maps, so it has to be
+    // built from the SAME `km` the copy is — a demo left on the disjoint default
+    // under fourcue would depict horizontal birds and the wrong fingers.
+    const demoKeyMaps = km || CP_DISJOINT_KEY_MAPS;
+    const demo = (finalStage) => cpTestDemo(demoKeyMaps, finalStage, scheme);
     switch (paradigm) {
         case 'cp_prp':
-            return cpTestBlocks(stamp(cpPRP), 96, CP_PRP_INSTRUCTIONS(condTask, km, scheme));
+            return cpTestBlocks(stamp(cpPRP), 96, CP_PRP_INSTRUCTIONS(condTask, km, scheme),
+                demo(CP_TEST_FINAL_STAGE.cp_prp(condTask)));
         case 'cp_taskswitch':
-            return cpTestBlocks(stamp(cpTaskSwitch), 96, cpTaskSwitchInstructions(km, scheme));
+            return cpTestBlocks(stamp(cpTaskSwitch), 96, cpTaskSwitchInstructions(km, scheme),
+                demo(CP_TEST_FINAL_STAGE.cp_taskswitch()));
         case 'cp_taskswitch_asym':
-            return cpTestBlocks(stamp(cpTaskSwitchAsym), 96, cpTaskSwitchInstructions(km, scheme));
+            return cpTestBlocks(stamp(cpTaskSwitchAsym), 96, cpTaskSwitchInstructions(km, scheme),
+                demo(CP_TEST_FINAL_STAGE.cp_taskswitch_asym()));
         case 'cp_stroop':
-            return cpTestBlocks(stamp(cpStroop), 96, CP_STROOP_INSTRUCTIONS(condTask, km));
+            return cpTestBlocks(stamp(cpStroop), 96, CP_STROOP_INSTRUCTIONS(condTask, km),
+                demo(CP_TEST_FINAL_STAGE.cp_stroop(condTask)));
         case 'cp_stroop_crossed':
-            return cpTestBlocks(stamp(cpStroopCrossed), 108, CP_STROOP_INSTRUCTIONS(condTask, km));
+            return cpTestBlocks(stamp(cpStroopCrossed), 108, CP_STROOP_INSTRUCTIONS(condTask, km),
+                demo(CP_TEST_FINAL_STAGE.cp_stroop_crossed(condTask)));
         default: throw new Error(`cpTestSessionFor: unknown paradigm '${paradigm}'`);
     }
 }

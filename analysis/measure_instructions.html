@@ -116,22 +116,16 @@ function measure(text, demo = null) {
     container.innerHTML = '';
     const overlay = document.createElement('div');
     overlay.className = 'instructions-overlay';
-    overlay.innerHTML = `<div class="instructions-content">${text.replace(/\n/g, '<br>')}</div>`;
+    overlay.innerHTML =
+        `<div class="instructions-content">${instructionHtml(text, Boolean(demo))}</div>`;
     const content = overlay.firstElementChild;
-    // Same insertion as showInstructions, including the paragraph break it eats.
-    // The REAL element is built and measured — a placeholder of the "right" size
-    // would just be this audit asserting its own assumption.
+    // Placement is shared with showInstructions (instruction_demo.js), rather
+    // than reimplemented here: an audit that measures a different placement from
+    // the one that ships measures fiction. The REAL element is built and
+    // measured — a placeholder of the "right" size would just be this audit
+    // asserting its own assumption.
     let running = null;
-    if (demo) {
-        running = createInstructionDemo(demo, null);
-        const firstBreak = content.querySelector('br + br');
-        if (firstBreak) {
-            content.insertBefore(running.element, firstBreak.nextSibling);
-            firstBreak.remove();
-        } else {
-            content.appendChild(running.element);
-        }
-    }
+    if (demo) running = placeInstructionDemo(content, demo, null);
     container.appendChild(overlay);
     const pad = parseFloat(getComputedStyle(overlay).paddingTop)
         + parseFloat(getComputedStyle(overlay).paddingBottom);
