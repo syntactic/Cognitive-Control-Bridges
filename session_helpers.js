@@ -646,7 +646,11 @@ function createQuest(priorMean, priorSD) {
     };
 }
 
-const TRAINING_CAP = 48; // hard cap on trials per training stage
+const TRAINING_CAP = 36; // hard cap on trials per training stage (lowered from 48
+// on 2026-08-25: the 8-stage reorder added stages, so the cap was tightened to keep
+// worst-case training in budget. Good participants pass early anyway, so the cap
+// mostly bounds strugglers. Windows now run 16..36 = 21 overlapping windows, which
+// LOWERS chance-passing — advancement_rates.js recomputes the exact floors.)
 
 /**
  * Summarize the rolling advancement window over everything run so far.
@@ -905,6 +909,53 @@ function formatBreakSummary(summary) {
         ? `, average ${Math.round(summary.meanRt)} ms per answer`
         : '';
     return `Since the last break: ${accuracy}${rt}.`;
+}
+
+// ---- Capped, mash-proof inter-block break (advisor 08-18 l.12-13) -----------
+//
+// Sebastian: breaks stay participant-paced but "maximum a minute... put a timer
+// down... if you want to proceed further, please press this button and then
+// maybe they have to confirm another time so that they don't accidentally press
+// anything." Tim (l.13): the cap exists "so they don't extend the time and
+// Prolific just thinks they worked really hard" — i.e. the minute is a hard
+// ceiling, so at expiry the break AUTO-ADVANCES (the DOM side owns that timer).
+//
+// The anti-mash rule is what lives here, as a pure state machine so it can be
+// tested without a DOM: only ONE specific key advances (every other key is
+// ignored — this is the whole difference from showInstructions' any-key path), a
+// FIRST press merely arms a confirmation, and a SECOND press confirms. Auto-
+// repeat (a held key) is ignored, and the confirm is refused until confirmMinMs
+// after arming, so a single bounced/double-fired keydown cannot arm-and-confirm
+// in one physical press.
+const BREAK_CAP_MS = 60000;          // hard ceiling on one break (l.12 "a minute")
+const BREAK_ADVANCE_KEY = 'Enter';   // the one key that advances; matches KeyboardEvent.key
+const BREAK_CONFIRM_MIN_MS = 250;    // confirm ignored until this long after arming
+
+/**
+ * Pure controller for a capped break's deliberate early-advance.
+ *
+ * @param {{advanceKey?: string, confirmMinMs?: number}} [opts]
+ * @returns {{ armed: boolean, press: function, reset: function }}
+ *   press(key, now, repeat) -> 'ignored' | 'armed' | 'advance'
+ *     'ignored' — wrong key, an auto-repeat, or a confirm too soon after arming
+ *     'armed'   — first deliberate press; the screen should ask for confirmation
+ *     'advance' — confirmed; the break should end early
+ */
+function createBreakController(opts = {}) {
+    const advanceKey = opts.advanceKey ?? BREAK_ADVANCE_KEY;
+    const confirmMinMs = opts.confirmMinMs ?? BREAK_CONFIRM_MIN_MS;
+    let armedAt = null;
+    return {
+        get armed() { return armedAt !== null; },
+        press(key, now, repeat = false) {
+            if (repeat) return 'ignored';           // held key: never advances
+            if (key !== advanceKey) return 'ignored'; // only the one key counts
+            if (armedAt === null) { armedAt = now; return 'armed'; }
+            if (now - armedAt < confirmMinMs) return 'ignored'; // debounce a double-fire
+            return 'advance';
+        },
+        reset() { armedAt = null; },
+    };
 }
 
 // Length, in trials, of PRP's S8 descending-SOA introduction.

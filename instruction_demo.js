@@ -1,6 +1,6 @@
 // instruction_demo.js — the animated stimulus cartoon shown on instruction screens.
 //
-// A *simplified* depiction of the task: 8 fish instead of the real display's 150,
+// A *simplified* depiction of the task: 8 birds instead of the real display's 150,
 // in a 150 px box instead of the full 600 px canvas, with the cue border drawn
 // only on the stages whose copy is actually about the border. It is a diagram,
 // not a preview — nobody is meant to read a coherence level off it.
@@ -17,17 +17,19 @@
 //      on the page, not just its own (fork block.js:128).
 // So this reimplements only what a still-life demo needs from the fork's
 // src/oob.js — position, velocity, the elliptical fade/respawn, sprite-frame
-// cycling — and uses the SAME sprite sheets the real task uses, so the demo fish
-// are literally the participant's fish.
+// cycling — and uses the SAME sprite sheets the real task uses, so the demo birds
+// are literally the participant's birds.
 //
-// SPRITE SHEET GEOMETRY (from session.js loadSprites + fork src/oob.js):
-//   fish_2.png        72x72 -> 4 cols x 4 rows of 18 px;
-//                     row = variant*2 + (facing left ? 1 : 0)
-//   fish_forward.png  64x32 -> 4 cols x 2 rows of 16 px
-// SE draws the FORWARD sprite whenever a trial's orientation pathway never fires
-// (Oob.drawNonOrientated), which is exactly the univalent movement stimulus.
-// Passing `orientation: null` here reproduces that for free, so S1/S2 show fish
-// that swim without also facing anywhere — as their copy promises.
+// SPRITE SHEET GEOMETRY (from session.js loadSprites + fork src/oob.js +
+// bird_sprites/README.md). The bird sheets share the fish sheets' geometry exactly,
+// so the tile math below is unchanged:
+//   bird_oriented.png  72x72 -> 4 cols x 4 rows of 18 px;
+//                      row = variant*2 + (facing left ? 1 : 0)
+//   bird_neutral.png   64x32 -> 4 cols x 2 rows of 16 px
+// SE draws the NEUTRAL (head-on) sprite whenever a trial's orientation pathway
+// never fires (Oob.drawNonOrientated), which is exactly the univalent movement
+// stimulus. Passing `orientation: null` here reproduces that for free, so S1/S2
+// show birds that fly without also facing anywhere — as their copy promises.
 
 // ---- Layout ---------------------------------------------------------------
 // 150 px is "about a quarter of the screen" (of the 600 px canvas) and is the
@@ -41,8 +43,8 @@ const INSTRUCTION_DEMO_PX = 150;
 // below is in these units.
 const INSTRUCTION_DEMO_BACKING = 320;
 
-const DEMO_FISH_COUNT = 8;
-const DEMO_FISH_SIZE = 46;      // backing-store px
+const DEMO_BIRD_COUNT = 8;
+const DEMO_BIRD_SIZE = 46;      // backing-store px
 const DEMO_SPEED = 55;          // backing-store px per second
 const DEMO_FRAME_MS = 150;      // matches FRAME_DURATION in the fork's src/oob.js
 const DEMO_SEGMENT_MS = 2400;   // how long one cartoon "trial" runs
@@ -55,30 +57,33 @@ const DEMO_SOA_MS = 700;        // default gap before a `then` event (PRP)
 // builds; keep in sync if the fork's colours change.
 const DEMO_CUE_COLORS = { mov: '#fb0', or: '#0af' };
 
-// Pixel-art keycaps. frame_00 is the idle keyboard, frame_01 the LEFT key
-// depressed, frame_03 the RIGHT key (frame_02 is byte-identical to frame_00 and
-// is deliberately unused — the source was authored as a 4-frame loop). frame_up
-// and frame_down are the VERTICAL keys depressed (W/S on wasd, I/K on ijkl),
-// generated from the same pixel-art source (Python/KeyboardAnimation/ai.py,
-// draw_keyboard('W'/'S'/'I'/'K')) so they match the horizontal frames exactly.
-// The disjoint scheme uses only the horizontal (a/d, j/l) frames; the fourcue
-// scheme uses only the vertical (w/s, i/k) frames.
+// Pixel-art keycaps (Python/KeyboardAnimation/ai.py, `--scheme-frames`). Every
+// frame draws all four physical keycaps but PRINTS a letter only on the two keys
+// the scheme uses; the others are blank keycaps, so the physical layout is
+// preserved while unused keys carry no legend. Filenames list the two printed
+// keys as a lowercase pair in physical-cluster order (wasd=[W,A,S,D],
+// ijkl=[I,J,K,L]) — `ad`, `ws`, `jl`, `ik`. The bare pair is the idle (nothing
+// pressed) frame; a `_<PRESSED>` suffix marks the depressed key (`ad_A`, `ad_D`,
+// …). (A pure case toggle like `Ad.png` would collide with `ad.png` on a
+// case-insensitive filesystem — macOS's default — so the suffix disambiguates.)
+// The disjoint scheme uses the HORIZONTAL keys (a/d, j/l); the fourcue scheme
+// uses the VERTICAL keys (w/s, i/k) — hence the idle frame differs by scheme.
 const DEMO_KEY_IDLE = {
-    wasd: 'frames_wasd/frame_00.png',
-    ijkl: 'frames_ijkl/frame_00.png',
+    wasd: { disjoint: 'frames_wasd/ad.png', fourcue: 'frames_wasd/ws.png' },
+    ijkl: { disjoint: 'frames_ijkl/jl.png', fourcue: 'frames_ijkl/ik.png' },
 };
 // Keyed by the literal key character, because that is what a blockConfig's
 // keyMaps hold. An unknown key throws rather than silently showing an idle
 // keyboard: a demo that depicts the wrong finger is worse than no demo.
 const DEMO_KEYCAPS = {
-    a: { set: 'wasd', src: 'frames_wasd/frame_01.png' },
-    d: { set: 'wasd', src: 'frames_wasd/frame_03.png' },
-    w: { set: 'wasd', src: 'frames_wasd/frame_up.png' },
-    s: { set: 'wasd', src: 'frames_wasd/frame_down.png' },
-    j: { set: 'ijkl', src: 'frames_ijkl/frame_01.png' },
-    l: { set: 'ijkl', src: 'frames_ijkl/frame_03.png' },
-    i: { set: 'ijkl', src: 'frames_ijkl/frame_up.png' },
-    k: { set: 'ijkl', src: 'frames_ijkl/frame_down.png' },
+    a: { set: 'wasd', src: 'frames_wasd/ad_A.png' },
+    d: { set: 'wasd', src: 'frames_wasd/ad_D.png' },
+    w: { set: 'wasd', src: 'frames_wasd/ws_W.png' },
+    s: { set: 'wasd', src: 'frames_wasd/ws_S.png' },
+    j: { set: 'ijkl', src: 'frames_ijkl/jl_J.png' },
+    l: { set: 'ijkl', src: 'frames_ijkl/jl_L.png' },
+    i: { set: 'ijkl', src: 'frames_ijkl/ik_I.png' },
+    k: { set: 'ijkl', src: 'frames_ijkl/ik_K.png' },
 };
 
 function demoKeycap(key) {
@@ -94,10 +99,10 @@ function demoKeycap(key) {
 }
 
 /**
- * One fish in the cartoon. Not a subclass of anything: the fork's Oob/OobImg are
+ * One bird in the cartoon. Not a subclass of anything: the fork's Oob/OobImg are
  * not exported from its index.js.
  */
-class DemoFish {
+class DemoBird {
     constructor(canvas, isSignal) {
         this.canvas = canvas;
         this.isSignal = isSignal;
@@ -117,7 +122,7 @@ class DemoFish {
     }
 
     /**
-     * Apply a segment's stimulus state. A non-signal fish takes a random
+     * Apply a segment's stimulus state. A non-signal birds takes a random
      * direction rather than the target one — the same thing SE's coherence does
      * (coherence 0 randomises direction; it does not hide the object).
      * `undefined` leaves a pathway untouched, which is how a `then` event can
@@ -140,7 +145,7 @@ class DemoFish {
             this.frame = (this.frame + 1) % 4;
         }
         // The dt < 64 guard mirrors the fork's Oob.update: a backgrounded tab
-        // returns a huge delta that would teleport every fish off screen at once.
+        // returns a huge delta that would teleport every birds off screen at once.
         if (this.mov !== null && dt < 64) {
             const rad = this.mov * Math.PI / 180;
             this.x += Math.cos(rad) * DEMO_SPEED * dt / 1000;
@@ -164,8 +169,10 @@ class DemoFish {
  *
  * @param {object} spec - see cpTrainingDemos() in canonical_paradigms.js.
  *   {
- *     count?:     how many fish (default 8)
+ *     count?:     how many birds (default 8)
  *     coherence?: 0..1, fraction carrying the signal (default 1)
+ *     taskWords?: { mov, or } words printed under each keycap cluster (08-18 l.105).
+ *                 Defaults to { mov:'flying', or:'facing' }.
  *     segments:   [ Segment, ... ] played in order, then looped
  *   }
  *   Segment = {
@@ -177,8 +184,13 @@ class DemoFish {
  *     border:      'mov' | 'or' | ['mov','or'] | null   (an array nests two cues,
  *                                     as a dual-task trial has both on screen)
  *     key:         'a'|'d'|'w'|'s'|'j'|'l'|'i'|'k' | null   keycap to depress at DEMO_KEY_AT_MS
+ *     keyTask?:    'mov' | 'or'   which task `key` answers. Prints the task word
+ *                                 under that key's cluster. Under DISJOINT the
+ *                                 cluster is task-tied so the label is static;
+ *                                 under FOURCUE the hand follows the cue, so the
+ *                                 label tracks the CUED task segment by segment.
  *     duration?:   ms (default DEMO_SEGMENT_MS)
- *     then?:       { at?, movement?, orientation?, border?, key? }
+ *     then?:       { at?, movement?, orientation?, border?, key?, keyTask? }
  *                  a second event mid-segment. This is how the PRP stage shows a
  *                  second stimulus arriving after an SOA while the first is still
  *                  on screen, answered with the other hand.
@@ -195,6 +207,11 @@ function createInstructionDemo(spec, sprites) {
         throw new Error('createInstructionDemo: spec.segments must be a non-empty array');
     }
 
+    // The idle keycap frame differs by scheme: the fourcue positional scheme
+    // (cueMode === 'hue+position') uses the VERTICAL keys, disjoint the HORIZONTAL.
+    const positional = spec.cueMode === 'hue+position';
+    const idleSrc = (set) => DEMO_KEY_IDLE[set][positional ? 'fourcue' : 'disjoint'];
+
     const row = document.createElement('div');
     row.className = 'demo-row';
 
@@ -204,31 +221,56 @@ function createInstructionDemo(spec, sprites) {
     const ctx = canvas.getContext('2d');
     row.appendChild(canvas);
 
+    // The task WORD printed under each keycap cluster (advisor 08-18 l.105: "print
+    // the task name beneath the key cluster it belongs to"). The words track the
+    // FLYING/FACING copy; cpTrainingDemos passes them so the vocabulary lives in
+    // one place, and this default keeps a standalone demo (or the abstract preview)
+    // labelled sensibly.
+    const taskWords = spec.taskWords || { mov: 'flying', or: 'facing' };
+
     // Work out which keyboard graphics this demo needs, in first-use order. A
-    // switching or PRP stage uses both hands; a Stroop stage uses one.
+    // switching or PRP stage uses both hands; a Stroop stage uses one. While
+    // scanning, note the task each cluster answers (seg.keyTask, stamped by
+    // cpTrainingDemos): under DISJOINT a cluster is tied to one task, so this is a
+    // static per-cluster label; under FOURCUE the hand follows the cue, so the
+    // label is left blank here and set to the CUED task per segment in runSegment.
     const keySets = [];
+    const setStaticTask = {};   // set -> 'mov' | 'or' (disjoint only)
     for (const seg of spec.segments) {
-        for (const key of [seg.key, seg.then && seg.then.key]) {
+        for (const [key, task] of [[seg.key, seg.keyTask],
+                                   [seg.then && seg.then.key, seg.then && seg.then.keyTask]]) {
             if (!key) continue;
             const { set } = demoKeycap(key);
             if (!keySets.includes(set)) keySets.push(set);
+            if (task && setStaticTask[set] === undefined) setStaticTask[set] = task;
         }
     }
     const keyImgs = {};
+    const keyLabels = {};
     for (const set of keySets) {
+        const wrap = document.createElement('div');
+        wrap.className = 'demo-key-wrap';
+        wrap.style.cssText = 'display:flex; flex-direction:column; align-items:center; gap:4px; flex:none;';
         const img = document.createElement('img');
         img.className = 'demo-key';
         img.alt = '';
-        img.src = DEMO_KEY_IDLE[set];
-        row.appendChild(img);
+        img.src = idleSrc(set);
+        const label = document.createElement('div');
+        label.className = 'demo-key-label';
+        label.style.cssText = 'font-size:0.72em; color:#c0c0c0; line-height:1; min-height:1em;';
+        label.textContent = positional ? '' : (taskWords[setStaticTask[set]] || '');
+        wrap.appendChild(img);
+        wrap.appendChild(label);
+        row.appendChild(wrap);
         keyImgs[set] = img;
+        keyLabels[set] = label;
     }
 
-    const count = spec.count || DEMO_FISH_COUNT;
+    const count = spec.count || DEMO_BIRD_COUNT;
     const coherence = spec.coherence === undefined ? 1 : spec.coherence;
     const signalCount = Math.round(count * coherence);
 
-    let fish = [];
+    let birds = [];
     let border = null;
     // Which side each active cue draws on, under the fourcue positional cue. A
     // segment sets it per-cue: `side` for a single-cue segment (the 2x2 puts the
@@ -244,7 +286,7 @@ function createInstructionDemo(spec, sprites) {
 
     const clearTimers = () => { timers.forEach(clearTimeout); timers.length = 0; };
     const idleAll = () => {
-        for (const set of keySets) keyImgs[set].src = DEMO_KEY_IDLE[set];
+        for (const set of keySets) keyImgs[set].src = idleSrc(set);
     };
 
     /** Depress a keycap at `at`, release it DEMO_KEY_HOLD_MS later. */
@@ -252,7 +294,7 @@ function createInstructionDemo(spec, sprites) {
         const { set, src } = demoKeycap(key);
         const img = keyImgs[set];
         timers.push(setTimeout(() => { img.src = src; }, at));
-        timers.push(setTimeout(() => { img.src = DEMO_KEY_IDLE[set]; }, at + DEMO_KEY_HOLD_MS));
+        timers.push(setTimeout(() => { img.src = idleSrc(set); }, at + DEMO_KEY_HOLD_MS));
     };
 
     // Per-cue sides declared by a segment (or a `then` event): explicit `cueSides`
@@ -272,14 +314,28 @@ function createInstructionDemo(spec, sprites) {
         const seg = spec.segments[segmentIndex % spec.segments.length];
         segmentIndex += 1;
 
-        fish = [];
+        birds = [];
         for (let i = 0; i < count; i++) {
-            const f = new DemoFish(canvas, i < signalCount);
+            const f = new DemoBird(canvas, i < signalCount);
             f.setState(seg.movement, seg.orientation);
-            fish.push(f);
+            birds.push(f);
         }
         border = seg.border || null;
         activeCueSides = cueSidesOf(seg);
+
+        // FOURCUE: the response hand follows the cue, so a cluster answers a
+        // different task in different segments. Set each active cluster's label to
+        // the task it answers THIS segment (both, for a PRP segment's two answers),
+        // and blank any cluster idle this segment. Disjoint labels are static and
+        // were set once at build time.
+        if (positional) {
+            for (const set of keySets) keyLabels[set].textContent = '';
+            const setLabel = (key, task) => {
+                if (key && task) keyLabels[demoKeycap(key).set].textContent = taskWords[task] || '';
+            };
+            setLabel(seg.key, seg.keyTask);
+            if (seg.then) setLabel(seg.then.key, seg.then.keyTask);
+        }
 
         if (seg.key) flashKey(seg.key, DEMO_KEY_AT_MS);
 
@@ -288,7 +344,7 @@ function createInstructionDemo(spec, sprites) {
             const at = t.at === undefined ? DEMO_SOA_MS : t.at;
             timers.push(setTimeout(() => {
                 if (stopped) return;
-                for (const f of fish) f.setState(t.movement, t.orientation);
+                for (const f of birds) f.setState(t.movement, t.orientation);
                 if (t.border !== undefined) border = t.border;
                 // Merge the `then` event's sides so a PRP second cue lands on its
                 // own hand without clearing the first cue's side.
@@ -300,9 +356,9 @@ function createInstructionDemo(spec, sprites) {
         timers.push(setTimeout(runSegment, seg.duration || DEMO_SEGMENT_MS));
     }
 
-    function drawFish(f) {
+    function drawBird(f) {
         ctx.globalAlpha = f.alpha;
-        const s = DEMO_FISH_SIZE;
+        const s = DEMO_BIRD_SIZE;
         if (!sprites) {
             // Abstract fallback (?stimulus=abstract): a circle when there is no
             // orientation to show, a triangle when there is — matching what SE's
@@ -321,7 +377,7 @@ function createInstructionDemo(spec, sprites) {
             }
             ctx.fill();
         } else if (f.or === null) {
-            const t = 16;   // fish_forward.png tile
+            const t = 16;   // bird_neutral.png tile
             ctx.drawImage(sprites.imgDist, f.frame * t, f.variant * t, t, t,
                           f.x - s / 2, f.y - s / 2, s, s);
         } else if (f.or === 90 || f.or === 270) {
@@ -340,7 +396,7 @@ function createInstructionDemo(spec, sprites) {
                           -s / 2, -s / 2, s, s);
             ctx.restore();
         } else {
-            const t = 18;   // fish_2.png tile
+            const t = 18;   // bird_oriented.png tile
             const facingLeft = f.or > 90 && f.or < 270;
             const rowIdx = f.variant * 2 + (facingLeft ? 1 : 0);
             ctx.drawImage(sprites.img, f.frame * t, rowIdx * t, t, t,
@@ -354,7 +410,7 @@ function createInstructionDemo(spec, sprites) {
         const dt = last === null ? 16 : ts - last;
         last = ts;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        for (const f of fish) { f.update(dt); drawFish(f); }
+        for (const f of birds) { f.update(dt); drawBird(f); }
         if (border) {
             // Proportional to SE's 30 px border on its 600 px canvas. A PRP trial
             // has TWO cues on screen at once (SE distinguishes them by dashes vs

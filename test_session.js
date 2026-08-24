@@ -1121,6 +1121,55 @@ section('fourcueSingleTaskKeyMaps — 2x2 hand routing');
 }
 
 // ============================================================
+// createBreakController — capped break's mash-proof advance (08-18 l.12-13)
+// ============================================================
+
+section('createBreakController — deliberate advance, mash-proof');
+{
+    // A single press only ARMS; it never advances (Sebastian: "confirm another
+    // time so that they don't accidentally press anything").
+    let c = createBreakController();
+    assert(c.press('Enter', 1000) === 'armed', 'first Enter arms');
+    assert(c.armed === true, 'armed flag set after first press');
+    assert(c.press('Enter', 2000) === 'advance', 'second Enter (after debounce) advances');
+
+    // Only the advance key counts — mashing arbitrary keys does nothing. This is
+    // the whole difference from showInstructions' any-key dismissal.
+    c = createBreakController();
+    for (const k of ['a', 'd', ' ', 'Escape', 'j', 'l', 'Shift', 'ArrowLeft']) {
+        assert(c.press(k, 1000) === 'ignored', `key '${k}' is ignored, not an advance`);
+    }
+    assert(c.armed === false, 'a burst of wrong keys never arms');
+
+    // Auto-repeat (a held key) is ignored: holding Enter cannot arm-then-confirm.
+    c = createBreakController();
+    assert(c.press('Enter', 1000, true) === 'ignored', 'held-key repeat does not arm');
+    assert(c.armed === false, 'repeat leaves the controller idle');
+    assert(c.press('Enter', 1000, false) === 'armed', 'a real (non-repeat) press then arms');
+
+    // A second keydown that fires too soon after arming (a bounced/double-fired
+    // physical press) is refused, so one press cannot arm AND confirm. Uses an
+    // explicit confirmMinMs so the test does not depend on the module default.
+    c = createBreakController({ confirmMinMs: 250 });
+    assert(c.press('Enter', 1000) === 'armed', 'arm at t=1000');
+    assert(c.press('Enter', 1010) === 'ignored', 'confirm 10 ms later is too soon');
+    assert(c.press('Enter', 1250) === 'advance', 'confirm past the debounce advances');
+
+    // A custom advance key is honored, and Enter no longer counts under it.
+    c = createBreakController({ advanceKey: ' ' });
+    assert(c.press('Enter', 1000) === 'ignored', 'non-advance key ignored under custom advanceKey');
+    assert(c.press(' ', 1000) === 'armed', 'the configured advance key arms');
+    assert(c.press(' ', 2000) === 'advance', 'and confirms');
+
+    // A wrong key while armed does not disarm, and does not advance.
+    c = createBreakController();
+    c.press('Enter', 1000);
+    assert(c.press('x', 1500) === 'ignored', 'stray key while armed is ignored');
+    assert(c.armed === true, 'stray key does not disarm');
+    assert(c.press('Enter', 2000) === 'advance', 'confirm still works after a stray key');
+}
+
+// ============================================================
 // Summary
 // ============================================================
 

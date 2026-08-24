@@ -205,14 +205,16 @@ for (const [id, session] of Object.entries(SESSIONS)) {
     });
 }
 
-// The break screen is generated in runSession, not stored on a blockDef, so
-// measure a representative one: the longest summary line it can produce.
+// The capped break screen is generated in runSession (showBreak), not stored on a
+// blockDef, so measure a representative worst case: the longest heading, the
+// longest summary line, and the countdown + armed-confirm prompt lines that
+// showBreak appends as its own elements.
 const breakScreen =
-    'Block 1 of 9 complete.\n\n' +
+    'Training complete — the test blocks begin next.\n\n' +
     formatBreakSummary({ numResponses: 120, numCorrect: 100, accuracy: 100 / 120, meanRt: 1234.5 }) + '\n\n' +
-    'Take a short break if needed.\n\n' +
-    'Aim to be both fast and accurate.\n\n' +
-    'Press any key to continue to the next block.';
+    'Take a break — up to one minute.\n\n' +
+    'Break: 60 s remaining.\n\n' +
+    'Press Enter again to confirm.';
 lines.push('\nbreak screen (runSession)');
 record('     ', breakScreen, lines);
 

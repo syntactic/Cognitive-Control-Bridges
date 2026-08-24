@@ -87,9 +87,16 @@ function makeElement() {
 global.document = {
     createElement: () => makeElement(),
     getElementById: () => null,
-    // showInstructions resolves on the next keydown; fire one immediately so a
-    // headless session doesn't block on instruction/break screens.
-    addEventListener: (type, handler) => setTimeout(() => handler({}), 0),
+    // showInstructions resolves on the next keydown; showBreak (the capped break)
+    // instead needs the deliberate Enter arm-then-confirm gesture and ignores every
+    // other key. Fire an Enter to arm, then a second Enter whose timeStamp is far
+    // enough past the first to clear the confirm debounce — this advances the break
+    // WITHOUT waiting out the one-minute cap. showInstructions dismisses on the
+    // first (any) key and no-ops on the second, so both screen types resolve at once.
+    addEventListener: (type, handler) => setTimeout(() => {
+        handler({ key: 'Enter', timeStamp: 0 });
+        handler({ key: 'Enter', timeStamp: 100000 });
+    }, 0),
     removeEventListener: () => {},
 };
 global.window = { innerWidth: 1000, innerHeight: 800 };
@@ -276,8 +283,11 @@ const stages = buildSharedTrainingStages(BASE_SPEC);
 const byStage = Object.fromEntries(stages.map(s => [s.stage, s]));
 
 assert(stages.length === 6, 'builds six stages');
-assert(stages.map(s => s.stage).join(',') === 'S1,S2,S3,S4,S5,S6', 'stages are S1-S6, in order');
-assert(!stages.some(s => s.stage === 'S7'), 'there is no S7 — it was deleted from the design');
+assert(stages.map(s => s.stage).join(',') === 'S2,S3,S3a,S3b,S4,S6',
+    'stages run S2, S3, Stroop (S3a/S3b), S4, S6 (2026-08-25 reorder)');
+assert(!stages.some(s => s.stage === 'S1'), 'there is no S1 — the untimed key-mapping drill was dropped 2026-08-25');
+assert(!stages.some(s => s.stage === 'S5'), 'there is no S5 — the congruent-only stage was dropped 2026-08-25');
+assert(!stages.some(s => s.stage === 'S7'), 'S7 (the shared PRP stage) is assembled outside this single-task builder');
 assert(stages.every(s => s.phase === 'training'), 'every stage is tagged phase=training');
 assert(stages.every(s => s.blockConfig.paradigm === 'single-task'),
     'every shared stage is single-task (one task on screen at a time)');
@@ -288,15 +298,14 @@ assert(stages.every(s => s.blockConfig.blockId === `train_${s.stage}`), 'block i
 assert(new Set(stages.map(s => s.blockConfig.blockId)).size === 6, 'block ids are unique');
 assert(stages.every(s => s.instructions === null), 'no instruction copy is invented');
 
-section('buildSharedTrainingStages — S1 (key mapping, no criterion)');
+section('buildSharedTrainingStages — S2 is now the first stage (S1 dropped)');
 
-assert(byStage.S1.isTraining === false, 'S1 is not a criterion stage');
-assert(byStage.S1.numTrials === 8, 'S1 is a fixed 8-trial block');
-assert(byStage.S1.blockConfig.coherenceRamp === undefined, 'S1 has no ramp (it sits at ceiling)');
-assert(byStage.S1.blockConfig.coherence.target === 1.0, 'S1 runs at ceiling coherence');
-assert(byStage.S1.blockConfig.coherence.distractor === 0, 'S1 is univalent');
-assert(byStage.S1.blockConfig.responseWindow >= 10000, 'S1 is effectively unspeeded');
-assert(byStage.S1.blockConfig.task1 === 'mov', 'S1 teaches the movement map first');
+// S1 was a static, unspeeded 8-trial key-mapping drill, removed 2026-08-25. S2
+// now opens the sequence: it teaches the same movement map, but timed and at
+// ceiling coherence (so no perceptual cliff from losing the easy drill).
+assert(byStage.S1 === undefined, 'S1 no longer exists');
+assert(byStage.S2.blockConfig.coherenceRamp.from === 1.0, 'S2 still opens at ceiling coherence');
+assert(byStage.S2.blockConfig.task1 === 'mov', 'S2 teaches the movement map first');
 
 section('buildSharedTrainingStages — S2/S3 (single pathway, ramped)');
 
@@ -326,15 +335,29 @@ assert(byStage.S4.blockConfig.coherenceRamp.to.mov === 0.8
     && byStage.S4.blockConfig.coherenceRamp.to.or === 0.3,
     'S4 ramps per-task, since both tasks appear');
 
-section('buildSharedTrainingStages — S5/S6 (bivalence)');
+section('buildSharedTrainingStages — S3a/S3b (Stroop: single-task conflict)');
 
-assert(byStage.S5.blockConfig.congruency.conditions.join() === 'congruent',
-    'S5 is congruent-only');
-assert(byStage.S5.blockConfig.coherence.distractor === 0.5, 'S5 introduces the distractor');
-assert(byStage.S5.blockConfig.coherenceRamp === undefined,
-    'S5 has no ramp — it is at full test level');
+// The Stroop stages come right after the pathway stages and BEFORE switching, so
+// conflict is first met in the simplest single-task setting (2026-08-25 reorder).
+for (const [stage, task, level] of [['S3a', 'mov', 0.8], ['S3b', 'or', 0.3]]) {
+    const s = byStage[stage];
+    assert(s.isTraining === true, `${stage} is a criterion stage`);
+    assert(s.blockConfig.paradigm === 'single-task', `${stage} is single-task (sustained, no switching)`);
+    assert(s.blockConfig.switchRate === 0, `${stage} never switches — the defining Stroop feature`);
+    assert(s.blockConfig.task1 === task, `${stage} sustains the ${task} task`);
+    assert(s.blockConfig.csi === 0, `${stage} runs at CSI 0 (border not yet predictive)`);
+    assert(s.blockConfig.congruency.conditions.join() === 'congruent,incongruent',
+        `${stage} pits the task against a congruent/incongruent distractor`);
+    assert(s.blockConfig.coherence.distractor === 0.5, `${stage} shows the distractor at test level`);
+    assert(s.blockConfig.coherence.target === level, `${stage} keeps the target at its test level`);
+    assert(s.blockConfig.coherenceRamp === undefined, `${stage} does not ramp — S2/S3 already did`);
+}
+
+section('buildSharedTrainingStages — S6 (bivalence + conflict, while switching)');
+
 assert(byStage.S6.blockConfig.congruency.conditions.join() === 'congruent,incongruent',
-    'S6 adds conflict');
+    'S6 carries conflict');
+assert(byStage.S6.blockConfig.switchRate === 50, 'S6 switches between the two tasks');
 assert(byStage.S6.blockConfig.coherenceRamp === undefined, 'S6 has no ramp');
 assert(byStage.S6.blockConfig.levelFactors === undefined,
     'S6 declares no level factors when the spec has none');
@@ -351,7 +374,7 @@ const stroopish = buildSharedTrainingStages({
     cueCsi: 350,
     rampLength: 20,
     blockIdPrefix: 'stroop_train',
-    instructions: { S1: 'keys go here' },
+    instructions: { S2: 'keys go here' },
 });
 const stroopByStage = Object.fromEntries(stroopish.map(s => [s.stage, s]));
 
@@ -363,9 +386,9 @@ assert(stroopByStage.S2.blockConfig.levelFactors === undefined,
     'level factors do not leak into the ramped single-pathway stages');
 assert(stroopByStage.S4.blockConfig.csi === 350, 'cueCsi override applies');
 assert(stroopByStage.S2.blockConfig.coherenceRamp.rampLength === 20, 'rampLength override applies');
-assert(stroopByStage.S1.blockConfig.blockId === 'stroop_train_S1', 'blockIdPrefix override applies');
-assert(stroopByStage.S1.instructions === 'keys go here', 'instruction copy passes through');
-assert(stroopByStage.S2.instructions === null, 'stages without copy stay null');
+assert(stroopByStage.S2.blockConfig.blockId === 'stroop_train_S2', 'blockIdPrefix override applies');
+assert(stroopByStage.S2.instructions === 'keys go here', 'instruction copy passes through');
+assert(stroopByStage.S3.instructions === null, 'stages without copy stay null');
 assert(stroopish.every(s => s.blockConfig.rso === 'identical'), 'shared-key spec propagates');
 
 section('buildSharedTrainingStages — emitted configs are accepted by engine.js');
@@ -548,10 +571,10 @@ assertThrows(() => buildParadigmFinalStage({ ...S8_BASE, kind: 'nonsense' }),
     'throws on an unknown kind');
 assertThrows(() => buildParadigmFinalStage({ ...S8_BASE, kind: 'switching' }),
     "kind 'switching' requires a switch rate");
-assertThrows(() => buildParadigmFinalStage({ ...S8_BASE, kind: 'rehearsal' }),
-    "kind 'rehearsal' requires a target task");
-assertThrows(() => buildParadigmFinalStage({ ...S8_BASE, kind: 'rehearsal', task: 'both' }),
-    "kind 'rehearsal' rejects a task that is not mov/or");
+assertThrows(() => buildParadigmFinalStage({ ...S8_BASE, kind: 'stroop' }),
+    "kind 'stroop' requires a target task");
+assertThrows(() => buildParadigmFinalStage({ ...S8_BASE, kind: 'stroop', task: 'both' }),
+    "kind 'stroop' rejects a task that is not mov/or");
 assertThrows(() => buildParadigmFinalStage({ ...S8_BASE, kind: 'prp', csi: 0, soaLevels: SOAS }),
     "kind 'prp' requires the condition's T1 task");
 assertThrows(() => buildParadigmFinalStage({ ...S8_BASE, kind: 'prp', csi: 0, t1Task: 'mov' }),
@@ -593,7 +616,7 @@ section('buildParadigmFinalStage — rehearsal (Stroop)');
 
 const s8Stroop = buildParadigmFinalStage({
     ...S8_BASE,
-    kind: 'rehearsal',
+    kind: 'stroop',
     rso: 'identical',
     task: 'mov',
     levelFactors: { target: ['low', 'mid', 'high'], distractor: ['low', 'mid', 'high'] },
@@ -608,7 +631,7 @@ assert(s8Stroop.blockConfig.task1 === 'mov' && s8Stroop.blockConfig.startTask ==
 assert(s8Stroop.blockConfig.levelFactors.target.length === 3,
     'the test block\'s level factors pass through, so the rehearsal spans them');
 assert(s8Stroop.blockConfig.blockId === 'stroop_train_S8', 'blockIdPrefix override applies');
-assert(buildParadigmFinalStage({ ...S8_BASE, kind: 'rehearsal', task: 'or', numTrials: 24 })
+assert(buildParadigmFinalStage({ ...S8_BASE, kind: 'stroop', task: 'or', numTrials: 24 })
     .numTrials === 24, 'the rehearsal trial count is overridable');
 
 section('buildParadigmFinalStage — PRP');
@@ -640,7 +663,7 @@ assert(buildParadigmFinalStage({
 
 section('buildParadigmFinalStage — emitted configs are accepted by engine.js');
 
-for (const [label, stage] of [['switching', s8Switch], ['rehearsal', s8Stroop], ['prp', s8Prp]]) {
+for (const [label, stage] of [['switching', s8Switch], ['stroop', s8Stroop], ['prp', s8Prp]]) {
     let trials;
     try {
         trials = generateBlockTrials(stage.blockConfig, 12);
@@ -675,8 +698,8 @@ const CP_EXPECTED = {
     // Stroop moved to disjoint, task-tied keys 2026-08-18 (one key layout across
     // all five paradigms); rso stays 'identical' — inert for single-task
     // extraction, retained as documentation of the shared-response origin.
-    cp_stroop: { rso: 'identical', keyMaps: CP_DISJOINT_KEY_MAPS, prefix: 'stroop_train', s8: 'rehearsal' },
-    cp_stroop_crossed: { rso: 'identical', keyMaps: CP_DISJOINT_KEY_MAPS, prefix: 'stroopx_train', s8: 'rehearsal' },
+    cp_stroop: { rso: 'identical', keyMaps: CP_DISJOINT_KEY_MAPS, prefix: 'stroop_train', s8: 'stroop' },
+    cp_stroop_crossed: { rso: 'identical', keyMaps: CP_DISJOINT_KEY_MAPS, prefix: 'stroopx_train', s8: 'stroop' },
 };
 
 for (const [id, expected] of Object.entries(CP_EXPECTED)) {
@@ -685,14 +708,21 @@ for (const [id, expected] of Object.entries(CP_EXPECTED)) {
     const training = session.slice(0, session.length - testSession.length);
     const testBlocks = session.slice(session.length - testSession.length);
 
-    assert(training.map(b => b.stage).join(',') === 'S1,S2,S3,S4,S5,S6,S8',
-        `${id}: training runs S1-S6 then S8`);
-    assert(!training.some(b => b.stage === 'S7'), `${id}: there is no S7`);
+    assert(training.map(b => b.stage).join(',') === 'S2,S3,S3a,S3b,S4,S6,S7,S8',
+        `${id}: training runs S2, S3, Stroop (S3a/S3b), S4, S6, shared PRP (S7), then S8`);
+    assert(!training.some(b => b.stage === 'S1'), `${id}: there is no S1 (dropped 2026-08-25)`);
+    assert(!training.some(b => b.stage === 'S5'), `${id}: there is no S5 (dropped 2026-08-25)`);
     assert(training.every(b => b.phase === 'training'), `${id}: every stage is tagged phase=training`);
     assert(training.every(b => b.blockConfig.blockId === `${expected.prefix}_${b.stage}`),
         `${id}: stage block ids carry the paradigm's own prefix`);
-    assert(training.every(b => b.blockConfig.rso === expected.rso),
-        `${id}: every stage uses the test block's response-set organization`);
+    // Every stage uses the paradigm's own rso EXCEPT the shared PRP stage S7,
+    // which forces rso:'disjoint' so its two responses are attributed by hand (the
+    // key maps are disjoint for all paradigms, Stroop's 'identical' label
+    // notwithstanding) — a proper two-handed PRP for everyone.
+    assert(training.filter(b => b.stage !== 'S7').every(b => b.blockConfig.rso === expected.rso),
+        `${id}: every stage but S7 uses the test block's response-set organization`);
+    assert(training.find(b => b.stage === 'S7').blockConfig.rso === 'disjoint',
+        `${id}: the shared PRP stage S7 is two-handed (rso disjoint) regardless of paradigm`);
     assert(training.every(b => b.blockConfig.keyMaps === expected.keyMaps),
         `${id}: every stage uses the test block's key maps`);
     assert(training.every(b => b.blockConfig.feedback === true),
@@ -895,13 +925,18 @@ for (const id of Object.keys(CP_EXPECTED)) {
 
 section('canonical sessions — condition B training content');
 
-// PRP: under condition B, S8 T1 task must be 'or' (facing) and S8 instructions say FACING first.
+// PRP: under condition B, S8's TRIAL structure swaps (T1 task is orientation),
+// but its instruction TEXT does NOT — it is paradigm- and condition-agnostic
+// (08-18 l.131-145). The task order lives in the cartoon, never in the words.
 const prpB = cpBuildPrpTrainingSession('B');
 const prpBS8 = prpB.find(b => b.stage === 'S8');
 assert(prpBS8.blockConfig.task1 === 'or' || prpBS8.blockConfig.t1Task === 'or',
     'PRP condition B S8: T1 task is orientation');
-assert(prpBS8.instructions.includes('FACING comes FIRST'),
-    'PRP condition B S8 copy: says FACING comes FIRST');
+assert(!/comes FIRST|comes SECOND/.test(prpBS8.instructions),
+    'PRP condition B S8 copy: agnostic — does NOT state task order');
+const prpAS8 = cpBuildPrpTrainingSession('A').find(b => b.stage === 'S8');
+assert(prpBS8.instructions === prpAS8.instructions,
+    'PRP S8 copy is identical across conditions A and B');
 
 // Stroop: under condition B, S2 ramps mov to distractor level (0.5), S3 ramps or to easy level (0.8),
 // S8 rehearsal task is 'or' (facing) and S8 instructions say FACING.
@@ -912,13 +947,17 @@ const stroopBS8 = stroopB.find(b => b.stage === 'S8');
 assert(stroopBS2.blockConfig.coherence.target === 0.5, 'Stroop condition B S2: mov ramps to distractor level (0.5)');
 assert(stroopBS3.blockConfig.coherence.target === 0.8, 'Stroop condition B S3: or ramps to target level (0.8)');
 assert(stroopBS8.blockConfig.task1 === 'or', 'Stroop condition B S8: rehearsal task is orientation');
-assert(stroopBS8.instructions.includes('which way are the fish\nFACING?'), 'Stroop condition B S8 copy: refers to FACING');
+assert(!/ONE question|which way are the birds/.test(stroopBS8.instructions),
+    'Stroop condition B S8 copy: agnostic — does NOT name a single target task');
+assert(stroopBS8.instructions === prpBS8.instructions,
+    'Stroop and PRP S8 copy are identical (paradigm-agnostic text)');
 
 // Stroop crossed: under condition B, S8 rehearsal task is 'or' (facing).
 const stroopxB = cpBuildStroopCrossedTrainingSession('B');
 const stroopxBS8 = stroopxB.find(b => b.stage === 'S8');
 assert(stroopxBS8.blockConfig.task1 === 'or', 'Stroop crossed condition B S8: rehearsal task is orientation');
-assert(stroopxBS8.instructions.includes('which way are the fish\nFACING?'), 'Stroop crossed condition B S8 copy: refers to FACING');
+assert(!/ONE question|which way are the birds/.test(stroopxBS8.instructions),
+    'Stroop crossed condition B S8 copy: agnostic — does NOT name a single target task');
 
 // Asym task switching: under condition B, or is easy (0.8) and mov is hard (0.3).
 const tsaB = cpBuildTaskSwitchAsymTrainingSession('B');
@@ -934,9 +973,9 @@ assert(tsaBS8.blockConfig.coherence.target.mov === 0.3 && tsaBS8.blockConfig.coh
 const appliedPrpB = cpApplySweetPea(CP_SESSIONS.cp_prp, 'B', [1, 2, 3, 4, 5]);
 const appliedPrpBS8 = appliedPrpB.find(b => b.stage === 'S8');
 assert(appliedPrpBS8.blockConfig.task1 === 'or' || appliedPrpBS8.blockConfig.t1Task === 'or',
-    'cpApplySweetPea swaps PRP S8 to condition B');
-assert(appliedPrpBS8.instructions.includes('FACING comes FIRST'),
-    'cpApplySweetPea swaps PRP S8 copy to condition B');
+    'cpApplySweetPea swaps PRP S8 trial structure to condition B');
+assert(appliedPrpBS8.instructions === prpBS8.instructions,
+    'cpApplySweetPea S8 copy matches the agnostic text (unchanged by condition)');
 
 section('cpApplySweetPea — refusals');
 
@@ -1042,12 +1081,13 @@ assert(stageOf('cp_stroop_crossed', 'S6').blockConfig.levelFactors
     'crossed Stroop: S6 spans all nine target x distractor cells');
 
 // Bivalent stimuli in training for all five paradigms, INCLUDING cp_prp,
-// whose test block is univalent. S5/S6 must therefore carry a real distractor.
+// whose test block is univalent. The Stroop stages (S3a) and S6 must therefore
+// carry a real distractor; the pathway stages (S2) stay univalent.
 for (const id of Object.keys(CP_EXPECTED)) {
-    assert(stageOf(id, 'S5').blockConfig.coherence.distractor > 0,
-        `${id}: S5 is bivalent`);
+    assert(stageOf(id, 'S3a').blockConfig.coherence.distractor > 0,
+        `${id}: S3a (Stroop) is bivalent`);
     assert(stageOf(id, 'S2').blockConfig.coherence.distractor === 0,
-        `${id}: S2 is univalent — bivalence arrives at S5`);
+        `${id}: S2 is univalent — bivalence arrives at S3a`);
 }
 assert(CP_TEST_SESSIONS.cp_prp[0].blockConfig.coherence.distractor === 0,
     "cp_prp's own test block really is univalent, so bivalence is training-only there");
@@ -1074,7 +1114,7 @@ for (const [id, expected] of Object.entries(CP_EXPECTED)) {
     // legend than the legend). A screen that does neither is the failure this
     // guards: it would leave the participant with no account of the border at the
     // exact stage where reading it wrong starts costing accuracy.
-    for (const stage of ['S4', 'S5', 'S6']) {
+    for (const stage of ['S4', 'S6']) {
         const stageDef = stageOf(id, stage);
         const text = stageDef.instructions;
         const inWords = /ORANGE/.test(text) && /BLUE/.test(text);
@@ -1088,27 +1128,27 @@ for (const [id, expected] of Object.entries(CP_EXPECTED)) {
     }
     assert(!/Dotted|Dashed/.test(all),
         `${id}: no copy claims the cue is dotted/dashed — SE colors it, and dash-vs-dot separates cue1 from cue2`);
-    // The stimulus is FISH. "dot"/"triangle"/"circle" are SE's abstract-mode
-    // names (defaultConfig objName 'triangles' / distName 'circles'), and
-    // ?stimulus=fish is the default, so that vocabulary describes objects the
+    // The stimulus is BIRDS. "dot"/"triangle"/"circle" are SE's abstract-mode
+    // names (defaultConfig objName 'triangles' / distName 'circles'), and the
+    // stimulus defaults to 'bird', so that vocabulary describes objects the
     // participant cannot see. cp_stroop's test screen said "Respond to the dot
     // MOVEMENT; ignore the triangle orientation" until 2026-08-17, which — after
-    // seven screens of SWIMMING/FACING — read to a real condition-B pilot as an
+    // seven screens of FLYING/FACING — read to a real condition-B pilot as an
     // instruction to do the movement task. Checked across the WHOLE session, test
     // screens included, not just the training copy.
     for (const blockDef of CP_SESSIONS[id]) {
         if (!blockDef.instructions) continue;
         assert(!/\b(dot|dots|triangle|triangles|circle|circles)\b/i.test(blockDef.instructions),
-            `${id}/${blockDef.stage || 'test'}: names the stimulus in fish terms, not abstract ones`);
+            `${id}/${blockDef.stage || 'test'}: names the stimulus in bird terms, not abstract ones`);
     }
-    // The flip side: the two dimensions are called SWIMMING and FACING on every
+    // The flip side: the two dimensions are called FLYING and FACING on every
     // screen that names them, so the vocabulary never changes under the
     // participant mid-session.
     for (const blockDef of CP_SESSIONS[id]) {
         if (!blockDef.instructions) continue;
         const namesDimension = /MOVEMENT|ORIENTATION/i.test(blockDef.instructions);
-        assert(!namesDimension || /SWIMMING|FACING/i.test(blockDef.instructions),
-            `${id}/${blockDef.stage || 'test'}: any screen naming a dimension also glosses it as swimming/facing`);
+        assert(!namesDimension || /FLYING|FACING/i.test(blockDef.instructions),
+            `${id}/${blockDef.stage || 'test'}: any screen naming a dimension also glosses it as flying/facing`);
     }
     assert(copy.every(text => /Press any key to begin/.test(text)),
         `${id}: every screen ends with how to continue`);
@@ -1117,12 +1157,20 @@ for (const [id, expected] of Object.entries(CP_EXPECTED)) {
         `${id}: no comprehension gate was smuggled back in`);
 }
 
-assert(/SWIMMING comes FIRST/.test(stageOf('cp_prp', 'S8').instructions),
-    "cp_prp's S8 copy states the fixed task order for condition A");
-assert(/ONE question/.test(stageOf('cp_stroop', 'S8').instructions),
-    "Stroop's S8 copy narrows back down to a single task");
-assert(/switching between/.test(stageOf('cp_taskswitch', 'S8').instructions),
-    "switching's S8 copy describes the mixed block");
+// S8 instruction TEXT is paradigm-agnostic (08-18 l.131-145): byte-identical
+// across all five paradigms (and both conditions), because the wording is what
+// installs a strategy. Only the per-paradigm CARTOON differs. The disjoint
+// scheme's border legend is the same for every paradigm, so the texts collapse
+// to one string.
+const s8Texts = Object.keys(CP_EXPECTED).map(id => stageOf(id, 'S8').instructions);
+assert(new Set(s8Texts).size === 1,
+    'every paradigm shows the SAME S8 instruction text');
+assert(s8Texts.every(t => /putting it all together/.test(t)),
+    "S8 copy is the unified 'combine everything' screen");
+assert(s8Texts.every(t => !/comes FIRST|ONE question|switching between/.test(t)),
+    'S8 copy leaks no paradigm-specific strategy into the words');
+assert(s8Texts.every(t => /answer the question it asks for/.test(t)),
+    'S8 copy states the one rule that covers every paradigm');
 
 section('canonical sessions — instruction-screen demos');
 
@@ -1131,7 +1179,7 @@ section('canonical sessions — instruction-screen demos');
 // answers which question. These assertions are on the SPEC, which is plain data;
 // the rendering itself is DOM code and is covered by
 // analysis/measure_instructions.js in real Chromium.
-const CP_TRAINING_STAGES = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S8'];
+const CP_TRAINING_STAGES = ['S2', 'S3', 'S3a', 'S3b', 'S4', 'S6', 'S7', 'S8'];
 
 for (const id of Object.keys(CP_EXPECTED)) {
     const keyMaps = CP_EXPECTED[id].keyMaps;
@@ -1163,16 +1211,17 @@ for (const id of Object.keys(CP_EXPECTED)) {
         }
     }
 
-    // S1-S3 deliberately show NO border although those blocks really paint one:
-    // their copy says a border exists and to ignore it, and the cartoon shows
-    // only what the participant must attend to. The border enters the cartoon at
-    // S4, where it starts to mean something.
-    for (const stage of ['S1', 'S2', 'S3']) {
+    // S2-S3 and the Stroop stages S3a/S3b deliberately show NO border although
+    // those blocks really paint one: their copy says a border exists and to ignore
+    // it, and the cartoon shows only what the participant must attend to (the
+    // conflict, in S3a/S3b's case). The border enters the cartoon at S4, where it
+    // starts to mean something.
+    for (const stage of ['S2', 'S3', 'S3a', 'S3b']) {
         const demo = stageOf(id, stage).demo;
         assert(demo.segments.every(seg => !seg.border),
             `${id}/${stage}: cartoon shows no border yet`);
     }
-    for (const stage of ['S4', 'S5', 'S6']) {
+    for (const stage of ['S4', 'S6']) {
         const demo = stageOf(id, stage).demo;
         assert(demo.segments.every(seg => Boolean(seg.border)),
             `${id}/${stage}: every cartoon segment is cued`);
@@ -1185,15 +1234,15 @@ for (const id of Object.keys(CP_EXPECTED)) {
     }
 }
 
-// S1/S2 show movement with NO orientation, which is what makes SE draw the
+// S2 shows movement with NO orientation, which is what makes SE draw the
 // forward-facing sprite; S3 is the mirror image. Getting this backwards would
-// contradict the copy ("the fish do not swim at all") on the very screen that
+// contradict the copy ("the birds do not fly at all") on the very screen that
 // introduces the second task.
 for (const id of Object.keys(CP_EXPECTED)) {
-    assert(stageOf(id, 'S1').demo.segments.every(s => s.orientation === null && s.movement !== null),
-        `${id}/S1: cartoon swims without facing`);
+    assert(stageOf(id, 'S2').demo.segments.every(s => s.orientation === null && s.movement !== null),
+        `${id}/S2: cartoon flies without facing`);
     assert(stageOf(id, 'S3').demo.segments.every(s => s.movement === null && s.orientation !== null),
-        `${id}/S3: cartoon faces without swimming`);
+        `${id}/S3: cartoon faces without flying`);
     assert(stageOf(id, 'S6').demo.segments.every(s => s.movement !== null && s.orientation !== null),
         `${id}/S6: cartoon is bivalent`);
 }
@@ -1225,12 +1274,12 @@ section('canonical sessions — the border is introduced honestly (not "new" at 
 
 // SE schedules cue1 with go1 from trial onset on EVERY stage and game.js paints
 // it at full opacity while its go signal runs, so a colored border is on screen
-// throughout S1-S3. The copy used to tell participants at S4 that "a colored
+// throughout S2-S3. The copy used to tell participants at S4 that "a colored
 // border appears" — the first thing they are taught about the border, and false.
 // What actually changes at S4 is that it becomes informative (two tasks are now
 // mixed) and predictive (cueCsi 200 puts it ahead of the stimulus).
 for (const id of Object.keys(CP_EXPECTED)) {
-    for (const stage of ['S1', 'S2', 'S3']) {
+    for (const stage of ['S2', 'S3']) {
         const text = stageOf(id, stage).instructions;
         assert(/border/i.test(text),
             `${id}/${stage}: names the border that is already on screen`);
@@ -1241,14 +1290,14 @@ for (const id of Object.keys(CP_EXPECTED)) {
     }
     const s4 = stageOf(id, 'S4').instructions;
     assert(!/border appears|a colored border appears/i.test(s4),
-        `${id}/S4: does not claim the border is new — it has been there since S1`);
+        `${id}/S4: does not claim the border is new — it has been there since S2`);
     assert(/been ignoring/i.test(s4),
         `${id}/S4: refers back to the border the participant already knows`);
-    assert(/BEFORE the fish/.test(s4),
+    assert(/BEFORE the birds/.test(s4),
         `${id}/S4: states the other real change — the border now precedes the stimulus`);
 }
 
-// One vocabulary for one object. S1-S4 said "frame" and S5/S6/S8 + the legend
+// One vocabulary for one object. S2-S4 said "frame" and S5/S6/S8 + the legend
 // said "border" at one point during this edit; for a grandmother-standard screen
 // two words for the same thing is a comprehension cost for no gain.
 for (const id of Object.keys(CP_EXPECTED)) {
@@ -1634,8 +1683,8 @@ const prpStage = buildParadigmFinalStage(PRP_S8_SPEC);
 assert(prpStage.advancementThreshold === 12, "kind 'prp' asks for the 12/16 threshold");
 assert(buildParadigmFinalStage({ ...S8_BASE, kind: 'switching', switchRate: 50 })
     .advancementThreshold === undefined, "kind 'switching' inherits the shared default");
-assert(buildParadigmFinalStage({ ...S8_BASE, kind: 'rehearsal', task: 'mov' })
-    .advancementThreshold === undefined, "kind 'rehearsal' inherits the shared default");
+assert(buildParadigmFinalStage({ ...S8_BASE, kind: 'stroop', task: 'mov' })
+    .advancementThreshold === undefined, "kind 'stroop' inherits the shared default");
 assert(buildSharedTrainingStages(BASE_SPEC).every(s => s.advancementThreshold === undefined),
     'no shared stage overrides the threshold');
 
@@ -1724,7 +1773,7 @@ for (const [label, stage, responder, expectMet] of [
 
 section('PRP S8 — SOA descends from longest to shortest across the schedule');
 
-seResponder = PRP_T2_WRONG; // never advances, so all 48 trials run
+seResponder = PRP_T2_WRONG; // never advances, so it runs the full TRAINING_CAP
 await Session.runSession([buildParadigmFinalStage(PRP_S8_SPEC)], container, { stimulus: 'abstract' });
 
 data = Session.getData();
@@ -1790,8 +1839,8 @@ await Session.runSession([
 screens = screensOf(screenContainer);
 assert(screens.filter(text => text.includes('Since the last break')).length === 0,
     'no break summary is shown while the session is still in training');
-assert(screens.filter(text => /Block \d+ of \d+ complete/.test(text)).length === 0,
-    'and no block-complete screen either — the stages run straight into each other');
+assert(screens.filter(text => /Block complete\./.test(text)).length === 0,
+    'and no between-test break screen either — the stages run straight into each other');
 assert(screens[screens.length - 1].includes('Session complete'),
     'the session still ends normally');
 
@@ -1816,6 +1865,33 @@ breakScreens = screensOf(screenContainer).filter(text => text.includes('Since th
 assert(breakScreens.length === 1, 'the only break follows the first test block');
 assert(/100% correct/.test(breakScreens[0]),
     'the 16 failed training trials before it are not counted');
+
+section('runSession — capped break at the training→test seam, and its mash-proof advance');
+
+// Task 3 (08-18 l.12-13): a break must sit between the LAST training stage and the
+// FIRST test block (and between test blocks), with a one-minute countdown and a
+// DELIBERATE arm-then-confirm advance — never showInstructions' any-key dismissal.
+// The stubbed DOM drives that gesture (an Enter to arm, a second Enter past the
+// debounce to confirm); the break resolving at all proves it is not any-key, since
+// createBreakController ignores every non-Enter key.
+seResponder = RESPOND_CORRECT;
+screenContainer = makeElement();
+await Session.runSession([
+    trainingBlockDef('S2'),
+    trainingBlockDef('S3'),
+    { blockConfig: { ...TRAINING_BLOCK_CONFIG, blockId: 'seam_test' }, numTrials: 4, phase: 'test', instructions: 'T' },
+], screenContainer, { stimulus: 'abstract' });
+screens = screensOf(screenContainer);
+
+const seamBreaks = screens.filter(t => t.includes('Training complete') && t.includes('test blocks begin'));
+assert(seamBreaks.length === 1, 'exactly one break at the training→test seam');
+assert(/up to one minute/.test(seamBreaks[0]), 'the seam break names the one-minute cap');
+assert(/Press Enter/.test(seamBreaks[0]), 'and advances on a deliberate Enter press, not any key');
+assert(!/press any key/i.test(seamBreaks[0]), 'the break never invites an any-key dismissal');
+assert(!seamBreaks[0].includes('Since the last break'),
+    'the seam break carries no performance summary — no test data has accrued yet');
+assert(screens.filter(t => t.includes('Since the last break')).length === 0,
+    'and no break interrupts the S2→S3 training-to-training seam');
 
 // ============================================================
 // Break summary in a REAL canonical session (review finding C2)
@@ -1865,8 +1941,8 @@ assert(testBlockOrders.length === CP_TEST_BLOCKS_PER_SESSION,
 assert(testBlockOrders.every(o => cpTestRows.filter(r => r.blockOrder === o).length === 96),
     'each test block ran its full 96 trials');
 assert(data.filter(r => r.phase === 'training').length > 0, 'training really ran too');
-assert(screens.filter(t => /Block \d+ of \d+ complete/.test(t)).length === expectedBreaks,
-    `exactly ${expectedBreaks} block-complete screens — none of the training stages produced one`);
+assert(screens.filter(t => /Block complete\./.test(t)).length === expectedBreaks,
+    `exactly ${expectedBreaks} between-test break screens — none of the training-to-training seams produced one`);
 assert(screens[screens.length - 1].includes('Session complete'), 'and the session ends normally');
 
 // Every paradigm, not just Stroop: the structural precondition is that at least

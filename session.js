@@ -162,6 +162,78 @@ const Session = (() => {
     }
 
     /**
+     * A capped, mash-proof inter-block break (advisor 08-18 l.12-13). Unlike
+     * showInstructions this deliberately does NOT dismiss on any key: it shows a
+     * live one-minute countdown and advances only on the deliberate
+     * arm-then-confirm gesture that createBreakController (session_helpers.js)
+     * decides, so a participant mashing keys cannot skip their rest. At the cap the
+     * break AUTO-ADVANCES — the minute is a hard ceiling so idle time cannot be
+     * stretched to inflate paid time (Tim, l.13). Resolves when the break ends,
+     * early or at the cap.
+     */
+    function showBreak(bodyText) {
+        return new Promise(resolve => {
+            const overlay = document.createElement('div');
+            overlay.className = 'instructions-overlay';
+            const idlePrompt = `Press ${BREAK_ADVANCE_KEY} if you want to continue now.`;
+            const armedPrompt = `Press ${BREAK_ADVANCE_KEY} again to confirm.`;
+            // Built as an innerHTML STRING (like showInstructions) so the whole
+            // screen — the summary line included — is observable as overlay.innerHTML,
+            // which is how the headless suite reads screens. The countdown and prompt
+            // are their own elements, updated live in the browser via querySelector;
+            // under the DOM stub querySelector is absent, so those updates are simply
+            // skipped and the screen still reads correctly.
+            overlay.innerHTML =
+                '<div class="instructions-content">' +
+                bodyText.replace(/\n/g, '<br>') +
+                '<div class="break-countdown" style="margin-top:16px; font-variant-numeric:tabular-nums;"></div>' +
+                `<div class="break-prompt" style="margin-top:12px; color:#c0c0c0;">${idlePrompt}</div>` +
+                '</div>';
+            canvasContainer.appendChild(overlay);
+
+            const q = (sel) => (overlay.querySelector ? overlay.querySelector(sel) : null);
+            const countdown = q('.break-countdown');
+            const prompt = q('.break-prompt');
+
+            const controller = createBreakController();
+            const startedAt = performance.now();
+            let done = false;
+            let iv = null;
+
+            const handler = (e) => {
+                // Clock the gesture off the event timestamp (a DOMHighResTimeStamp
+                // on the same clock as performance.now()); the stubbed DOM supplies
+                // it explicitly to drive the two-press advance deterministically.
+                const now = (e && typeof e.timeStamp === 'number') ? e.timeStamp : performance.now();
+                const result = controller.press(e && e.key, now, e && e.repeat);
+                if (result === 'armed') { if (prompt) prompt.textContent = armedPrompt; }
+                else if (result === 'advance') finish();
+            };
+            const finish = () => {
+                if (done) return;
+                done = true;
+                if (iv) clearInterval(iv);
+                document.removeEventListener('keydown', handler);
+                overlay.remove();
+                resolve();
+            };
+
+            const renderCountdown = () => {
+                const remMs = BREAK_CAP_MS - (performance.now() - startedAt);
+                const remSec = Math.max(0, Math.ceil(remMs / 1000));
+                if (countdown) countdown.textContent = `Break: ${remSec} s remaining.`;
+                if (remMs <= 0) finish();   // cap reached — auto-advance (l.13)
+            };
+            renderCountdown();
+            iv = setInterval(renderCountdown, 250);
+
+            // Same 200 ms guard as showInstructions: don't catch a key still held
+            // from the block that just ended.
+            setTimeout(() => document.addEventListener('keydown', handler), 200);
+        });
+    }
+
+    /**
      * Run a single trial: wait ITI, call block(), extract results.
      * @param {object} trial - { seParams, meta } from generateBlockTrials
      * @param {object} seConfig - SE config with key mappings
@@ -638,33 +710,41 @@ const Session = (() => {
 	    }
 
 
-            // Inter-block break (except after the last block).
-            //
-            // Skipped after a training stage: every stage is followed immediately
-            // by the next stage's own instruction screen, so the generic
-            // "block complete" screen is pure noise there, and whether a real
-            // break belongs INSIDE training is open pending the advisor.
+            // Capped inter-block break (advisor 08-18 l.12-13). It sits (a) between
+            // every pair of TEST blocks and (b) at the training->test seam. It is
+            // SKIPPED between two training stages, which still run straight into the
+            // next stage's own instruction screen — a generic "block complete"
+            // screen there is pure noise, and whether a real break belongs INSIDE
+            // training is open pending the advisor.
             const isTrainingStage = blockDef.phase === 'training';
-            if (b < sessionDef.length - 1 && isRunning && !isTrainingStage) {
-                // The block-level performance summary that replaces the
-                // trial-by-trial feedback the test blocks no longer show. It is
-                // shown HERE, strictly between blocks, and must never be moved
-                // trial-adjacent — the entire point of it is that no exogenous
-                // performance signal lands inside a trial's response-selection
-                // window. Training rows are excluded: those stages still run with
-                // feedback on, and they are not the participant's test data.
-                const sinceBreak = allTrialData
-                    .slice(summaryAnchor)
-                    .filter(row => row.phase !== 'training');
-                const summaryLine = formatBreakSummary(summarizeBlockPerformance(sinceBreak));
-                summaryAnchor = allTrialData.length;
-                await showInstructions(
-                    `Block ${b + 1} of ${sessionDef.length} complete.\n\n` +
-                    (summaryLine ? `${summaryLine}\n\n` : '') +
-                    'Take a short break if needed.\n\n' +
-                    'Aim to be both fast and accurate.\n\n' +
-                    'Press any key to continue to the next block.'
-                );
+            const nextBlockDef = sessionDef[b + 1];
+            if (b < sessionDef.length - 1 && isRunning) {
+                const nextIsTraining = nextBlockDef.phase === 'training';
+                const seam = isTrainingStage && !nextIsTraining;   // last training -> first test
+                const betweenTests = !isTrainingStage;             // one test block -> the next
+                if (seam || betweenTests) {
+                    // The block-level performance summary that replaces the
+                    // trial-by-trial feedback the test blocks no longer show. It is
+                    // shown HERE, strictly between blocks, and must never be moved
+                    // trial-adjacent — the entire point of it is that no exogenous
+                    // performance signal lands inside a trial's response-selection
+                    // window. Training rows are excluded: those stages still run with
+                    // feedback on, and they are not the participant's test data — so
+                    // at the seam (no test data yet) the summary line is empty.
+                    const sinceBreak = allTrialData
+                        .slice(summaryAnchor)
+                        .filter(row => row.phase !== 'training');
+                    const summaryLine = formatBreakSummary(summarizeBlockPerformance(sinceBreak));
+                    summaryAnchor = allTrialData.length;
+                    const heading = seam
+                        ? 'Training complete — the test blocks begin next.'
+                        : 'Block complete.';
+                    await showBreak(
+                        `${heading}\n\n` +
+                        (summaryLine ? `${summaryLine}\n\n` : '') +
+                        'Take a break — up to one minute.'
+                    );
+                }
             }
         }
 

@@ -23,7 +23,7 @@
 //     paradigm structure, not to how people were instructed. COST, accepted
 //     deliberately: the Stroop distractor now lands on keys the participant never
 //     presses, so there is no response-level conflict — Stroop reduces to
-//     DIMENSIONAL interference (weaker, and possibly absent for fish, since
+//     DIMENSIONAL interference (weaker, and possibly absent for birds, since
 //     neither movement nor orientation is over-learned the way word-reading is).
 //     CP_IDENTICAL_KEY_MAPS (shared A/D) is retained below only to document the
 //     superseded design; nothing in these five paradigms references it any more.
@@ -457,10 +457,10 @@ function cpSchemeVocab(scheme) {
 // from the task's key hand, which is only correct while hand is task-tied).
 function cpBorderLegend(keyMaps, scheme) {
     if (!cpSchemeVocab(scheme).positional) {
-        return '  ORANGE border  ->  answer the SWIMMING question.\n'
+        return '  ORANGE border  ->  answer the FLYING question.\n'
             + '  BLUE border    ->  answer the FACING question.';
     }
-    return '  COLOR is the QUESTION:  ORANGE = SWIMMING,  BLUE = FACING.\n'
+    return '  COLOR is the QUESTION:  ORANGE = FLYING,  BLUE = FACING.\n'
         + '  SIDE is the HAND:\n'
         + cpFourcueHandLines(keyMaps);
 }
@@ -490,14 +490,14 @@ function cpFourcueHandLines(keyMaps) {
 const CP_PRP_INSTRUCTIONS = (t1Task, keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
     const movFirst = t1Task === 'mov';
     const vocab = cpSchemeVocab(scheme);
-    const movItem = 'MOVEMENT — which way are the fish SWIMMING?\n'
+    const movItem = 'MOVEMENT — which way are the birds FLYING?\n'
         + `   ${cpHandLabel(keyMaps.mov)}${cpKeyPhrase(keyMaps.mov)}.`;
-    const orItem = 'ORIENTATION — which way are the fish FACING?\n'
+    const orItem = 'ORIENTATION — which way are the birds FACING?\n'
         + `   ${cpHandLabel(keyMaps.or)}${cpKeyPhrase(keyMaps.or)}.`;
     // Which dimension is static at trial onset depends on which task is T1.
     const stimulusStory = movFirst
-        ? `The fish swim first, then turn to face ${vocab.eitherOr}.`
-        : `The fish face ${vocab.eitherOr} first, then start to swim.`;
+        ? `The birds fly first, then turn to face ${vocab.eitherOr}.`
+        : `The birds face ${vocab.eitherOr} first, then start to fly.`;
     return 'Two tasks on every trial, always in this order:\n\n'
         + `1) ${movFirst ? movItem : orItem}\n\n`
         + `2) ${movFirst ? orItem : movItem}\n\n`
@@ -530,7 +530,7 @@ const cpTaskSwitchInstructions = (keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
     }
     return 'ONE task per trial. It may switch from trial to trial.\n\n'
         + 'The border color tells you which task:\n\n'
-        + `  ORANGE = MOVEMENT (which way are the fish SWIMMING?)\n`
+        + `  ORANGE = MOVEMENT (which way are the birds FLYING?)\n`
         + `     ${cpHandLabel(keyMaps.mov)}${cpKeyPhrase(keyMaps.mov)}.\n`
         + `  BLUE = ORIENTATION (which way are they FACING?)\n`
         + `     ${cpHandLabel(keyMaps.or)}${cpKeyPhrase(keyMaps.or)}.\n\n`
@@ -552,15 +552,15 @@ const cpTaskSwitchInstructions = (keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
 // MOVEMENT; ignore the triangle orientation". Both nouns were wrong and the
 // combination was actively misleading:
 //   - "dot"/"triangle" are SE's ABSTRACT stimulus names (defaultConfig's objName
-//     'triangles' / distName 'circles'). Every real participant runs the fish
-//     sprites (?stimulus=fish is the default), so the sentence described objects
-//     that were not on screen.
-//   - All seven training screens say SWIMMING and FACING. Switching to
+//     'triangles' / distName 'circles'). Every real participant runs the bird
+//     sprites (stimulus defaults to 'bird' in loadSprites), so the sentence
+//     described objects that were not on screen.
+//   - All seven training screens say FLYING and FACING. Switching to
 //     MOVEMENT/ORIENTATION here, at the exact moment feedback stops, made
 //     "ignore the dot movement" read as an instruction to DO the movement task —
 //     reported from a real run of condition B.
 // The other two test screens (PRP, task switching) already glossed the dimension
-// in fish terms; this one now matches them. NOTE the same stale nouns still
+// in bird terms; this one now matches them. NOTE the same stale nouns still
 // appear in switch-frequency.js and hirsch_block_configs.js — different
 // paradigms, not part of this study, deliberately left alone.
 //
@@ -570,10 +570,10 @@ const cpTaskSwitchInstructions = (keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
 // response set, which is what makes cpKeyLine print the hand — matching the
 // training screens, which say the same thing for the same reason.
 const CP_STROOP_INSTRUCTIONS = (task, keyMaps = CP_DISJOINT_KEY_MAPS) => {
-    const target = task === 'mov' ? 'SWIMMING' : 'FACING';
-    const other = task === 'mov' ? 'FACING' : 'SWIMMING';
+    const target = task === 'mov' ? 'FLYING' : 'FACING';
+    const other = task === 'mov' ? 'FACING' : 'FLYING';
     return `Interference block: the ${target} question only.\n\n`
-        + `Respond to which way the fish are ${target}; ignore which way\n`
+        + `Respond to which way the birds are ${target}; ignore which way\n`
         + `they are ${other}.\n`
         + `  ${cpKeyLine(keyMaps[task], cpKeysAreShared(keyMaps))}\n\n`
         + 'Press any key to begin.';
@@ -657,11 +657,9 @@ const CP_STROOP_CROSSED_SESSION = cpTestBlocks(cpStroopCrossed, 108,
 // Training / shaping sessions
 // ============================================================
 // Each paradigm gets ONE participant-facing session: the shared shaping sequence
-// S1-S6 (buildSharedTrainingStages), then its own S8 (buildParadigmFinalStage),
-// then its existing test block(s). There is no S7 — the comprehension check was
-// removed from the design 2026-08-10 and nothing replaces it, so the instruction
-// screens below are the only thing between a click-through participant and the
-// test blocks.
+// S2-S6 (buildSharedTrainingStages), then a shared PRP stage S7, then its own S8
+// (buildParadigmFinalStage), followed by its test block(s) (8 training steps total:
+// S2, S3, S3a, S3b, S4, S6, S7, S8). S1 and S5 are dropped.
 //
 // The shaping sequence has to be "exactly the same across all the paradigms",
 // read here as identical STRUCTURE, with the key maps and coherence levels
@@ -741,7 +739,7 @@ function cpHandLabel(keyMap) {
  * @param {object} finalStage - { kind, t1Task?, task? }, matching the S8 spec
  * @param {object} [scheme] - response-set scheme descriptor; drives axis words
  *   (left/right vs up/down) and the cue legend. Absent => disjoint defaults.
- * @returns {{S1..S6: string, S8: string, test: string}} plain text, '\n'
+ * @returns {{S2..S6: string, S8: string, test: string}} plain text, '\n'
  *   separated, the convention showInstructions() renders.
  */
 function cpTrainingInstructions(keyMaps, finalStage, scheme) {
@@ -751,113 +749,123 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     const movLine = cpKeyLine(keyMaps.mov, shared);
     const orLine = cpKeyLine(keyMaps.or, shared);
     // Under fourcue the hand is NOT tied to the task (it follows the border side),
-    // so a per-task "Swimming: <keys>" line would be wrong. The border legend
+    // so a per-task "Flying: <keys>" line would be wrong. The border legend
     // already gives the keys per hand, so this collapses to a one-line reminder.
     const bothLines = vocab.positional
         ? '  (Up-key = up, down-key = down, on the hand the border points to.)'
-        : `  Swimming:  ${cpKeyPhrase(keyMaps.mov)}.\n`
+        : `  Flying:  ${cpKeyPhrase(keyMaps.mov)}.\n`
           + `  Facing:    ${cpKeyPhrase(keyMaps.or)}.`;
     // The single most confusable thing about the key policy, said out loud at
     // the moment the second map is introduced (S3).
     const secondMapNote = shared
         ? 'These are the SAME two keys you have just been using. That is on\n'
           + 'purpose: both questions are answered with the same fingers.'
-        : 'These are DIFFERENT keys from the swimming task, and you answer\n'
+        : 'These are DIFFERENT keys from the flying task, and you answer\n'
           + 'them with your other hand. Each question has its own two keys and\n'
           + 'they never swap.';
 
     // The border is NOT new at S4, and telling the participant it is makes the
     // first thing they are taught about it false. SE schedules cue1 with go1 from
     // trial onset on every stage, and game.js paints it at full opacity whenever
-    // its go signal is running, so an orange (S1/S2) or blue (S3) border has been
-    // on screen for three stages by the time S4 starts. What actually changes at
-    // S4 is that the border becomes (a) INFORMATIVE — two tasks are now mixed, so
-    // the color has something to disambiguate — and (b) PREDICTIVE, because
-    // cueCsi 200 puts it ahead of the stimulus where S1-S3 ran at csi 0. S1-S3
-    // therefore name the border and tell the participant to ignore it, and S4
-    // introduces its MEANING rather than its existence.
-    // TRIMMED FOR THE DEMO (2026-08-17). Every screen below now carries an
-    // animated cartoon of its own stimulus (cpTrainingDemos), which costs ~148 px
-    // of a 598 px budget. Copy that the cartoon SHOWS was cut; copy that the
-    // cartoon cannot show was kept. Each cut is marked. Re-run
-    // `node analysis/measure_instructions.js` after any edit here.
+    // its go signal is running, so an orange (S2/S3a) or blue (S3/S3b) border has
+    // been on screen for FOUR stages by the time S4 starts. What actually changes
+    // at S4 is that the border becomes (a) INFORMATIVE — two tasks are now mixed,
+    // so the color has something to disambiguate — and (b) PREDICTIVE, because
+    // cueCsi 200 puts it ahead of the stimulus where S2/S3/S3a/S3b ran at csi 0.
+    // The single-task stages therefore name the border and tell the participant to
+    // ignore it, and S4 introduces its MEANING rather than its existence.
     //
-    // S1: the cartoon shows a group of fish swimming left, then right, so the
-    // sentence describing that was folded into the one-line job statement.
-    // The border sentence STAYS: the S1 block really does paint an orange border
-    // (SE schedules cue1 with go1 from trial onset), and the cartoon deliberately
-    // omits it, so this is now the only place the participant is told it is there
-    // and irrelevant.
-    const S1 =
-        'STEP 1 of 7 — learning the keys.\n\n'
-        + 'Your job: say which way the group of fish is SWIMMING.\n\n'
+    // TRIMMED FOR THE DEMO (2026-08-17). Every screen carries an animated cartoon
+    // (~148 px of a 598 px budget). Copy the cartoon SHOWS was cut; copy it cannot
+    // show was kept. Re-run `node analysis/measure_instructions.js` after any edit.
+    //
+    // 2026-08-25 REORDER: Stroop (single-task conflict) moved up to S3a/S3b, right
+    // after learning each pathway, because Stroop is itself a single task. The old
+    // congruent-only S5 was dropped (conflict is no longer new by S6), and a shared
+    // PRP stage (S7) was added before the paradigm-final S8. Eight steps now.
+    const S2 =
+        'STEP 1 of 8 — the flying task.\n\n'
+        + 'Your job: say which way the group of birds is FLYING.\n\n'
         + `  ${movLine}\n\n`
+        + 'Answer as FAST as you can while still getting it right. The birds\n'
+        + 'start out very easy to read and gradually get harder.\n\n'
         + 'There is a colored border around the edge of the screen. It does\n'
         + 'not mean anything yet — ignore it for now.\n\n'
-        + 'The fish are very easy to see here, and there is NO time limit.\n'
-        + 'This step is only about learning which key is which.\n\n'
-        + '8 practice trials. Press any key to begin.';
-
-    const S2 =
-        'STEP 2 of 7 — the swimming task, up to speed.\n\n'
-        + 'Same question as before: which way are the fish SWIMMING?\n\n'
-        + `  ${movLine}\n\n`
-        + 'Two things change:\n'
-        + '  - Answer as FAST as you can while still getting it right.\n'
-        + '  - The fish start out very easy to read and gradually get harder.\n\n'
-        + 'The border is still just a border. Keep ignoring it.\n\n'
         + 'This step continues until you are answering reliably, then moves on\n'
         + 'by itself. Press any key to begin.';
 
     const S3 =
-        'STEP 3 of 7 — a second question: which way are the fish FACING?\n\n'
-        + 'This time the fish do not swim at all. They stay in place, FACING\n'
+        'STEP 2 of 8 — a second question: which way are the birds FACING?\n\n'
+        + 'This time the birds do not fly at all. They stay in place, FACING\n'
         + `either ${vocab.eitherOr}.\n\n`
         + `  ${orLine}\n\n`
         + secondMapNote + '\n\n'
         + 'The border is a different color this time. Still ignore it — it\n'
-        + 'becomes useful in the next step.\n\n'
+        + 'becomes useful a little later.\n\n'
         + 'Again: as fast as you can while staying accurate. Press any key to begin.';
 
-    // S4: the two bullets became one sentence, and the "mixed questions" pair
-    // became one line — the cartoon alternates an orange swimming trial with a
-    // blue facing trial, which is that content. CP_BORDER_LEGEND STAYS: this is
-    // the screen where the colour mapping is taught, and a participant who
-    // misreads the cartoon has nothing else to fall back on.
+    // S3a/S3b: the Stroop stages. Conflict is FIRST introduced here, in the
+    // simplest possible setting — one sustained task with a distractor that can
+    // disagree. The cartoon shows a conflicting stimulus, so the copy only needs to
+    // name the rule ("answer this question, ignore that one").
+    const S3a =
+        'STEP 3 of 8 — the flying task, now with a distraction.\n\n'
+        + 'Still just ONE question: which way are the birds FLYING?\n\n'
+        + `  ${movLine}\n\n`
+        + `The birds now ALSO face ${vocab.eitherOr}, which can point the OTHER\n`
+        + 'way from how they fly. Ignore which way they face — answer the\n'
+        + 'FLYING question only, even when the two disagree.\n\n'
+        + 'Press any key to begin.';
+
+    const S3b =
+        'STEP 4 of 8 — the facing task, now with a distraction.\n\n'
+        + 'Now just the FACING question: which way are the birds FACING?\n\n'
+        + `  ${orLine}\n\n`
+        + 'The birds are also FLYING, which can disagree with the way they\n'
+        + 'face. Ignore the flying — answer the FACING question only.\n\n'
+        + 'Press any key to begin.';
+
+    // S4: the border becomes informative (two tasks mixed) and predictive (appears
+    // before the birds). CP_BORDER_LEGEND STAYS: this is where the colour mapping is
+    // taught, and a participant who misreads the cartoon has nothing else.
     const S4 =
-        'STEP 4 of 7 — the border now tells you what to do.\n\n'
+        'STEP 5 of 8 — the border now tells you what to do.\n\n'
         + 'From now on the two questions are mixed, and can change every trial.\n\n'
         + 'The border you have been ignoring is what tells you which — and it\n'
-        + 'now appears just BEFORE the fish, so you can get ready.\n\n'
+        + 'now appears just BEFORE the birds, so you can get ready.\n\n'
         + legend + '\n\n'
         + bothLines + '\n\n'
         + 'Press any key to begin.';
 
-    const S5 =
-        'STEP 5 of 7 — the fish now do both things at once.\n\n'
-        + 'From here on the fish are BOTH swimming AND facing on every trial.\n'
-        + 'Only one of those is your job, and the border still tells you which:\n\n'
-        + legend + '\n\n'
-        + `In this step the two always agree — fish swimming ${vocab.dirA} are also\n`
-        + `facing ${vocab.dirA} — so you cannot go wrong by looking at the wrong one.\n`
-        + 'It is practice at answering the question you were actually asked.\n\n'
-        + 'Press any key to begin.';
-
+    // S6: bivalence + conflict, now WHILE switching. Conflict is not new (S3a/S3b),
+    // so this screen frames the COMBINATION, not a first encounter with conflict.
     const S6 =
-        'STEP 6 of 7 — now the two can disagree.\n\n'
-        + 'Same as the last step, except the fish may now be swimming one way\n'
-        + 'while FACING the other way.\n\n'
-        + 'Answer ONLY the question the border asked for, and ignore the other\n'
-        + 'one, even when they point in opposite directions.\n\n'
-        // CP_BORDER_LEGEND dropped here (2026-08-17): S6's cartoon shows one
-        // conflicting stimulus twice, changing only the border colour and
-        // therefore the correct key, which is a sharper statement of the legend
-        // than the legend is. S4 still spells it out in words.
+        'STEP 6 of 8 — both at once, while the border switches.\n\n'
+        + 'This combines the two things you just practiced: the birds are BOTH\n'
+        + 'flying AND facing (and may disagree, as in the distraction rounds),\n'
+        + 'while the border keeps switching which question to answer.\n\n'
+        + 'Answer ONLY the question the border asks for, and ignore the other,\n'
+        + 'even when they point in opposite directions.\n\n'
         + bothLines + '\n\n'
-        + 'Some fish are harder to read than others. That is normal.\n\n'
         + 'Press any key to begin.';
 
-    return { S1, S2, S3, S4, S5, S6, S8: cpFinalStageInstructions(keyMaps, finalStage, scheme) };
+    // S7: the shared PRP stage — two answers per trial, in a fixed order. Always
+    // movement-first (the stage is identical for everyone), so the copy names the
+    // order outright, unlike the paradigm-agnostic S8.
+    const S7 =
+        'STEP 7 of 8 — TWO answers on every trial.\n\n'
+        + 'Every trial now asks BOTH questions, one shortly after the other,\n'
+        + 'and you give two answers, in this order:\n\n'
+        + `  1) FLYING first.   ${cpKeyPhrase(keyMaps.mov)}.\n`
+        + `  2) FACING second.    ${cpKeyPhrase(keyMaps.or)}.\n\n`
+        + 'Answer in that order, even if you work the second one out early.\n'
+        + 'The gap between the two starts long and gets shorter as you go.\n\n'
+        + 'Press any key to begin.';
+
+    return {
+        S2, S3, S3a, S3b, S4, S6, S7,
+        S8: cpFinalStageInstructions(keyMaps, finalStage, scheme),
+    };
 }
 
 /**
@@ -869,19 +877,19 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
  * is safe to build at load time and to assert on in tests.
  *
  * DELIBERATE SIMPLIFICATIONS, all of them departures from the real display:
- *  - 8 fish, not the 150 the block draws (`Game.oobCount`), in a 150 px box.
- *  - NO border on S1-S3, even though those blocks really do paint one (SE
+ *  - 8 birds, not the 150 the block draws (`Game.oobCount`), in a 150 px box.
+ *  - NO border on S2/S3, even though those blocks really do paint one (SE
  *    schedules cue1 with go1 from trial onset, so an orange/blue border is on
  *    screen from stage 1). Their copy says a border exists and to ignore it; the
  *    cartoon shows only what the participant must attend to. The border appears
  *    in the cartoon exactly when it starts to MEAN something, at S4.
  *  - Coherence is not depicted faithfully — only S2 is shown degraded, because
- *    its copy is the one that promises the fish get harder.
+ *    its copy is the one that promises the birds get harder.
  * The cartoon is a diagram of the decision, not a preview of the stimulus.
  *
  * @param {{mov: object, or: object}} keyMaps - the paradigm's own key maps
  * @param {object} finalStage - { kind, t1Task?, task? }, matching the S8 spec
- * @returns {{S1..S6: object, S8: object}} demo specs
+ * @returns {{S2..S6: object, S8: object}} demo specs
  */
 /** The two direction angles a key map covers, in reading order: [180,0] (disjoint
  *  horizontal) or [90,270] (fourcue vertical). */
@@ -910,6 +918,10 @@ function cpTrainingDemos(keyMaps, finalStage, scheme) {
     const cueMeta = {
         cueMode: (scheme && scheme.cueMode) || 'hue',
         cueSides: { mov: cpHandFor(keyMaps.mov), or: cpHandFor(keyMaps.or) },
+        // The task word printed under each keycap cluster (08-18 l.105). Kept in
+        // step with the FLYING/FACING copy above; instruction_demo reads it off the
+        // spec, so the vocabulary is declared once, here.
+        taskWords: { mov: 'flying', or: 'facing' },
     };
     const withCue = (demo) => ({ ...demo, ...cueMeta });
 
@@ -925,73 +937,79 @@ function cpTrainingDemos(keyMaps, finalStage, scheme) {
     // depressed keycap (W/S left, I/K right). `movA`/`orA` = up (90), `movB`/`orB`
     // = down (270) under the vertical geometry.
     const s4Fourcue = [
-        { movement: movA, orientation: null, border: 'mov', side: 'left',  key: keyFor('left', movA) },
-        { movement: null, orientation: orB,  border: 'or',  side: 'right', key: keyFor('right', orB) },
-        { movement: movB, orientation: null, border: 'mov', side: 'right', key: keyFor('right', movB) },
-        { movement: null, orientation: orA,  border: 'or',  side: 'left',  key: keyFor('left', orA) },
+        { movement: movA, orientation: null, border: 'mov', side: 'left',  key: keyFor('left', movA),  keyTask: 'mov' },
+        { movement: null, orientation: orB,  border: 'or',  side: 'right', key: keyFor('right', orB),  keyTask: 'or' },
+        { movement: movB, orientation: null, border: 'mov', side: 'right', key: keyFor('right', movB), keyTask: 'mov' },
+        { movement: null, orientation: orA,  border: 'or',  side: 'left',  key: keyFor('left', orA),   keyTask: 'or' },
     ];
-    const s5Fourcue = [
-        { movement: movA, orientation: orA, border: 'mov', side: 'left',  key: keyFor('left', movA) },
-        { movement: movB, orientation: orB, border: 'or',  side: 'right', key: keyFor('right', orB) },
-        { movement: movA, orientation: orA, border: 'mov', side: 'right', key: keyFor('right', movA) },
-        { movement: movB, orientation: orB, border: 'or',  side: 'left',  key: keyFor('left', orB) },
-    ];
+    // (The old S5 congruent-only fourcue cartoon was removed with S5, 2026-08-25.)
     // S6 incongruent: movement and facing disagree; the depressed key follows the
     // CUED task, so the same stimulus yields a different answer on each border.
     const s6Fourcue = [
-        { movement: movA, orientation: orB, border: 'mov', side: 'left',  key: keyFor('left', movA) },
-        { movement: movA, orientation: orB, border: 'or',  side: 'right', key: keyFor('right', orB) },
-        { movement: movB, orientation: orA, border: 'mov', side: 'right', key: keyFor('right', movB) },
-        { movement: movB, orientation: orA, border: 'or',  side: 'left',  key: keyFor('left', orA) },
+        { movement: movA, orientation: orB, border: 'mov', side: 'left',  key: keyFor('left', movA),  keyTask: 'mov' },
+        { movement: movA, orientation: orB, border: 'or',  side: 'right', key: keyFor('right', orB),  keyTask: 'or' },
+        { movement: movB, orientation: orA, border: 'mov', side: 'right', key: keyFor('right', movB), keyTask: 'mov' },
+        { movement: movB, orientation: orA, border: 'or',  side: 'left',  key: keyFor('left', orA),   keyTask: 'or' },
     ];
 
-    // S1/S2: swim one way, then the other. `orientation: null` is what makes SE's
-    // forward-facing sprite the one drawn, i.e. fish that swim without facing.
-    const swimBoth = [
-        { movement: movA, orientation: null, border: null, key: keyMaps.mov[movA] },
-        { movement: movB, orientation: null, border: null, key: keyMaps.mov[movB] },
+    // S2: fly one way, then the other. `orientation: null` is what makes SE's
+    // forward-facing sprite the one drawn, i.e. birds that fly without facing.
+    const flyBoth = [
+        { movement: movA, orientation: null, border: null, key: keyMaps.mov[movA], keyTask: 'mov' },
+        { movement: movB, orientation: null, border: null, key: keyMaps.mov[movB], keyTask: 'mov' },
     ];
 
     // S3: stationary, facing. `movement: null` is the stimulus its copy promises
-    // ("the fish do not swim at all").
+    // ("the birds do not fly at all").
     const faceBoth = [
-        { movement: null, orientation: orA, border: null, key: keyMaps.or[orA] },
-        { movement: null, orientation: orB, border: null, key: keyMaps.or[orB] },
+        { movement: null, orientation: orA, border: null, key: keyMaps.or[orA], keyTask: 'or' },
+        { movement: null, orientation: orB, border: null, key: keyMaps.or[orB], keyTask: 'or' },
+    ];
+
+    // S3a/S3b: Stroop — a conflicting BIVALENT stimulus, single task. NO border
+    // (like S2/S3): the border is not yet meaningful, and the lesson here is the
+    // conflict, not the cue. The birds fly one way while facing the OTHER, and the
+    // depressed key is the answer to the ONE task this stage trains.
+    const stroopMov = [
+        { movement: movA, orientation: orB, border: null, key: keyMaps.mov[movA], keyTask: 'mov' },
+        { movement: movB, orientation: orA, border: null, key: keyMaps.mov[movB], keyTask: 'mov' },
+    ];
+    const stroopOr = [
+        { movement: movA, orientation: orB, border: null, key: keyMaps.or[orB], keyTask: 'or' },
+        { movement: movB, orientation: orA, border: null, key: keyMaps.or[orA], keyTask: 'or' },
     ];
 
     return {
-        S1: withCue({ segments: swimBoth }),
-        // The only stage whose cartoon is degraded, matching the one line of copy
-        // that promises it. 0.75 of 8 fish leaves two moving at random — visible
-        // as noise without making the cartoon unreadable at 150 px.
-        S2: withCue({ segments: swimBoth, coherence: 0.75 }),
+        // S2 is the first cartoon (S1 was dropped). The only stage whose cartoon is
+        // degraded, matching the one line of copy that promises it. 0.75 of 8 birds
+        // leaves two moving at random — visible as noise without making the cartoon
+        // unreadable at 150 px.
+        S2: withCue({ segments: flyBoth, coherence: 0.75 }),
         S3: withCue({ segments: faceBoth }),
+        S3a: withCue({ segments: stroopMov }),
+        S3b: withCue({ segments: stroopOr }),
         // S4: univalent still, but now cued and mixed. Disjoint shows one segment
         // per task (colour + task-tied hand change together); fourcue shows all
         // four colour x side cues.
         S4: withCue({
             segments: positional ? s4Fourcue : [
-                { movement: movA, orientation: null, border: 'mov', key: keyMaps.mov[movA] },
-                { movement: null, orientation: orB, border: 'or', key: keyMaps.or[orB] },
-            ],
-        }),
-        // S5: bivalent, congruent. Both pathways on, always agreeing, so the
-        // answer is the same whichever the border asks for.
-        S5: withCue({
-            segments: positional ? s5Fourcue : [
-                { movement: movA, orientation: orA, border: 'mov', key: keyMaps.mov[movA] },
-                { movement: movB, orientation: orB, border: 'or', key: keyMaps.or[orB] },
+                { movement: movA, orientation: null, border: 'mov', key: keyMaps.mov[movA], keyTask: 'mov' },
+                { movement: null, orientation: orB, border: 'or', key: keyMaps.or[orB], keyTask: 'or' },
             ],
         }),
         // S6: bivalent, INCONGRUENT — changing only the border (and, under fourcue,
         // its side) flips the correct key. That contrast is the whole lesson of the
-        // stage, and is why the legend could come out of the copy.
+        // stage, and is why the legend could come out of the copy. (Old S5, the
+        // congruent-only cartoon, was dropped in the 2026-08-25 reorder.)
         S6: withCue({
             segments: positional ? s6Fourcue : [
-                { movement: movA, orientation: orB, border: 'mov', key: keyMaps.mov[movA] },
-                { movement: movA, orientation: orB, border: 'or', key: keyMaps.or[orB] },
+                { movement: movA, orientation: orB, border: 'mov', key: keyMaps.mov[movA], keyTask: 'mov' },
+                { movement: movA, orientation: orB, border: 'or', key: keyMaps.or[orB], keyTask: 'or' },
             ],
         }),
+        // S7: the shared PRP cartoon — always movement-first, regardless of the host
+        // paradigm, matching the fixed-order S7 copy and stage.
+        S7: withCue(cpFinalStageDemo(keyMaps, { kind: 'prp', t1Task: 'mov' }, scheme)),
         S8: withCue(cpFinalStageDemo(keyMaps, finalStage, scheme)),
     };
 }
@@ -1015,23 +1033,23 @@ function cpFinalStageDemo(keyMaps, finalStage, scheme) {
         if (positional) {
             return {
                 segments: [
-                    { movement: movA, orientation: orB, border: 'mov', side: 'left',  key: keyFor('left', movA) },
-                    { movement: movB, orientation: orA, border: 'mov', side: 'right', key: keyFor('right', movB) },
-                    { movement: movB, orientation: orA, border: 'or',  side: 'left',  key: keyFor('left', orA) },
-                    { movement: movA, orientation: orB, border: 'or',  side: 'right', key: keyFor('right', orB) },
+                    { movement: movA, orientation: orB, border: 'mov', side: 'left',  key: keyFor('left', movA),  keyTask: 'mov' },
+                    { movement: movB, orientation: orA, border: 'mov', side: 'right', key: keyFor('right', movB), keyTask: 'mov' },
+                    { movement: movB, orientation: orA, border: 'or',  side: 'left',  key: keyFor('left', orA),   keyTask: 'or' },
+                    { movement: movA, orientation: orB, border: 'or',  side: 'right', key: keyFor('right', orB),  keyTask: 'or' },
                 ],
             };
         }
         return {
             segments: [
-                { movement: movA, orientation: orB, border: 'mov', key: keyMaps.mov[movA] },
-                { movement: movB, orientation: orA, border: 'mov', key: keyMaps.mov[movB] },
-                { movement: movB, orientation: orA, border: 'or', key: keyMaps.or[orA] },
+                { movement: movA, orientation: orB, border: 'mov', key: keyMaps.mov[movA], keyTask: 'mov' },
+                { movement: movB, orientation: orA, border: 'mov', key: keyMaps.mov[movB], keyTask: 'mov' },
+                { movement: movB, orientation: orA, border: 'or', key: keyMaps.or[orA], keyTask: 'or' },
             ],
         };
     }
 
-    if (finalStage.kind === 'rehearsal') {
+    if (finalStage.kind === 'stroop') {
         // One task for the rest of the session. Both segments conflict, because
         // that is what the Stroop test block is made of. Under fourcue the COLOUR
         // is fixed (the target task) but the HAND still varies with the side, so
@@ -1045,14 +1063,14 @@ function cpFinalStageDemo(keyMaps, finalStage, scheme) {
             const conflict = (targetDir, hand) => ({
                 movement: task === 'mov' ? targetDir : (targetDir === dA ? dB : dA),
                 orientation: task === 'or' ? targetDir : (targetDir === dA ? dB : dA),
-                border: task, side: hand, key: keyFor(hand, targetDir),
+                border: task, side: hand, key: keyFor(hand, targetDir), keyTask: task,
             });
             return { segments: [conflict(dA, 'left'), conflict(dB, 'right')] };
         }
         return {
             segments: [
-                { movement: dA, orientation: dB, border: task, key: keys[dA] },
-                { movement: dB, orientation: dA, border: task, key: keys[dB] },
+                { movement: dA, orientation: dB, border: task, key: keys[dA], keyTask: task },
+                { movement: dB, orientation: dA, border: task, key: keys[dB], keyTask: task },
             ],
         };
     }
@@ -1066,13 +1084,13 @@ function cpFinalStageDemo(keyMaps, finalStage, scheme) {
         const movFirst = finalStage.t1Task !== 'or';
         const seg = (at) => (movFirst
             ? {
-                movement: movA, orientation: null, border: 'mov', key: keyMaps.mov[movA],
-                then: { at, orientation: orB, border: ['mov', 'or'], key: keyMaps.or[orB] },
+                movement: movA, orientation: null, border: 'mov', key: keyMaps.mov[movA], keyTask: 'mov',
+                then: { at, orientation: orB, border: ['mov', 'or'], key: keyMaps.or[orB], keyTask: 'or' },
                 duration: at + 2100,
             }
             : {
-                movement: null, orientation: orA, border: 'or', key: keyMaps.or[orA],
-                then: { at, movement: movB, border: ['or', 'mov'], key: keyMaps.mov[movB] },
+                movement: null, orientation: orA, border: 'or', key: keyMaps.or[orA], keyTask: 'or',
+                then: { at, movement: movB, border: ['or', 'mov'], key: keyMaps.mov[movB], keyTask: 'mov' },
                 duration: at + 2100,
             });
         return { segments: [seg(1000), seg(400)] };
@@ -1084,61 +1102,32 @@ function cpFinalStageDemo(keyMaps, finalStage, scheme) {
 /**
  * S8's screen. The three S8 shapes need genuinely different
  * copy: 'switching' is a dress rehearsal of the mixed block, 'prp' introduces
- * two answers on one trial for the first time, and 'rehearsal' narrows back down
+ * two answers on one trial for the first time, and 'stroop' narrows back down
  * to a single task after S4-S6 taught both.
  */
 function cpFinalStageInstructions(keyMaps, finalStage, scheme) {
-    const shared = cpKeysAreShared(keyMaps);
-    const vocab = cpSchemeVocab(scheme);
-    const bothLines = vocab.positional
-        ? '  (Up-key = up, down-key = down, on the hand the border points to.)'
-        : `  Swimming:  ${cpKeyPhrase(keyMaps.mov)}.\n`
-          + `  Facing:    ${cpKeyPhrase(keyMaps.or)}.`;
-
-    if (finalStage.kind === 'switching') {
-        return 'STEP 7 of 7 — a full practice run.\n\n'
-            + 'This is exactly the task you are about to do for real: one\n'
-            + 'question per trial, switching between swimming and facing, with\n'
-            + 'the border telling you which.\n\n'
-            + cpBorderLegend(keyMaps, scheme) + '\n\n'
-            + bothLines + '\n\n'
-            + 'Fast and accurate. Press any key to begin.';
-    }
-
-    if (finalStage.kind === 'rehearsal') {
-        const target = finalStage.task === 'or' ? 'or' : 'mov';
-        const targetName = target === 'mov' ? 'SWIMMING' : 'FACING';
-        const otherName = target === 'mov' ? 'facing' : 'swimming';
-        const targetLine = cpKeyLine(keyMaps[target], shared);
-        return 'STEP 7 of 7 — a short warm-up at the real settings.\n\n'
-            + `From now on there is only ONE question: which way are the fish\n`
-            + `${targetName}?\n\n`
-            + `  ${targetLine}\n\n`
-            + `The fish will still be ${otherName} ${vocab.eitherOr} as well, and\n`
-            + `that will often disagree with your answer. Ignore it completely —\n`
-            + `you will never be asked about it again.\n\n`
-            + 'Press any key to begin.';
-    }
-
-    if (finalStage.kind === 'prp') {
-        const movFirst = finalStage.t1Task !== 'or';
-        const firstName = movFirst ? 'SWIMMING' : 'FACING';
-        const secondName = movFirst ? 'FACING' : 'SWIMMING';
-        const firstLine = cpKeyLine(keyMaps[movFirst ? 'mov' : 'or'], shared);
-        const secondLine = cpKeyLine(keyMaps[movFirst ? 'or' : 'mov'], shared);
-        return 'STEP 7 of 7 — TWO answers on every trial.\n\n'
-            + 'Every trial now asks BOTH questions, one shortly after the\n'
-            + 'other, and you give two answers.\n\n'
-            + `1) ${firstName} comes FIRST.   ${firstLine}\n`
-            + `2) ${secondName} comes SECOND.   ${secondLine}\n\n`
-            + 'That order never changes — answer them in that order even if\n'
-            + 'you work the second one out early.\n\n'
-            + 'Two borders appear, one per question, in the usual colors. The\n'
-            + 'gap between the two starts long and gets shorter as you practice.\n\n'
-            + 'Press any key to begin.';
-    }
-
-    throw new Error(`cpFinalStageInstructions: unknown S8 kind '${finalStage.kind}'`);
+    // PARADIGM-AGNOSTIC by design (08-18 l.131-145). S8 keeps its per-paradigm
+    // TRIAL structure and its per-paradigm visual example (the cartoon), but the
+    // instruction TEXT is IDENTICAL for every paradigm AND every between-subjects
+    // condition. The wording — not the trials — is what installs a task strategy,
+    // so letting it vary across paradigms would confound them; that is the whole
+    // point of unifying it. Nothing here reads finalStage.kind or the condition:
+    //   - `finalStage` is accepted only to keep the call signature stable (the
+    //     caller passes it); it is deliberately unused.
+    //   - the only thing that varies is cpBorderLegend, which is a function of the
+    //     SCHEME, not the paradigm, and is identical across all five paradigms and
+    //     both conditions. Under fourcue it already carries the SIDE=hand rule.
+    // Whatever is genuinely paradigm-specific (one answer vs two, response order,
+    // "ignore the distractor") the participant learned in S2-S6 and sees again in
+    // this stage's own cartoon — it is not restated in words.
+    void finalStage;
+    return 'STEP 6 of 6 — putting it all together.\n\n'
+        + 'Now you put everything together. You may meet some of the situations\n'
+        + 'you trained on, and some you have not — but the rule never changes:\n\n'
+        + cpBorderLegend(keyMaps, scheme) + '\n\n'
+        + 'Whenever a border appears, answer the question it asks for, as fast\n'
+        + 'as you can.\n\n'
+        + 'Press any key to begin.';
 }
 
 /** Prefix that turns a test block's own instructions into "practice is over". */
@@ -1189,7 +1178,7 @@ function cpStampScheme(blockConfig, scheme) {
         // drives the JS-fallback / live-training hand vector (engine.js) and the
         // per-trial key/cue routing (session.js). Test blocks that load a CSV read
         // the hand column directly, so the flag is harmless there; the early
-        // single-task training stages (S1-S3) clear it — see cpBuildTrainingSession.
+        // single-task training stages (S2-S3) clear it — see cpBuildTrainingSession.
         // Dual-task PRP is task-tied and never varies hand.
         varyHand: scheme.cueMode === 'hue+position' && blockConfig.paradigm !== 'dual-task',
     };
@@ -1221,7 +1210,7 @@ function cpTestSessionFor(paradigm, condition = 'A', scheme) {
     }
 }
 
-/** Assemble one paradigm's full session: S1-S6, then S8, then its test blocks. */
+/** Assemble one paradigm's full session: S2-S6, then S8, then its test blocks. */
 function cpBuildTrainingSession(spec) {
     const finalStage = spec.finalStage;
     const scheme = spec.scheme;
@@ -1250,14 +1239,48 @@ function cpBuildTrainingSession(spec) {
         instructions: instructions.S8,
         demo: demos.S8,
     });
+    // S7 — the shared PRP (dual-task) stage EVERY paradigm now runs (2026-08-25),
+    // so that dual-tasking is trained for all participants, not only PRP ones. It is
+    // built via the same kind:'prp' builder as PRP's own S8, but with the CANONICAL
+    // PRP parameters (cpPRP coherence/CSI, CP_PRP_SOA_LEVELS) rather than the host
+    // paradigm's, and a FIXED movement-first order — the training stage is identical
+    // for everyone, which is the whole point. buildParadigmFinalStage always tags
+    // its output S8/`prefix_S8`, so re-tag it as S7.
+    //
+    // rso is forced to 'disjoint' here, NOT inherited from spec.rso. Every canonical
+    // paradigm's KEY MAP is already disjoint (mov = A/D left hand, or = J/L right
+    // hand) — Stroop included since Phase 1 — so a two-handed PRP is available to
+    // everyone. Stroop's spec.rso is the label 'identical' (a leftover documenting
+    // its shared-response origin, inert for its single-task test extraction); passing
+    // it here would tell the extractor to attribute the two PRP responses by ORDER
+    // while the runtime routes them by HAND (the maps are disjoint) — the exact
+    // extractor/runtime disagreement the T9 note warns against. 'disjoint' makes S7 a
+    // proper two-handed PRP with hand-based attribution for every paradigm.
+    const prpShared = buildParadigmFinalStage({
+        kind: 'prp',
+        keyMaps: spec.keyMaps,
+        rso: 'disjoint',
+        csi: cpPRP.csi,
+        coherence: cpPRP.coherence,
+        t1Task: 'mov',
+        soaLevels: CP_PRP_SOA_LEVELS,
+        blockIdPrefix: spec.blockIdPrefix,
+        instructions: instructions.S7,
+        demo: demos.S7,
+    });
+    const s7 = {
+        ...prpShared,
+        stage: 'S7',
+        blockConfig: { ...prpShared.blockConfig, blockId: `${spec.blockIdPrefix}_S7` },
+    };
     // The training stages carry spec.keyMaps already; stamp the rest of the scheme
     // (geometry/cueMode/keyResolution) onto them. The test blocks were already
     // stamped by cpTestSessionFor.
-    // S1-S3 teach ONE task at a time on its default (task-tied) hand, so the hand
+    // S2-S3 teach ONE task at a time on its default (task-tied) hand, so the hand
     // does not vary there even under fourcue — the 2x2 (color x side) is introduced
     // at S4 with the informative cue. Later single-task stages (S4-S6, S8 switching/
     // rehearsal) vary hand like the test blocks; PRP's S8 is dual-task and never does.
-    const EARLY_SINGLE_HAND_STAGES = new Set(['S1', 'S2', 'S3']);
+    const EARLY_SINGLE_HAND_STAGES = new Set(['S2', 'S3', 'S3a', 'S3b']);
     const stampStage = (blockDef) => {
         const stamped = cpStampScheme(blockDef.blockConfig, scheme);
         if (EARLY_SINGLE_HAND_STAGES.has(blockDef.stage) && stamped.varyHand) {
@@ -1268,7 +1291,7 @@ function cpBuildTrainingSession(spec) {
     const testBlocks = spec.testSession.map((blockDef, i) => (i === 0
         ? { ...blockDef, instructions: CP_TEST_BLOCK_PREAMBLE + blockDef.instructions }
         : blockDef));
-    return [...shared.map(stampStage), stampStage(s8), ...testBlocks];
+    return [...shared.map(stampStage), stampStage(s7), stampStage(s8), ...testBlocks];
 }
 
 function cpBuildPrpTrainingSession(condition = 'A', scheme) {
@@ -1370,12 +1393,12 @@ function cpBuildStroopTrainingSession(condition = 'A', scheme) {
         testCoherence: cpStroop.coherence,
         testSession: cpTestSessionFor('cp_stroop', condition, scheme),
         finalStage: {
-            kind: 'rehearsal',
+            kind: 'stroop',
             csi: cpStroop.csi,
             coherence: cpStroop.coherence,
             task: targetTask,
             // PLACEHOLDER: the rehearsal runs PARADIGM_FINAL_STAGE_DEFAULTS'
-            // rehearsalTrials (16 trials, no new content). Whether 16 is the right
+            // stroopTrials (16 trials, no new content). Whether 16 is the right
             // length is still an open parameter question, so no numTrials override
             // is invented here.
         },
@@ -1398,7 +1421,7 @@ function cpBuildStroopCrossedTrainingSession(condition = 'A', scheme) {
         levelFactors: cpStroopCrossed.levelFactors,
         testSession: cpTestSessionFor('cp_stroop_crossed', condition, scheme),
         finalStage: {
-            kind: 'rehearsal',
+            kind: 'stroop',
             csi: cpStroopCrossed.csi,
             coherence: cpStroopCrossed.coherence,
             levelFactors: cpStroopCrossed.levelFactors,

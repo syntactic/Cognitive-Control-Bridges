@@ -3,21 +3,21 @@
 // Run: node analysis/advancement_rates.js
 //
 // WHY THIS EXISTS. The "across the cap" pass rates for the advancement
-// criterion were originally derived as 1 - (1 - p_window)^3, i.e. as though the
-// 48-trial cap were three DISJOINT 16-trial windows. It is not. `runBlock`'s
-// loop condition is
+// criterion were originally derived as 1 - (1 - p_window)^k, i.e. as though the
+// cap were k DISJOINT 16-trial windows. It is not. `runBlock`'s loop condition is
 //
 //     i < trials.length && (!isTraining || !meetsAdvancementCriterion(blockOutcomes, ...))
 //
 // so the rolling window is re-evaluated before every trial from trial 16 on:
-// 33 OVERLAPPING opportunities to pass, not 3 independent ones. Every across-cap
-// number so derived was therefore understated, some by a lot (10/16 at p = .50 is
-// 76.2%, not the 53.9% that justified rejecting it — the conclusion survives, the
-// arithmetic did not).
+// (cap - 15) OVERLAPPING opportunities to pass, not independent ones. Every
+// across-cap number so derived was therefore understated. (TRAINING_CAP was 48
+// until 2026-08-25; it is now 36, so there are 21 overlapping windows, and 10/16
+// at p = .50 across the cap is 63.1% — still far too high to use, so its rejection
+// survives the cap change.)
 //
 // METHOD. Exact, not sampled. The stopping rule depends only on the last
 // `windowSize` outcomes, so the process is a Markov chain on the last
-// windowSize - 1 = 15 outcomes: 2^15 = 32768 states, 33 steps. We track the
+// windowSize - 1 = 15 outcomes: 2^15 = 32768 states, (cap - 15) steps. We track the
 // distribution over "still running" states and accumulate absorbed mass each
 // step. Runs in well under a second and gives closed-form answers, so the
 // figures can be reproduced exactly rather than re-sampled to within a Monte
@@ -39,7 +39,7 @@
  *   perWindow is the single-window figure P(X >= threshold | X ~ Bin(windowSize, p)),
  *   kept alongside so the two are never quoted interchangeably again.
  */
-function advancementRate(p, { windowSize = 16, threshold = 14, cap = 48 } = {}) {
+function advancementRate(p, { windowSize = 16, threshold = 14, cap = 36 } = {}) {
     const histBits = windowSize - 1;
     const numStates = 1 << histBits;
     const histMask = numStates - 1;
