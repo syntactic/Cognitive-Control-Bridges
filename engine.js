@@ -786,6 +786,22 @@ function pickCoherenceByLevel(obj, level) {
 }
 
 /**
+ * generateDualCanvasBlockTrials and generateSidedTrials use a legacy inline
+ * coherence lookup (`coherence[task] ?? coherence.ch1_task`) instead of
+ * resolveCoherence, so they don't understand `{ target, distractor }` format —
+ * it would silently resolve to undefined. Fail loudly instead.
+ */
+function assertLegacyCoherenceFormat(coherence, fnName) {
+    if (coherence && (coherence.target !== undefined || coherence.distractor !== undefined)) {
+        throw new Error(
+            `${fnName}: coherence uses { target, distractor } format, which this function ` +
+            `does not support (only generateBlockTrials resolves it via resolveCoherence). ` +
+            `Use legacy task-indexed ({ mov, or }) or channel-indexed ({ ch1_task, ... }) format.`
+        );
+    }
+}
+
+/**
  * Resolve a trial's coherence into channel-indexed SE fields. Three config
  * formats are checked in order (all backward-compatible):
  *   1. Channel-indexed { ch1_task, ch1_distractor, ch2_task, ch2_distractor } — used as-is.
@@ -1018,6 +1034,7 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
     if (blockConfig.rso !== 'disjoint') {
         throw new Error(`Dual Canvas Config requires disjoint RSO, got: ${blockConfig.rso}`);
     }
+    assertLegacyCoherenceFormat(blockConfig.coherence, 'generateDualCanvasBlockTrials');
 
     const t1Side = blockConfig.t1Side ?? 'left';
     const vectors = generateSequenceVectors(blockConfig, numTrials);
@@ -1099,6 +1116,7 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
  * @returns {{ seParams: object, meta: object }[]}
  */
 function generateSidedTrials(blockConfig, numTrials) {
+    assertLegacyCoherenceFormat(blockConfig.coherence, 'generateSidedTrials');
     const isBaseline = blockConfig.paradigm === 'prp-baseline';
     const t1Side = blockConfig.t1Side ?? 'left';
     const oppositeSide = t1Side === 'left' ? 'right' : 'left';

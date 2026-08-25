@@ -1042,6 +1042,23 @@ for (const t of blTrials) {
 }
 
 // ============================================================
+section('generateDualCanvasBlockTrials / generateSidedTrials — { target, distractor } coherence throws');
+{
+    // resolveCoherence's { target, distractor } format is understood only by
+    // generateBlockTrials; these two functions still do the legacy inline
+    // lookup and must fail loudly rather than silently resolving undefined.
+    const dcConfig = { ...dualCanvasSwitchConfig, coherence: { target: 0.8, distractor: 0 } };
+    let threwDC = false;
+    try { generateDualCanvasBlockTrials(dcConfig, 4); } catch (e) { threwDC = true; }
+    assert(threwDC, 'generateDualCanvasBlockTrials: { target, distractor } coherence throws');
+
+    const sidedConfig = { ...alternatingConfig, coherence: { target: 0.8, distractor: 0 } };
+    let threwSided = false;
+    try { generateSidedTrials(sidedConfig, 4); } catch (e) { threwSided = true; }
+    assert(threwSided, 'generateSidedTrials: { target, distractor } coherence throws');
+}
+
+// ============================================================
 // t1Side counterbalancing tests
 // ============================================================
 
