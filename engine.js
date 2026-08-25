@@ -649,37 +649,29 @@ function buildDirectionParams(spec) {
 function buildTimingParams(spec) {
     const timingParams = {};
 
-    // Cue and go signal SHARE AN ONSET. This is not a stylistic choice: the SE
-    // package draws the cue border with a zero-alpha color whenever the matching
-    // go signal is inactive (game.js draw(), '#fb00' / '#0af0'), so a cue that
-    // starts before its go signal is drawn but invisible. Starting go_1 at the
-    // cue rather than at the stimulus is what makes the CSI a real, *visible*
-    // preparation interval instead of csi ms of blank screen.
-    //
-    // Their ENDS still differ, and should: the cue lasts as long as the stimulus,
-    // while the go window lasts responseWindow ms measured from stimulus onset.
-    //
-    // (Same convention as convert.py in the thesis repo, which sets
-    // effective_start_go1 = effective_start_cue1 for every condition.)
+    // Cue and go SHARE an onset: SE draws the cue border at zero-alpha whenever
+    // its go signal is inactive (game.js draw(), '#fb00'/'#0af0'), so a cue
+    // starting before go would be invisible. Starting go_1 with the cue — not
+    // the stimulus — is what makes CSI a visible prep interval. Ends still
+    // differ: cue lasts through the stimulus, go window is responseWindow ms
+    // from stimulus onset. Matches convert.py's effective_start_go1 = cue1.
     timingParams.start_1 = 0;
     timingParams.dur_1 = spec.csi + spec.dur_ch1;
     timingParams.start_go_1 = 0;
     timingParams.dur_go_1 = spec.csi + spec.responseWindow;
 
-    // Channel 1 stimulus — both pathways get same timing here.
-    // buildTrialParams zeros out pathways with coh=0 after routing,
-    // since the SE package renders coh=0 as random noise, not invisible.
+    // buildTrialParams zeros durations for coh=0 pathways after routing —
+    // SE renders coh=0 as random noise, not invisible.
     timingParams.start_mov_1 = spec.csi;
     timingParams.dur_mov_1 = spec.dur_ch1;
     timingParams.start_or_1 = spec.csi;
     timingParams.dur_or_1 = spec.dur_ch1;
 
     if (spec.task2 !== null) {
-        // Channel 2 gets the SAME csi as channel 1: its cue+go open at soa and
-        // its stimulus follows csi later, at csi + soa. That keeps the stimulus
-        // SOA equal to spec.soa (the definition of SOA) while giving T2 the same
-        // preparation interval as T1. Previously cue2 opened at csi + soa, i.e.
-        // simultaneously with S2, so T1 nominally had a CSI and T2 had none.
+        // Channel 2 gets the same csi as channel 1, so its stimulus lands at
+        // csi + soa (keeping stimulus SOA == spec.soa) while T2 still gets a
+        // full CSI of its own — cue2 used to open at csi+soa (with S2), giving
+        // T2 no prep interval at all.
         timingParams.start_2 = spec.soa;
         timingParams.dur_2 = spec.csi + spec.dur_ch2;
         timingParams.start_go_2 = spec.soa;
@@ -984,43 +976,13 @@ function applySOAOffset(params, offset) {
 }
 
 
-// TODO: Dual-canvas within-canvas congruency support
-//
-// Currently, dual-canvas trials are always univalent (one task per canvas, no
-// distractors). To support within-canvas congruency (e.g., movement task with
-// orientation distractor on the same canvas):
-//
-// 1. Add congruency config to blockConfig (per-canvas or shared):
-//    t1Congruency: { conditions: ['congruent','incongruent'], proportions: [0.5,0.5] }
-//
-// 2. Call generateCongruencySequence for each canvas independently.
-//
-// 3. Use the congruency label to control t1_distractor_dir / t2_distractor_dir in
-//    buildSingleCanvasSpec (similar to how assignDirections handles it for
-//    single-canvas trials).
-//
-// 4. This enables three independent congruency dimensions derivable from the CSV:
-//    - Within T1: compare t1_target_dir vs t1_distractor_dir
-//    - Within T2: compare t2_target_dir vs t2_distractor_dir
-//    - Cross task: compare t1_target_dir vs t2_target_dir
-//
-// These three dimensions allow a 2x2x2 congruency analysis and three-way
-// interactions with SOA — a novel design not possible with single-canvas PRP.
-//
-// NOTE: Future extension — dual-PRP (two-channel trials on each canvas)
-//
-// The current dual-canvas design uses one task per canvas (channel 1 only).
-// A more extreme design could run a full PRP trial on each canvas
-// simultaneously — four tasks total, two per canvas. This would require:
-//
-// - Per-canvas coherence objects instead of scalar leftCoherence/rightCoherence
-// - Per-canvas SOA (left canvas SOA vs right canvas SOA)
-// - buildSingleCanvasSpec replaced with full two-channel spec per canvas
-// - Four response keys per canvas (currently only two per hand)
-//
-// This is architecturally possible (each canvas is an independent SE instance)
-// but would require a different response mapping scheme since participants
-// only have two fingers per hand in the current setup.
+// TODO: dual-canvas trials are always univalent (one task per canvas, no
+// distractors) — within-canvas congruency isn't wired up. Would need a
+// per-canvas congruency config feeding buildSingleCanvasSpec's distractor
+// dir, the way assignDirections does for single-canvas. Also not done: a
+// "dual-PRP" where each canvas runs a full two-channel PRP trial itself —
+// architecturally fine (each canvas is its own SE instance) but needs a
+// four-key-per-canvas response scheme participants don't have fingers for.
 
 /**
  * Generates trial objects for dual-canvas PRP blocks.
@@ -1140,14 +1102,9 @@ function generateSidedTrials(blockConfig, numTrials) {
             displayTask, blockConfig.csi, blockConfig.stimulusDuration,
             blockConfig.responseWindow, coherence, direction
         );
-        // PRP baseline: S1 is a static asterisk on the other side, shown at trial
-        // onset, and the task canvas follows one SOA later. That delay is applied
-        // INSIDE the SE timeline, exactly as the dual-canvas T2 canvas does it,
-        // so both conditions deliver the SOA with frame accuracy and both have
-        // their canvases on screen from trial onset. (It used to be a
-        // setTimeout(soa) in session.js followed by creating the canvas, which
-        // made the baseline's SOA wall-clock-jittery and gave it a canvas
-        // pop-in that the dual-canvas condition does not have.)
+        // Baseline: task canvas delay is applied inside the SE timeline (like
+        // dual-canvas T2), not via a session.js setTimeout — that used to make
+        // the SOA wall-clock-jittery and pop the canvas in late.
         const canvasTrialParams = isBaseline
             ? applySOAOffset(buildTrialParams(spec), soa)
             : buildTrialParams(spec);
