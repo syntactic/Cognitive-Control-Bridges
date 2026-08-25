@@ -1170,6 +1170,62 @@ section('createBreakController — deliberate advance, mash-proof');
 }
 
 // ============================================================
+section('isFourcueSingleTaskBlock');
+{
+    const fourcueCfg = { cueMode: 'hue+position', paradigm: 'single-task' };
+    const disjointCfg = { cueMode: 'hue', paradigm: 'single-task' };
+
+    assert(isFourcueSingleTaskBlock(fourcueCfg, 'single-canvas') === true,
+        'fourcue + single-canvas -> true');
+    assert(isFourcueSingleTaskBlock(disjointCfg, 'single-canvas') === false,
+        'disjoint cueMode -> false regardless of canvasType');
+    assert(isFourcueSingleTaskBlock(fourcueCfg, 'dual-canvas') === false,
+        'dual-canvas excluded even with fourcue cueMode');
+    assert(isFourcueSingleTaskBlock(fourcueCfg, 'alternating') === false,
+        'alternating excluded');
+    assert(isFourcueSingleTaskBlock(fourcueCfg, 'prp-baseline') === false,
+        'prp-baseline excluded');
+    assert(isFourcueSingleTaskBlock({ ...fourcueCfg, paradigm: 'dual-task' }, 'single-canvas') === false,
+        'dual-task paradigm excluded (task-tied hands) even on single-canvas layout');
+}
+
+// ============================================================
+section('deriveTargetCoherenceFields');
+{
+    // Single-canvas: T1 on channel 1, T2 on channel 2 of the SAME params object.
+    const scParams = { coh_mov_1: 0.7, coh_or_2: 0.4 };
+    const scFields = deriveTargetCoherenceFields('mov', 'or', scParams, scParams, 'single-task');
+    assert(scFields.t1_target_coherence === 0.7, 'single-canvas: t1 reads channel 1');
+    assert(scFields.t2_target_coherence === 0.4, 'single-canvas: t2 reads channel 2 (_2 suffix)');
+
+    // Dual-canvas: T1 and T2 are each their own canvas's channel 1.
+    const dcT1Params = { coh_mov_1: 0.6 };
+    const dcT2Params = { coh_or_1: 0.3 };
+    const dcFields = deriveTargetCoherenceFields('mov', 'or', dcT1Params, dcT2Params, 'dual-canvas');
+    assert(dcFields.t1_target_coherence === 0.6, 'dual-canvas: t1 reads its own channel 1');
+    assert(dcFields.t2_target_coherence === 0.3, 'dual-canvas: t2 reads ITS canvas channel 1 (_1 suffix, not _2)');
+
+    // task_1/task_2 falsy (prp-baseline's null T1, single-task's null T2):
+    // the corresponding key must be OMITTED, not set to undefined.
+    const nullT1Fields = deriveTargetCoherenceFields(null, 'or', scParams, scParams, 'single-task');
+    assert(!('t1_target_coherence' in nullT1Fields), 'null task_1: key omitted entirely');
+    assert(nullT1Fields.t2_target_coherence === 0.4, 'null task_1: t2 field still derived');
+
+    const nullT2Fields = deriveTargetCoherenceFields('mov', null, scParams, scParams, 'single-task');
+    assert(nullT2Fields.t1_target_coherence === 0.7, 'null task_2: t1 field still derived');
+    assert(!('t2_target_coherence' in nullT2Fields), 'null task_2: key omitted entirely');
+
+    // Ramp/QUEST-override interaction: runBlock writes its override into
+    // t1Params['coh_<task_1>_1'] BEFORE calling this function, so a value
+    // written there (simulating rampedCoherence/quest.getNextIntensity) must
+    // be what gets logged, not some pre-override value.
+    const overriddenParams = { coh_mov_1: 0.15 }; // e.g. rampedCoherence's early-ramp value
+    const overriddenFields = deriveTargetCoherenceFields('mov', null, overriddenParams, overriddenParams, 'single-task');
+    assert(overriddenFields.t1_target_coherence === 0.15,
+        'reads the post-override coherence value (ramp/QUEST write-then-read preserved)');
+}
+
+// ============================================================
 // Summary
 // ============================================================
 

@@ -393,9 +393,7 @@ const Session = (() => {
 	// Fourcue single-task blocks route keys + cue side per trial from meta.hand
 	// (see the single-canvas trial branch below). PRP (dual-task) is task-tied and
 	// excluded; disjoint has cueMode 'hue' and is untouched.
-	const fourcueSingleTask = blockConfig.cueMode === 'hue+position'
-	    && canvasType !== 'dual-canvas' && canvasType !== 'alternating'
-	    && canvasType !== 'prp-baseline' && blockConfig.paradigm !== 'dual-task';
+	const fourcueSingleTask = isFourcueSingleTaskBlock(blockConfig, canvasType);
 	const t1Side = blockConfig.t1Side ?? 'left';
 	let leftParent, rightParent;
 	if (canvasType === 'dual-canvas') {
@@ -469,9 +467,9 @@ const Session = (() => {
 
 	    // Resolve SE param objects: dual-canvas has leftSeParams/rightSeParams,
 	    // all other paradigms have a single seParams.
+	    const trialT1Side = trials[i].meta.t1Side ?? 'left';
 	    let t1Params, t2Params;
 	    if (canvasType === 'dual-canvas') {
-		const trialT1Side = trials[i].meta.t1Side ?? 'left';
 		t1Params = trialT1Side === 'left' ? trials[i].leftSeParams : trials[i].rightSeParams;
 		t2Params = trialT1Side === 'left' ? trials[i].rightSeParams : trials[i].leftSeParams;
 	    } else {
@@ -498,7 +496,6 @@ const Session = (() => {
 		    rampedCoherence(i, ramp.from, rampTo, ramp.rampLength ?? TRAINING_RAMP_LENGTH);
 	    }
             if (canvasType === 'dual-canvas') {
-                const trialT1Side = trials[i].meta.t1Side ?? 'left';
                 const leftTask = trialT1Side === 'left' ? trials[i].meta.t1_task : trials[i].meta.t2_task;
                 const rightTask = trialT1Side === 'left' ? trials[i].meta.t2_task : trials[i].meta.t1_task;
                 const { leftConfig, rightConfig } = buildDualCanvasSEConfigs(leftTask, rightTask, trials[i].meta.earlyResolve, feedback, acceptFirstResponse, computeDualCanvasSize(), blockConfig.mapping);
@@ -541,15 +538,7 @@ const Session = (() => {
 	    // id — so this column is the ONLY record of what the participant saw.
 	    // Null on the JS-generator path, which has no sequence to name.
 	    trialData.sequenceId = blockConfig.sequenceId ?? null;
-	    if (task_1) {
-		trialData.t1_target_coherence = t1Params["coh_" + task_1 + "_1"];
-	    }
-	    if (task_2) {
-		// Single-canvas: T2 is on channel 2 (_2 suffix).
-		// Dual-canvas: each canvas is independent, so T2 is on its own channel 1 (_1 suffix).
-		const t2Suffix = canvasType === 'dual-canvas' ? "_1" : "_2";
-		trialData.t2_target_coherence = t2Params["coh_" + task_2 + t2Suffix];
-	    }
+	    Object.assign(trialData, deriveTargetCoherenceFields(task_1, task_2, t1Params, t2Params, canvasType));
             prevResponseTime = performance.now();
 	    if (blockDef.runQuest) {
 		quest.update(newCoherence, trialData.accuracy1 === 'correct');

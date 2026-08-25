@@ -193,6 +193,17 @@ function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps
 }
 
 /**
+ * True when a block's per-trial hand (meta.hand) should drive key/cue-side
+ * routing: fourcue cueMode, and single-canvas (not dual-canvas/alternating/
+ * prp-baseline/dual-task, all of which are task- or side-tied instead).
+ */
+function isFourcueSingleTaskBlock(blockConfig, canvasType) {
+    return blockConfig.cueMode === 'hue+position'
+        && canvasType !== 'dual-canvas' && canvasType !== 'alternating'
+        && canvasType !== 'prp-baseline' && blockConfig.paradigm !== 'dual-task';
+}
+
+/**
  * Per-trial key maps for a SINGLE-TASK fourcue trial.
  *
  * The fourcue scheme decouples hand from task: the cued task is answered with the
@@ -447,6 +458,25 @@ function extractDualCanvasResponse(t1Data, t2Data, t1StimOnset, t2StimOnset, t1C
         responseOrder,
         rawKeyPresses: JSON.stringify({ t1: t1Data.keyPresses, t2: t2Data.keyPresses }),
     };
+}
+
+/**
+ * Read back the coherence actually written into a trial's SE params (post
+ * Quest/ramp override) for CSV logging. Single-canvas T2 lives on channel 2
+ * (_2 suffix); dual-canvas T2 is its own canvas's channel 1 (_1 suffix).
+ * Keys are omitted (not set to undefined) when the task is absent, matching
+ * how single-task/prp-baseline trials leave task_2 null.
+ */
+function deriveTargetCoherenceFields(task_1, task_2, t1Params, t2Params, canvasType) {
+    const fields = {};
+    if (task_1) {
+        fields.t1_target_coherence = t1Params['coh_' + task_1 + '_1'];
+    }
+    if (task_2) {
+        const t2Suffix = canvasType === 'dual-canvas' ? '_1' : '_2';
+        fields.t2_target_coherence = t2Params['coh_' + task_2 + t2Suffix];
+    }
+    return fields;
 }
 
 // ============================================================
