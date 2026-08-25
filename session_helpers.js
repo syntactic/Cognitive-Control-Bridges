@@ -53,36 +53,32 @@ const UNNATURAL_WASD = { 0: 'a', 90: 's', 180: 'd', 270: 'w' };
 // ============================================================
 // Response-set SCHEMES (Phase 2)
 // ============================================================
-// The SINGLE source of truth for everything that differs between the two
-// response-set schemes the canonical paradigms can run under. cpApplyScheme
-// (canonical_paradigms.js) stamps these fields onto every blockConfig at session
-// build time, and each consumer reads them off the blockConfig — nothing anywhere
-// branches on the scheme NAME. Adding a third scheme is a new entry here plus its
-// key/geometry constants, not new `if`s across the codebase.
+// SINGLE source of truth for what differs between the two response-set
+// schemes. cpApplyScheme (canonical_paradigms.js) stamps these fields onto
+// every blockConfig at session build time; nothing branches on the scheme
+// NAME anywhere else. A third scheme is a new entry here, not new `if`s.
 //
-// Self-contained on purpose: this file is loaded standalone by test_session.js /
-// test_quest.js, so the descriptor may reference only constants defined ABOVE
-// (the hand-key presets), never anything from canonical_paradigms.js. The disjoint
-// keyMaps below therefore duplicate CP_DISJOINT_KEY_MAPS (identical values); the
-// canonical copy stays the load-time default baked into the configs, and this copy
-// is what cpApplyScheme stamps at runtime.
+// Self-contained on purpose: loaded standalone by test_session.js/
+// test_quest.js, so this may reference only constants defined ABOVE (the
+// hand-key presets), never canonical_paradigms.js. The disjoint keyMaps below
+// duplicate CP_DISJOINT_KEY_MAPS on purpose — that file's copy is the
+// load-time default baked into configs; this one is what cpApplyScheme
+// stamps at runtime.
 //
 // Fields:
-//   geometry.levelToDeg — maps the SweetPea `target_dir` LEVELS ('left'/'right',
-//       abstract 2-level tags in the shared pool CSVs) to concrete SE angles.
-//       Horizontal for disjoint, vertical for fourcue. This is the ONE explicit
-//       geometry seam; assignDirections otherwise derives its direction pools from
-//       `keyMaps`, so the rest of the geometry falls out of the keys.
-//   keyMaps — { mov, or } direction->key maps; buildSEConfig consumes them directly.
-//   keyResolution — 'dimension-tied' (a key belongs to its dimension for good) vs
-//       'cue-driven' (the key comes from the cued hand, so both dimensions of a
-//       SINGLE-cue trial resolve onto that one hand — the substrate for a
-//       response-level Stroop effect). For task-tied PRP the two coincide; the
-//       difference only bites in single-cue bivalent trials. Drives TRAINING and
-//       the model; the runtime go-signal is the target's hand either way.
-//   cueMode — 'hue' (full border colored by task) vs 'hue+position' (border
-//       localized to the cued hand's half AND colored by task). The SE fork reads
-//       this to localize the cue.
+//   geometry.levelToDeg — maps SweetPea's abstract target_dir levels
+//       ('left'/'right') to concrete SE angles. Horizontal for disjoint,
+//       vertical for fourcue — the one explicit geometry seam; everything
+//       else falls out of `keyMaps` via assignDirections.
+//   keyMaps — { mov, or } direction->key maps; buildSEConfig consumes directly.
+//   keyResolution — 'dimension-tied' (a key stays with its dimension) vs
+//       'cue-driven' (key comes from the cued hand, so a single-cue trial's
+//       two dimensions can resolve onto one hand — the substrate for a
+//       response-level Stroop effect). Coincide under task-tied PRP; differ
+//       only in single-cue bivalent trials. Drives training/model, not the
+//       runtime go-signal (always the target's hand either way).
+//   cueMode — 'hue' (border colored by task) vs 'hue+position' (also
+//       localized to the cued hand's half; the SE fork reads this).
 const CP_SCHEMES = {
     disjoint: {
         name: 'disjoint',
@@ -574,7 +570,6 @@ function argMax(arr) {
 }
 
 function createQuest(priorMean, priorSD) {
-    // Private state — just local variables
     const numValues = 100;
     const logMin = Math.log10(0.01);
     const step = Math.abs(logMin / numValues);
@@ -601,8 +596,8 @@ function createQuest(priorMean, priorSD) {
 
     function computePrior(intensityAxis, priorMean, priorSD) {
         let logPrior = new Array(intensityAxis.length).fill(0);
-        // technically, log(priorSD) and 0.5 * log(2*pi) should be subtracted from each term, but since these
-        // are invariant across the loop, they don't affect the distribution in a significant way and can be ignored
+        // Drops the log(priorSD) and 0.5*log(2*pi) normalizing terms — constant
+        // across the loop, so they don't affect argMax.
         for (let i = 0; i < intensityAxis.length; i++) {
             logPrior[i] = -0.5 * ((intensityAxis[i] - priorMean) / priorSD) ** 2
         }
@@ -613,60 +608,39 @@ function createQuest(priorMean, priorSD) {
         return gamma + (1 - gamma - delta) * (1 - Math.exp(-(10**(beta * (x + epsilon)))));
     }
 
-    // We calculate this once and store it in the closure!
+    // s/f: log-likelihood of a correct/incorrect response, indexed by distance
+    // (in axis steps) between tested and hypothesis intensity. Padded to 201
+    // entries (±100 steps) so `update` can slide-and-index without bounds checks
+    // per hypothesis.
     const rulebooks = compute_s_and_f();
 
     function compute_s_and_f() {
-        // 1. Create the padded arrays. 
-        // If our main axis is 100 units, we need 201 units to safely slide all the way 
-        // from one end to the other without going out of bounds.
-        const padding = numValues; 
-        const size = (2 * padding) + 1; 
-        
+        const padding = numValues;
+        const size = (2 * padding) + 1;
         const s = new Array(size).fill(0);
         const f = new Array(size).fill(0);
-        
         for (let i = 0; i < size; i++) {
-            // 2. What is the physical distance this index represents?
-            // Index 'padding' (100) is the center, so (i - padding) gives us an offset 
-            // ranging from -100 to +100. Multiply by 'step' to get the log-distance!
-            let distance_x = (i - padding) * step;
-            
-            // 3. Get the raw probability from our canonical psychometric function
-            let p = psi(distance_x);
-            
-            // 4. Store the logs!
+            const distance_x = (i - padding) * step;
+            const p = psi(distance_x);
             s[i] = Math.log(p);
             f[i] = Math.log(1 - p);
         }
-        
         return { s, f };
     }
 
-
-    // Placeholder functions to avoid ReferenceErrors in the return object
     function getNextIntensity() {
         return 10**intensityAxis[argMax(qArray)];
     }
 
     function update(testedCoherence, wasCorrect) {
-        // 1. Convert the raw coherence to an internal array index
         const logIntensity = Math.log10(testedCoherence);
-
-        // Calculate how many 'steps' this log value is from our minimum log value
-        // Math.round ensures we snap to the nearest valid index in our array
         const testedIndex = Math.round((logIntensity - logMin) / step);
-
-        // 2. Pick the right rulebook (S for correct, F for incorrect)
         const arrayToUse = wasCorrect ? rulebooks.s : rulebooks.f;
-
-        // 3. Slide and add (with the corrected sign!)
         for (let i = 0; i < qArray.length; i++) {
-            // Distance is (Tested - Hypothesis) + Padding
-            let shiftIndex = (testedIndex - i) + numValues;
-
-            // Ensure we don't accidentally go out of bounds if testedCoherence
-            // was wildly outside our expected min/max range
+            // (testedIndex - i) is the hypothesis's distance from what was
+            // tested; + numValues re-centers it into the padded rulebook.
+            const shiftIndex = (testedIndex - i) + numValues;
+            // Guards a testedCoherence far outside the expected min/max.
             if (shiftIndex >= 0 && shiftIndex < arrayToUse.length) {
                 qArray[i] += arrayToUse[shiftIndex];
             }
@@ -678,7 +652,6 @@ function createQuest(priorMean, priorSD) {
         return 10**intensityAxis[argMax(likelihoodOnly)];
     }
 
-    // Return an object with methods that close over the state
     return {
         getNextIntensity,
         update,
