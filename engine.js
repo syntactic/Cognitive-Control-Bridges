@@ -191,6 +191,51 @@ function deriveTasksFromTransitions(transitionSequence, startTask) {
 }
 
 /**
+ * Derive task2 (and, for prp-baseline, re-derive task1) from an already-resolved
+ * task1 vector, per the paradigm and t2Rule. Shared by generateSequenceVectors
+ * (stochastic/factorial path) and loadSequenceVectors (SweetPea CSV path) so the
+ * derivation rule lives in exactly one place.
+ *
+ * @param {(string|null)[]} task1
+ * @param {number} n - length of the vectors (task1.length, but passed explicitly
+ *   since prp-baseline replaces task1 wholesale)
+ * @param {object} blockConfig - the block whose paradigm/t2Rule drive derivation
+ * @param {string} [errorPrefix] - prefix for the "unknown t2Rule" error message,
+ *   so each caller's thrown error keeps its own identifying text
+ * @returns {{ task1: (string|null)[], task2: (string|null)[] }}
+ */
+function deriveTask2Vector(task1, n, blockConfig, errorPrefix) {
+    const isDualTaskParadigm = blockConfig.paradigm === 'dual-task' || blockConfig.paradigm === 'dual-canvas';
+    const effectiveT2Rule = blockConfig.t2Rule
+        ?? (blockConfig.paradigm === 'dual-canvas' ? 'independent' : 'switch');
+
+    let resolvedTask1 = task1;
+    let task2;
+
+    if (isDualTaskParadigm) {
+        if (effectiveT2Rule === 'same') {
+            task2 = [...task1];
+        } else if (effectiveT2Rule === 'switch') {
+            task2 = task1.map(switchTask);
+        } else if (effectiveT2Rule === 'independent') {
+            // Always Random with switchRate 50 for truly independent T2 sampling
+            task2 = generateTaskSequence(n, 'Random', 50, null);
+        } else {
+            throw new Error(`${errorPrefix || ''}Unknown t2Rule: '${effectiveT2Rule}'`);
+        }
+    } else if (blockConfig.paradigm === 'prp-baseline') {
+        // Asterisk is T1 (null), actual task moves to T2
+        task2 = [...task1];
+        resolvedTask1 = Array(n).fill(null);
+    } else {
+        // Single-task or alternating: no T2
+        task2 = Array(n).fill(null);
+    }
+
+    return { task1: resolvedTask1, task2 };
+}
+
+/**
  * Phase 1: Sequence generation for all paradigms.
  * Resolves task identities, transitions, timing, and congruency into parallel vectors.
  *
@@ -290,30 +335,10 @@ function generateSequenceVectors(blockConfig, numTrials) {
         }
     }
 
-    // Resolve Task 2 based on paradigm and t2Rule
-    // Default: single-canvas PRP always switches T1->T2; dual-canvas defaults to independent
-    const effectiveT2Rule = blockConfig.t2Rule
-        ?? (blockConfig.paradigm === 'dual-canvas' ? 'independent' : 'switch');
-
-    if (isDualTaskParadigm) {
-        if (effectiveT2Rule === 'same') {
-            sequenceData.task2 = [...sequenceData.task1];
-        } else if (effectiveT2Rule === 'switch') {
-            sequenceData.task2 = sequenceData.task1.map(switchTask);
-        } else if (effectiveT2Rule === 'independent') {
-            // Always Random with switchRate 50 for truly independent T2 sampling
-            sequenceData.task2 = generateTaskSequence(numTrials, 'Random', 50, null);
-        } else {
-            throw new Error(`Unknown t2Rule: '${effectiveT2Rule}'`);
-        }
-    } else if (blockConfig.paradigm === 'prp-baseline') {
-        // Asterisk is T1 (null), actual task moves to T2
-        sequenceData.task2 = [...sequenceData.task1];
-        sequenceData.task1 = Array(numTrials).fill(null);
-    } else {
-        // Single-task or alternating: no T2
-        sequenceData.task2 = Array(numTrials).fill(null);
-    }
+    const { task1: derivedTask1, task2: derivedTask2 } =
+        deriveTask2Vector(sequenceData.task1, numTrials, blockConfig);
+    sequenceData.task1 = derivedTask1;
+    sequenceData.task2 = derivedTask2;
 
     // For dual-canvas, transitions reflect T1-vs-T2 match per trial,
     // not sequential task changes. Note: this overwrites any factorial-crossed
@@ -470,28 +495,10 @@ function loadSequenceVectors(csvText, blockConfig) {
         vectors.transition = classifyTransitions(vectors.task1);
     }
 
-    // Task 2 derivation — mirror generateSequenceVectors so the downstream
-    // assemblers are unchanged.
-    const isDualTaskParadigm = blockConfig.paradigm === 'dual-task' || blockConfig.paradigm === 'dual-canvas';
-    const effectiveT2Rule = blockConfig.t2Rule
-        ?? (blockConfig.paradigm === 'dual-canvas' ? 'independent' : 'switch');
-
-    if (isDualTaskParadigm) {
-        if (effectiveT2Rule === 'same') {
-            vectors.task2 = [...vectors.task1];
-        } else if (effectiveT2Rule === 'switch') {
-            vectors.task2 = vectors.task1.map(switchTask);
-        } else if (effectiveT2Rule === 'independent') {
-            vectors.task2 = generateTaskSequence(n, 'Random', 50, null);
-        } else {
-            throw new Error(`loadSequenceVectors: unknown t2Rule '${effectiveT2Rule}'`);
-        }
-    } else if (blockConfig.paradigm === 'prp-baseline') {
-        vectors.task2 = [...vectors.task1];
-        vectors.task1 = Array(n).fill(null);
-    } else {
-        vectors.task2 = Array(n).fill(null);
-    }
+    const { task1: derivedTask1, task2: derivedTask2 } =
+        deriveTask2Vector(vectors.task1, n, blockConfig, 'loadSequenceVectors: ');
+    vectors.task1 = derivedTask1;
+    vectors.task2 = derivedTask2;
 
     return vectors;
 }
