@@ -1,6 +1,5 @@
-// canonical_paradigms.js — Five canonical single-canvas cognitive-control paradigms
-//
-// Built to validate the individual paradigms (with proper counterbalancing) before
+// canonical_paradigms.js — Five canonical single-canvas cognitive-control paradigms,
+// built to validate each in isolation (with proper counterbalancing) before
 // trusting the novel task-switching<->PRP bridge.
 //
 //   1. PRP / dual-task                 — cp_prp
@@ -9,38 +8,30 @@
 //   4. Stroop (basic)                  — cp_stroop
 //   5. Stroop (crossed target x dist)  — cp_stroop_crossed
 //
-// ALL single canvas. Coherence is an explicit experimental factor — NO QUEST here.
-// Congruent/incongruent trials throughout.
+// All single-canvas. Coherence is an explicit factor — no QUEST. Congruent/
+// incongruent throughout.
 //
-// Response-key scheme — ONE disjoint, task-tied key layout across ALL FIVE
-// paradigms (movement = A/D left hand, orientation = J/L right hand):
-//   - PRP (#1) and switching (#2, #3): DISJOINT keys. Two tasks => two response
-//     sets. For PRP this is also what lets the response extractor separate T1 and
-//     T2 in the keypress stream.
-//   - Stroop (#4, #5): DISJOINT keys too, as of 2026-08-18 (Sebastian, l.147-160;
-//     RESPONSE_SET_PROBLEM.md §5). This unifies the key layout and the training
-//     across every paradigm so any behavioural difference is attributable to
-//     paradigm structure, not to how people were instructed. COST, accepted
-//     deliberately: the Stroop distractor now lands on keys the participant never
-//     presses, so there is no response-level conflict — Stroop reduces to
-//     DIMENSIONAL interference (weaker, and possibly absent for birds, since
-//     neither movement nor orientation is over-learned the way word-reading is).
-//     CP_IDENTICAL_KEY_MAPS (shared A/D) is retained below only to document the
-//     superseded design; nothing in these five paradigms references it any more.
+// Response keys: ONE disjoint, task-tied layout across all five paradigms
+// (movement = A/D left hand, orientation = J/L right hand). PRP/switching need
+// disjoint keys anyway (two tasks, two response sets — also what lets the
+// extractor separate T1/T2 in the keypress stream). Stroop got disjoint keys
+// too as of 2026-08-18 (Sebastian, l.147-160; RESPONSE_SET_PROBLEM.md §5), to
+// unify layout/training across paradigms. Cost, accepted deliberately: the
+// Stroop distractor now lands on keys never pressed, so Stroop reduces to
+// dimensional interference (weaker, possibly absent for birds since neither
+// dimension is over-learned like word-reading). CP_IDENTICAL_KEY_MAPS below
+// documents the superseded shared-key Stroop design; nothing references it now.
 //
-// Cost of the switching change, recorded deliberately: with task-tied disjoint
-// keys a task switch is ALWAYS also an effector switch, so key-level response
-// repetition can no longer be counterbalanced against task transition — the
-// measured switch cost is a task-switch-plus-effector-switch cost and cannot be
-// decomposed. Abstract (leftward/rightward) response repetition still can be,
-// and that is what `response_transition` in sweetpea/designs.py is derived
-// from. This conflicts with the counterbalancing rationale in Sebastian's
-// 2026-06-08 email; the policy here follows his 2026-07-31 l.49 instruction and
-// the conflict is unresolved.
+// Known unresolved conflict: task-tied disjoint keys mean a task switch is
+// always also an effector switch, so key-level response repetition can't be
+// counterbalanced against task transition (only abstract left/right repetition
+// can — response_transition in sweetpea/designs.py). This contradicts the
+// counterbalancing rationale in Sebastian's 2026-06-08 email; the code follows
+// his later 2026-07-31 l.49 instruction instead.
 //
-// The interim trial sequences come from the existing generator (engine.js). Final
-// counterbalancing — especially response_transition — is deferred to SweetPea; a CSV
-// loader will later replace generateSequenceVectors without touching these configs.
+// Trial sequences come from engine.js for now; final counterbalancing
+// (response_transition especially) is deferred to SweetPea, which will replace
+// generateSequenceVectors via a CSV loader without touching these configs.
 
 // ============================================================
 // Tunable constants (placeholders confirmed with Tim)
@@ -262,28 +253,25 @@ const cpStroopCrossed = {
 // ============================================================
 // SweetPea CSV wiring (condition + drawn sequence ids -> sequenceSource)
 // ============================================================
-// By DEFAULT the canonical sessions use the interim JS generator (above). A real
-// participant arrives at ?paradigm=<id>&condition=A|B (Prolific TaskFlow routes
-// one URL per cell), and index.html draws five sequence ids from that cell's pool
-// and calls cpApplySweetPea() to give each test block its own pre-generated,
-// counterbalanced CSV. The generator stays the fallback so demos and the other
-// paradigms are untouched.
+// Default is the interim JS generator above. A real participant arrives at
+// ?paradigm=<id>&condition=A|B (one Prolific URL per cell); index.html draws
+// five sequence ids from that cell's pool and calls cpApplySweetPea() to give
+// each test block its own pre-generated CSV. Generator stays the fallback for
+// demos and other paradigms.
 //
-// POOL, NOT PER-PARTICIPANT FILES. Every CSV in sequences/ is ONE complete,
-// independently balanced block, so any five of them make a balanced session and
-// no central assignment table is needed. The cost of having no table is that the
-// draw exists nowhere else: `sequenceId` is written into every output row (see
-// session.js's CSV columns), and if that is ever dropped, the record of what a
-// participant actually saw is gone for good.
+// Pool, not per-participant files: every CSV in sequences/ is one complete,
+// independently balanced block, so any five make a balanced session with no
+// central assignment table. Cost of no table: the draw exists nowhere else —
+// `sequenceId` is written into every output row, and losing that column loses
+// the record of what a participant saw, for good.
 //
-// Between-subjects assignment (which task is easy in asym switching; which
-// dimension is the target in Stroop/PRP) is baked into the CSV at the trial
-// level, but the client is not fully agnostic: cpApplySweetPea() must pick the
-// matching instruction text from `condition` for cp_prp, cp_stroop, and
-// cp_stroop_crossed (A = mov, B = or). The only coherence config that must
-// change for CSV mode is the asymmetric switcher: its CSV emits an
-// already-resolved target_coh_level (easy on the easy task), so we swap its
-// per-task table for a level-keyed one.
+// Between-subjects assignment (easy task in asym switching; target dimension
+// in Stroop/PRP) is baked into the CSV per-trial, but cpApplySweetPea() still
+// has to pick matching instruction text from `condition` for cp_prp,
+// cp_stroop, cp_stroop_crossed (A = mov, B = or). Only the asymmetric
+// switcher's coherence config needs swapping for CSV mode: its CSV emits an
+// already-resolved target_coh_level, so it needs a level-keyed table instead
+// of the per-task one.
 
 const CP_CSV_COHERENCE_OVERRIDES = {
     cp_taskswitch_asym: {
@@ -592,29 +580,21 @@ const CP_STROOP_INSTRUCTIONS = (task, keyMaps = CP_DISJOINT_KEY_MAPS) => {
 // ============================================================
 // Trial counts are full-length; Abridged mode (index.html) runs ~1/10 for fast testing.
 //
-// EVERY test session is CP_TEST_BLOCKS_PER_SESSION (5) blockDefs sharing one
-// blockConfig, each of which draws its own pool CSV on the participant path.
-// Three reasons, and the first is a bug fix:
+// Every test session is CP_TEST_BLOCKS_PER_SESSION (5) blockDefs sharing one
+// blockConfig, each drawing its own pool CSV. Why 5, not 1: (1) bug fix — the
+// break summary (runSession) only shows BETWEEN blocks and is skipped after a
+// training block, so a single-block session showed no summary at all, leaving
+// `feedback: false` with no speed-accuracy signal anywhere; (2) breaks are
+// meant to land every ~100 trials (Sebastian, 07-31) — five ~96-trial blocks
+// gives four breaks at that spacing; (3) one block = one pool CSV, so the
+// block boundary is the sequence boundary, nothing needs slicing.
 //
-//  1. The break summary is shown by runSession only BETWEEN blocks, and it
-//     skips the break after a `phase: 'training'` block. A one-block test session
-//     therefore showed NO summary at all — neither standalone (single block) nor
-//     appended to a training session (last block, no next block). That summary is
-//     the whole justification for `feedback: false` in CP_DEFAULTS, so with one
-//     block the participant got neither trial feedback nor a block summary: no
-//     speed-accuracy signal anywhere in the session.
-//  2. The session design calls for breaks after ~100 trials (Sebastian, 07-31).
-//     Five blocks of ~96 gives four breaks at exactly that spacing.
-//  3. Each block is one pool CSV, so the block boundary is also the sequence
-//     boundary — nothing has to slice a counterbalanced file into parts.
-//
-// BLOCK SIZES ARE NOT FREE. These blocks are `sequenceType: 'Factorial'`, and
-// generateFactorialSequence fills any shortfall below a whole number of
-// repetitions with RANDOMLY SAMPLED cells (engine.js ~line 163) — so a block
-// whose length is not a multiple of the crossing size silently unbalances the
-// design, exactly the way the factorial-ITI test bug did. Verified empirically
-// (200 replications per paradigm, observed cell counts, plus a negative control
-// at a deliberately bad length):
+// Block sizes are NOT free. These are `sequenceType: 'Factorial'`, and
+// generateFactorialSequence fills any shortfall below a whole crossing
+// repetition with randomly sampled cells (engine.js ~line 163) — a block
+// length that isn't a multiple of the crossing size silently unbalances the
+// design (verified empirically: 200 replications/paradigm, plus a negative
+// control at a deliberately bad length):
 //
 //     paradigm             crossing                                cells  block
 //     cp_prp               soa(3) x congruency(2)                    6      96
@@ -623,16 +603,15 @@ const CP_STROOP_INSTRUCTIONS = (task, keyMaps = CP_DISJOINT_KEY_MAPS) => {
 //     cp_stroop            congruency(2)                             2      96
 //     cp_stroop_crossed    congruency(2) x target(3) x distractor(3) 18     108
 //
-// These are the JS generator's crossings. SweetPea's are finer (it also crosses
-// target_dir: 12/16/8/4/36 — designs.CROSSING_SIZE), and the same block sizes are
-// whole multiples of those too, which is what makes one pool CSV one balanced
-// block. IF YOU CHANGE A TRIAL COUNT, recheck it against BOTH tables, and change
-// sweetpea/generate.py's DEFAULT_TRIALS with it — on the participant path the
-// CSV's row count wins and `numTrials` is ignored entirely.
+// JS-generator crossings shown; SweetPea's are finer (12/16/8/4/36,
+// designs.CROSSING_SIZE — it also crosses target_dir), and these block sizes
+// are whole multiples of those too, so one pool CSV = one balanced block.
+// Changing a trial count means rechecking both tables and updating
+// sweetpea/generate.py's DEFAULT_TRIALS — on the participant path the CSV's
+// row count wins and `numTrials` is ignored.
 //
-// Only the FIRST block carries instructions. Blocks 2..5 are preceded by the
-// break screen, which already says what it needs to; a second instruction screen
-// there would just be one more thing to dismiss.
+// Only the first block carries instructions; blocks 2-5 are preceded by the
+// break screen instead.
 
 /**
  * The test screen's cartoon. The SAME builder the paradigm's S8 uses, because a
@@ -703,27 +682,22 @@ const CP_STROOP_CROSSED_SESSION = cpTestBlocks(cpStroopCrossed, 108,
 // ============================================================
 // Training / shaping sessions
 // ============================================================
-// Each paradigm gets ONE participant-facing session: the shared shaping sequence
-// S2-S6 (buildSharedTrainingStages), then a shared PRP stage S7, then its own S8
-// (buildParadigmFinalStage), followed by its test block(s) (8 training steps total:
-// S2, S3, S3a, S3b, S4, S6, S7, S8). S1 and S5 are dropped.
-//
-// The shaping sequence has to be "exactly the same across all the paradigms",
-// read here as identical STRUCTURE, with the key maps and coherence levels
-// following each paradigm's own test block. That is why every spec below is
-// built from this file's own constants and nothing is hardcoded in
-// training_stages.js.
+// Each paradigm gets one participant-facing session: shared shaping S2-S6
+// (buildSharedTrainingStages), a shared PRP stage S7, its own S8
+// (buildParadigmFinalStage), then its test block(s) — 8 training steps total
+// (S1/S5 dropped). "Exactly the same across paradigms" is read as identical
+// STRUCTURE, with key maps/coherence following each paradigm's own test
+// block — every spec below is built from this file's constants, nothing
+// hardcoded in training_stages.js.
 
 // ------------------------------------------------------------
 // Instruction copy
 // ------------------------------------------------------------
 // Sebastian's standard: "you would like your grandmother to be able to do the
-// task" (07-31 l.59). Every screen says what is on the screen, what the
-// participant has to decide, and which keys — and from S4 on, what the border
-// means. The copy is GENERATED from the spec's key maps rather than written out
-// literally, because the maps differ by paradigm (disjoint task-tied
-// keys for switching/PRP, one shared A/D map for Stroop) and two copies of the
-// same sentence would drift apart.
+// task" (07-31 l.59) — every screen says what's on screen, what to decide,
+// which keys, and (from S4 on) what the border means. Copy is GENERATED from
+// the spec's key maps rather than written out literally, since maps differ by
+// paradigm and two hand-written copies of the same sentence would drift.
 
 // CP_DIRECTION_WORDS / CP_DIRECTION_ORDER and CP_LEFT_HAND_LETTERS /
 // CP_RIGHT_HAND_LETTERS used to live here. They moved up to the constants block
@@ -1185,15 +1159,11 @@ function cpFinalStageInstructions(keyMaps, finalStage, scheme) {
 }
 
 /** Prefix that turns a test block's own instructions into "practice is over". */
-// Lines kept under ~58 characters so neither wraps at .instructions-content's
-// max-width: 80% — this prefix is on all five test screens, so one wrapped line
-// here costs every one of them a line (analysis/measure_instructions.js).
-//
-// The `- - -` rule that used to sit under these two lines is gone (2026-08-23).
-// It was there to separate "practice is over" from the block's own copy, and the
-// test screens now carry a cartoon that separates them far more strongly. It was
-// also the most expensive decoration on the screen: two rendered lines (52 px) on
-// every one of the five, which is most of what the cartoon needed on cp_prp.
+// Lines kept under ~58 chars so neither wraps at .instructions-content's
+// max-width: 80% — this is on all five test screens, so one wrapped line here
+// costs every screen a line (analysis/measure_instructions.js). The `- - -`
+// rule that used to separate this from the block's own copy is gone
+// (2026-08-23): the cartoon now separates them better and freed 52px/screen.
 const CP_TEST_BLOCK_PREAMBLE =
     'Practice is over — the real task starts now.\n'
     + 'You will no longer be told whether each answer was right.\n\n';
@@ -1202,29 +1172,25 @@ const CP_TEST_BLOCK_PREAMBLE =
 // Per-paradigm training specs
 // ------------------------------------------------------------
 //
-// JUDGMENT CALL, flagged rather than promoted to a decision: `rampTarget` below
-// is the EASIEST coherence level that task carries in the test block, not the
-// hardest. The design only says S2-S4 ramp "down ... to the test levels", which
-// is ambiguous once a task has two of them. The easiest level is the safer
-// bottom because an S2/S3 cap failure is the pre-registered EXCLUSION rule: that
-// criterion has to mean "has not learned the mapping", not "finds 0.3 coherence
-// hard". Full-range exposure is S6's job, and S6 gets each test block's
-// coherence table verbatim below.
+// Judgment call, flagged rather than promoted to a decision: `rampTarget`
+// below is the EASIEST coherence level the task carries in the test block,
+// not the hardest — the design just says S2-S4 ramp "down to test levels",
+// ambiguous once a task has two. Easiest is the safer floor because an S2/S3
+// cap failure is the pre-registered exclusion rule, which has to mean "hasn't
+// learned the mapping" and not "finds 0.3 coherence hard"; full-range
+// exposure is S6's job (gets each test block's coherence table verbatim).
 //
-// Training also puts bivalent stimuli in front of all five paradigms, including
-// cp_prp, whose test block is univalent — so its S5/S6 use CP_DISTRACTOR. Like
-// the shared CSI, that is a cost of keeping training "identical across all the
-// paradigms".
+// Training also runs bivalent stimuli for all five paradigms, including
+// cp_prp whose test block is univalent — so its S5/S6 use CP_DISTRACTOR. A
+// cost, like the shared CSI, of keeping training identical across paradigms.
 
-// Stamp the active response-set scheme onto a blockConfig so every downstream
-// consumer reads it off the config: engine.js (geometry.levelToDeg for the CSV
-// path), buildSEConfig (keyMaps), session.js (cueMode for the cue renderer), and
-// the fork's key routing (keyResolution). Returns the config UNCHANGED when no
-// scheme is given — that is the disjoint default the load-time statics build
-// under, and it is why an un-stamped config still behaves exactly as Phase 1
-// (geometry undefined -> horizontal; cueMode undefined -> hue). The scheme is a
-// full descriptor passed in, so this never needs CP_SCHEMES and is safe at load
-// time. Shallow clone so the shared load-time config objects are never mutated.
+// Stamps the active response-set scheme onto a blockConfig so every
+// downstream consumer (engine.js geometry.levelToDeg, buildSEConfig keyMaps,
+// session.js cueMode, the fork's keyResolution routing) reads it off the
+// config instead of branching on scheme. Returns the config unchanged with
+// no scheme — the disjoint default the load-time statics build under, so an
+// un-stamped config still behaves like Phase 1. Shallow clone so the shared
+// load-time config objects are never mutated.
 function cpStampScheme(blockConfig, scheme) {
     if (!scheme) return blockConfig;
     return {
