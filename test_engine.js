@@ -2324,6 +2324,61 @@ assert(prpTrials[1].meta.t1_target_dir === 0 && prpTrials[1].meta.t2_target_dir 
 }
 
 // ============================================================
+section('loadSequenceVectors — t2Rule paths (same/independent/prp-baseline/unknown)');
+{
+    const dtCsv = [
+        'block_id,condition,trial_index,task,soa_level,congruency,target_dir',
+        'cp_prp,A,0,mov,100,congruent,left',
+        'cp_prp,A,1,or,300,incongruent,right',
+        'cp_prp,A,2,mov,600,congruent,right',
+    ].join('\n');
+    const dtCfgBase = {
+        paradigm: 'dual-task', rso: 'disjoint',
+        keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } },
+        iti: { type: 'fixed', value: 0 },
+        csi: 0, stimulusDuration: 100, responseWindow: 100,
+        coherence: { target: { mov: 0.8, or: 0.8 }, distractor: 0 },
+    };
+
+    // t2Rule: 'same' -> task2 mirrors task1 exactly
+    const sameVec = loadSequenceVectors(dtCsv, { ...dtCfgBase, t2Rule: 'same' });
+    assert(JSON.stringify(sameVec.task2) === JSON.stringify(sameVec.task1),
+        'loader t2Rule=same: task2 equals task1');
+
+    // t2Rule: 'independent' -> task2 is a fresh balanced Random sequence,
+    // independent of task1 (length matches, values valid).
+    const indepVec = loadSequenceVectors(dtCsv, { ...dtCfgBase, t2Rule: 'independent' });
+    assert(indepVec.task2.length === 3, 'loader t2Rule=independent: task2 length matches row count');
+    assert(indepVec.task2.every(t => t === 'mov' || t === 'or'),
+        'loader t2Rule=independent: task2 values are valid tasks');
+
+    // paradigm: 'prp-baseline' -> task1 nulled, task2 takes the CSV's task column
+    const blCsv = [
+        'block_id,condition,trial_index,task,congruency,target_dir',
+        'cp_prp_baseline,A,0,mov,congruent,left',
+        'cp_prp_baseline,A,1,or,incongruent,right',
+    ].join('\n');
+    const blCfg = {
+        paradigm: 'prp-baseline', rso: 'disjoint',
+        keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } },
+        iti: { type: 'fixed', value: 0 },
+        csi: 0, stimulusDuration: 100, responseWindow: 100,
+        coherence: { target: { mov: 0.8, or: 0.8 }, distractor: 0 },
+    };
+    const blVec = loadSequenceVectors(blCsv, blCfg);
+    assert(blVec.task1.every(t => t === null), 'loader prp-baseline: all task1 null');
+    assert(JSON.stringify(blVec.task2) === JSON.stringify(['mov', 'or']),
+        'loader prp-baseline: task2 takes CSV task column');
+
+    // unknown t2Rule -> throws loudly rather than silently resolving undefined
+    let threwUnknownT2 = false;
+    try {
+        loadSequenceVectors(dtCsv, { ...dtCfgBase, t2Rule: 'bogus_rule' });
+    } catch (e) { threwUnknownT2 = true; }
+    assert(threwUnknownT2, 'loader: unknown t2Rule throws');
+}
+
+// ============================================================
 section('integration — FOURCUE CSV (hand column, vertical geometry)');
 {
     // Vertical geometry + hand column — a fourcue-shaped taskswitch block. The
