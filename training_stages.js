@@ -1,32 +1,29 @@
 // training_stages.js — Generic builders for the training stages S2-S6 and S8
 //
-// The training design is a graded shaping sequence that is
-// structurally IDENTICAL across all five canonical paradigms — only the key maps,
-// the response-set organization, and the test-level coherences differ. This file
-// translates that stage table into code exactly once; each paradigm supplies those
-// differences through a `spec` object.
+// The training design is a graded shaping sequence, structurally IDENTICAL
+// across all five canonical paradigms — only key maps, response-set
+// organization, and test-level coherences differ, supplied per-paradigm via
+// a `spec` object.
 //
-// Deliberately loaded right after engine.js and BEFORE the config files, so a
-// config file (canonical_paradigms.js et al.) can call it at load time. Nothing in
-// here reads a global from a later-loading file at load time.
+// Loaded right after engine.js and BEFORE the config files, so a config file
+// (canonical_paradigms.js et al.) can call these builders at load time —
+// nothing here reads a global from a later-loading file.
 //
 // Scope: the shared single-task stages S2, S3, S3a, S3b, S4, S6
-// (buildSharedTrainingStages) and the paradigm-final S8 (buildParadigmFinalStage).
-// The shared dual-task PRP stage (S7) is assembled in cpBuildTrainingSession by
-// calling buildParadigmFinalStage(kind:'prp') for every paradigm — it is not built
-// here, because this builder emits only single-task stages.
-//   - There is NO S1. It was a static, unspeeded 8-trial key-mapping drill; it was
-//     dropped from the design 2026-08-25 (08-18 transcript l.92) because S2/S3 teach
-//     the same maps under time pressure. Its id is retired rather than reused, so
-//     the shared sequence now starts at S2 — the same "keep the id, tolerate a gap"
-//     convention S7/S8 already follow ('stage' is a CSV column).
-//   - There is NO S7. A comprehension check occupied that slot in the plan and was
-//     never built; it was removed from the design 2026-08-10 and nothing replaces
-//     it. S8 deliberately keeps its id rather than being renumbered: `stage` is a
-//     CSV column and a `kind` mapping here, so the gap is cheaper than the churn.
-//   - S8 is paradigm-specific by definition. Its builder lives
-//     here too, and takes the paradigm's differences through its own spec, so that
-//     no paradigm global is read at load time (see the load-order note above).
+// (buildSharedTrainingStages) and the paradigm-final S8
+// (buildParadigmFinalStage). The shared dual-task PRP stage S7 is assembled
+// separately, in cpBuildTrainingSession, by calling
+// buildParadigmFinalStage(kind:'prp') for every paradigm — not built here,
+// since this file's shared builder only emits single-task stages.
+//
+// Stage-id history: S1 (a static, unspeeded key-mapping drill) was dropped
+// 2026-08-25 (08-18 transcript l.92) since S2/S3 now teach the same maps
+// under time pressure — its id is retired, the sequence starts at S2. S7 was
+// originally slated for a comprehension check, removed from the design
+// 2026-08-10 without ever being built; its id was later reused for the
+// shared PRP stage above rather than retired like S1. S8 keeps its id
+// (`stage` is a CSV column plus a `kind` mapping here) rather than being
+// renumbered when S1/S5/S7 dropped out around it.
 //
 // canonical_paradigms.js calls both builders to assemble the five participant-
 // facing training + test sessions (CP_*_TRAINING_SESSION).
