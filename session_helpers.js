@@ -161,8 +161,8 @@ function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps
             orientationKeyMap: { ...keyMaps.or },
             size: 0.75,
             resolveDelay: RESOLVE_DELAY,
-	    acceptFirstResponse,
-	    feedback,
+            acceptFirstResponse,
+            feedback,
             earlyResolve,
             cueMode: cueMode || 'hue',
             movCueSide: seHandSideOf(keyMaps.mov),
@@ -175,8 +175,8 @@ function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps
             orientationKeyMap: { ...RIGHT_HAND_KEYS },
             size: 0.75,
             resolveDelay: RESOLVE_DELAY,
-	    acceptFirstResponse,
-	    feedback,
+            acceptFirstResponse,
+            feedback,
             earlyResolve
         };
     }
@@ -186,8 +186,8 @@ function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps
         orientationKeyMap: { ...LEFT_HAND_KEYS },
         size: 0.75,
         resolveDelay: RESOLVE_DELAY,
-	acceptFirstResponse,
-	feedback,
+        acceptFirstResponse,
+        feedback,
         earlyResolve
     };
 }
@@ -229,14 +229,14 @@ function buildDualCanvasSEConfigs(leftTask, rightTask, earlyResolve, feedback, a
     const { left: leftKeys, right: rightKeys } = handKeysForMapping(mapping);
     let leftConfig, rightConfig;
     if (leftTask === 'mov') {
-	leftConfig = { movementKeyMap: { ...leftKeys }, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
+        leftConfig = { movementKeyMap: { ...leftKeys }, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
     } else {
-	leftConfig = { orientationKeyMap: { ...leftKeys }, movementKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
+        leftConfig = { orientationKeyMap: { ...leftKeys }, movementKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
     }
     if (rightTask === 'mov') {
-	rightConfig = { movementKeyMap: { ...rightKeys }, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
+        rightConfig = { movementKeyMap: { ...rightKeys }, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
     } else {
-	rightConfig = { orientationKeyMap: { ...rightKeys }, movementKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
+        rightConfig = { orientationKeyMap: { ...rightKeys }, movementKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
     }
     return { leftConfig, rightConfig };
 }
@@ -254,7 +254,7 @@ function buildAlternatingSEConfig(task, side, earlyResolve, feedback, acceptFirs
     const handKeys = handKeysForMapping(mapping);
     const sideMapping = side === 'left' ? { ...handKeys.left } : { ...handKeys.right };
     if (task === 'mov') {
-	return { movementKeyMap: sideMapping, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
+        return { movementKeyMap: sideMapping, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
     }
     return { movementKeyMap: { ...DUMMY_KEYS }, orientationKeyMap: sideMapping, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
 }
@@ -317,24 +317,24 @@ function extractSingleStreamResponse(keyPresses, stimulusOnset, acceptFirstRespo
     let anticipations = 0;
 
     for (let i = 0; i < keyPresses.length; i++) {
-	const kp = keyPresses[i];
-	consumedCount = i + 1;
-	if (kp.time < stimulusOnset) {
-	    anticipations++;
-	    continue;
-	}
-	if (kp.isCorrect) {
-	    rt_raw = kp.time;
-	    accuracy = hadError ? 'corrected' : 'correct';
-	    break;
-	} else {
-	    hadError = true;
-	    accuracy = 'error';
-	    if (acceptFirstResponse) {
-		rt_raw = kp.time;
-		break;
-	    }
-	}
+        const kp = keyPresses[i];
+        consumedCount = i + 1;
+        if (kp.time < stimulusOnset) {
+            anticipations++;
+            continue;
+        }
+        if (kp.isCorrect) {
+            rt_raw = kp.time;
+            accuracy = hadError ? 'corrected' : 'correct';
+            break;
+        } else {
+            hadError = true;
+            accuracy = 'error';
+            if (acceptFirstResponse) {
+                rt_raw = kp.time;
+                break;
+            }
+        }
     }
 
     const rt = rt_raw !== null ? rt_raw - stimulusOnset : null;
@@ -370,33 +370,33 @@ function extractResponse(data, trial, seConfig) {
     const t2Onset = trial.meta.t2_stim_onset;
 
     if (keyMap) {
-	// Disjoint RSO: split keypresses by key set, extract independently
-	const t1Presses = keyPresses.filter(kp => keyMap.task1Keys.includes(kp.key));
-	const t2Presses = keyPresses.filter(kp => keyMap.task2Keys.includes(kp.key));
-	t1Result = extractSingleStreamResponse(t1Presses, t1Onset, seConfig.acceptFirstResponse);
-	t2Result = extractSingleStreamResponse(t2Presses, t2Onset, seConfig.acceptFirstResponse);
+        // Disjoint RSO: split keypresses by key set, extract independently
+        const t1Presses = keyPresses.filter(kp => keyMap.task1Keys.includes(kp.key));
+        const t2Presses = keyPresses.filter(kp => keyMap.task2Keys.includes(kp.key));
+        t1Result = extractSingleStreamResponse(t1Presses, t1Onset, seConfig.acceptFirstResponse);
+        t2Result = extractSingleStreamResponse(t2Presses, t2Onset, seConfig.acceptFirstResponse);
     } else {
-	// Identical RSO or single-task: temporal ordering
-	t1Result = extractSingleStreamResponse(keyPresses, t1Onset, seConfig.acceptFirstResponse);
-	if (isDualTask) {
-	    const remaining = keyPresses.slice(t1Result.consumedCount);
-	    t2Result = extractSingleStreamResponse(remaining, t2Onset, seConfig.acceptFirstResponse);
-	}
+        // Identical RSO or single-task: temporal ordering
+        t1Result = extractSingleStreamResponse(keyPresses, t1Onset, seConfig.acceptFirstResponse);
+        if (isDualTask) {
+            const remaining = keyPresses.slice(t1Result.consumedCount);
+            t2Result = extractSingleStreamResponse(remaining, t2Onset, seConfig.acceptFirstResponse);
+        }
     }
 
     return {
-	rt1_raw: t1Result.rt_raw,
-	rt1: t1Result.rt,
-	accuracy1: t1Result.accuracy,
-	anticipations1: t1Result.anticipations,
-	rt2_raw: isDualTask ? (t2Result.rt_raw ?? null) : null,
-	rt2: isDualTask ? (t2Result.rt ?? null) : null,
-	accuracy2: isDualTask ? (t2Result.accuracy ?? 'miss') : null,
-	anticipations2: isDualTask ? (t2Result.anticipations ?? 0) : null,
-	responseOrder: (isDualTask && t1Result.rt_raw !== null && t2Result.rt_raw !== null)
-	    ? (t1Result.rt_raw <= t2Result.rt_raw ? 'T1-first' : 'T2-first')
-	    : null,
-	rawKeyPresses: JSON.stringify(keyPresses),
+        rt1_raw: t1Result.rt_raw,
+        rt1: t1Result.rt,
+        accuracy1: t1Result.accuracy,
+        anticipations1: t1Result.anticipations,
+        rt2_raw: isDualTask ? (t2Result.rt_raw ?? null) : null,
+        rt2: isDualTask ? (t2Result.rt ?? null) : null,
+        accuracy2: isDualTask ? (t2Result.accuracy ?? 'miss') : null,
+        anticipations2: isDualTask ? (t2Result.anticipations ?? 0) : null,
+        responseOrder: (isDualTask && t1Result.rt_raw !== null && t2Result.rt_raw !== null)
+            ? (t1Result.rt_raw <= t2Result.rt_raw ? 'T1-first' : 'T2-first')
+            : null,
+        rawKeyPresses: JSON.stringify(keyPresses),
     };
 }
 
@@ -411,12 +411,12 @@ function extractAlternatingResponse(data, trial, seConfig) {
     const onset = trial.meta.t1_stim_onset ?? trial.meta.t2_stim_onset;
     const result = extractSingleStreamResponse(data.keyPresses, onset, seConfig.acceptFirstResponse);
     return {
-	rt1: result.rt,
-	rt1_raw: result.rt_raw,
-	accuracy1: result.accuracy,
-	anticipations1: result.anticipations,
-	rt2: null, rt2_raw: null, accuracy2: null, anticipations2: null,
-	rawKeyPresses: JSON.stringify(data.keyPresses),
+        rt1: result.rt,
+        rt1_raw: result.rt_raw,
+        accuracy1: result.accuracy,
+        anticipations1: result.anticipations,
+        rt2: null, rt2_raw: null, accuracy2: null, anticipations2: null,
+        rawKeyPresses: JSON.stringify(data.keyPresses),
     };
 }
 
@@ -426,16 +426,16 @@ function extractDualCanvasResponse(t1Data, t2Data, t1StimOnset, t2StimOnset, t1C
 
     let responseOrder = null;
     if (t1Result.rt_raw !== null && t2Result.rt_raw !== null) {
-	responseOrder = (t2Result.rt_raw - t1Result.rt_raw > 0) ? 'T1-first' : 'T2-first';
+        responseOrder = (t2Result.rt_raw - t1Result.rt_raw > 0) ? 'T1-first' : 'T2-first';
     }
 
     return {
-	rt1: t1Result.rt, rt1_raw: t1Result.rt_raw, accuracy1: t1Result.accuracy,
-	rt2: t2Result.rt, rt2_raw: t2Result.rt_raw, accuracy2: t2Result.accuracy,
-	anticipations1: t1Result.anticipations,
-	anticipations2: t2Result.anticipations,
-	responseOrder,
-	rawKeyPresses: JSON.stringify({ t1: t1Data.keyPresses, t2: t2Data.keyPresses }),
+        rt1: t1Result.rt, rt1_raw: t1Result.rt_raw, accuracy1: t1Result.accuracy,
+        rt2: t2Result.rt, rt2_raw: t2Result.rt_raw, accuracy2: t2Result.accuracy,
+        anticipations1: t1Result.anticipations,
+        anticipations2: t2Result.anticipations,
+        responseOrder,
+        rawKeyPresses: JSON.stringify({ t1: t1Data.keyPresses, t2: t2Data.keyPresses }),
     };
 }
 
@@ -525,10 +525,10 @@ function argMax(arr) {
     let currMax = Number.NEGATIVE_INFINITY;
     let maxIndex = 0;
     for (let i = 0; i < arr.length; i++) {
-	if (arr[i] >= currMax) {
-	    currMax = arr[i];
-	    maxIndex = i;
-	}
+        if (arr[i] >= currMax) {
+            currMax = arr[i];
+            maxIndex = i;
+        }
     }
     return maxIndex
 }
@@ -552,97 +552,97 @@ function createQuest(priorMean, priorSD) {
     const originalPrior = [ ...qArray ];
 
     function createAxis() {
-	const axis = new Array(numValues).fill(0);
-	for (let i = 0; i < axis.length; i++) {
-	    axis[i] = logMin + i * step;
-	}
-	return axis;
+        const axis = new Array(numValues).fill(0);
+        for (let i = 0; i < axis.length; i++) {
+            axis[i] = logMin + i * step;
+        }
+        return axis;
     }
 
     function computePrior(intensityAxis, priorMean, priorSD) {
-	let logPrior = new Array(intensityAxis.length).fill(0);
-	// technically, log(priorSD) and 0.5 * log(2*pi) should be subtracted from each term, but since these
-	// are invariant across the loop, they don't affect the distribution in a significant way and can be ignored
-	for (let i = 0; i < intensityAxis.length; i++) {
-	    logPrior[i] = -0.5 * ((intensityAxis[i] - priorMean) / priorSD) ** 2
-	}
-	return logPrior;
+        let logPrior = new Array(intensityAxis.length).fill(0);
+        // technically, log(priorSD) and 0.5 * log(2*pi) should be subtracted from each term, but since these
+        // are invariant across the loop, they don't affect the distribution in a significant way and can be ignored
+        for (let i = 0; i < intensityAxis.length; i++) {
+            logPrior[i] = -0.5 * ((intensityAxis[i] - priorMean) / priorSD) ** 2
+        }
+        return logPrior;
     }
 
     function psi(x) {
-	return gamma + (1 - gamma - delta) * (1 - Math.exp(-(10**(beta * (x + epsilon)))));
+        return gamma + (1 - gamma - delta) * (1 - Math.exp(-(10**(beta * (x + epsilon)))));
     }
 
     // We calculate this once and store it in the closure!
     const rulebooks = compute_s_and_f();
 
     function compute_s_and_f() {
-	// 1. Create the padded arrays. 
-	// If our main axis is 100 units, we need 201 units to safely slide all the way 
-	// from one end to the other without going out of bounds.
-	const padding = numValues; 
-	const size = (2 * padding) + 1; 
-	
-	const s = new Array(size).fill(0);
-	const f = new Array(size).fill(0);
-	
-	for (let i = 0; i < size; i++) {
-	    // 2. What is the physical distance this index represents?
-	    // Index 'padding' (100) is the center, so (i - padding) gives us an offset 
-	    // ranging from -100 to +100. Multiply by 'step' to get the log-distance!
-	    let distance_x = (i - padding) * step;
-	    
-	    // 3. Get the raw probability from our canonical psychometric function
-	    let p = psi(distance_x);
-	    
-	    // 4. Store the logs!
-	    s[i] = Math.log(p);
-	    f[i] = Math.log(1 - p);
-	}
-	
-	return { s, f };
+        // 1. Create the padded arrays. 
+        // If our main axis is 100 units, we need 201 units to safely slide all the way 
+        // from one end to the other without going out of bounds.
+        const padding = numValues; 
+        const size = (2 * padding) + 1; 
+        
+        const s = new Array(size).fill(0);
+        const f = new Array(size).fill(0);
+        
+        for (let i = 0; i < size; i++) {
+            // 2. What is the physical distance this index represents?
+            // Index 'padding' (100) is the center, so (i - padding) gives us an offset 
+            // ranging from -100 to +100. Multiply by 'step' to get the log-distance!
+            let distance_x = (i - padding) * step;
+            
+            // 3. Get the raw probability from our canonical psychometric function
+            let p = psi(distance_x);
+            
+            // 4. Store the logs!
+            s[i] = Math.log(p);
+            f[i] = Math.log(1 - p);
+        }
+        
+        return { s, f };
     }
 
 
     // Placeholder functions to avoid ReferenceErrors in the return object
     function getNextIntensity() {
-	return 10**intensityAxis[argMax(qArray)];
+        return 10**intensityAxis[argMax(qArray)];
     }
 
     function update(testedCoherence, wasCorrect) {
-	// 1. Convert the raw coherence to an internal array index
-	const logIntensity = Math.log10(testedCoherence);
+        // 1. Convert the raw coherence to an internal array index
+        const logIntensity = Math.log10(testedCoherence);
 
-	// Calculate how many 'steps' this log value is from our minimum log value
-	// Math.round ensures we snap to the nearest valid index in our array
-	const testedIndex = Math.round((logIntensity - logMin) / step);
+        // Calculate how many 'steps' this log value is from our minimum log value
+        // Math.round ensures we snap to the nearest valid index in our array
+        const testedIndex = Math.round((logIntensity - logMin) / step);
 
-	// 2. Pick the right rulebook (S for correct, F for incorrect)
-	const arrayToUse = wasCorrect ? rulebooks.s : rulebooks.f;
+        // 2. Pick the right rulebook (S for correct, F for incorrect)
+        const arrayToUse = wasCorrect ? rulebooks.s : rulebooks.f;
 
-	// 3. Slide and add (with the corrected sign!)
-	for (let i = 0; i < qArray.length; i++) {
-	    // Distance is (Tested - Hypothesis) + Padding
-	    let shiftIndex = (testedIndex - i) + numValues;
+        // 3. Slide and add (with the corrected sign!)
+        for (let i = 0; i < qArray.length; i++) {
+            // Distance is (Tested - Hypothesis) + Padding
+            let shiftIndex = (testedIndex - i) + numValues;
 
-	    // Ensure we don't accidentally go out of bounds if testedCoherence
-	    // was wildly outside our expected min/max range
-	    if (shiftIndex >= 0 && shiftIndex < arrayToUse.length) {
-		qArray[i] += arrayToUse[shiftIndex];
-	    }
-	}
+            // Ensure we don't accidentally go out of bounds if testedCoherence
+            // was wildly outside our expected min/max range
+            if (shiftIndex >= 0 && shiftIndex < arrayToUse.length) {
+                qArray[i] += arrayToUse[shiftIndex];
+            }
+        }
     }
 
     function getFinalEstimate() {
-	const likelihoodOnly = qArray.map((val, i) => val - originalPrior[i]);
-	return 10**intensityAxis[argMax(likelihoodOnly)];
+        const likelihoodOnly = qArray.map((val, i) => val - originalPrior[i]);
+        return 10**intensityAxis[argMax(likelihoodOnly)];
     }
 
     // Return an object with methods that close over the state
     return {
-	getNextIntensity,
-	update,
-	getFinalEstimate
+        getNextIntensity,
+        update,
+        getFinalEstimate
     };
 }
 
@@ -681,14 +681,14 @@ function summarizeAdvancementWindow(correctnessHistory, windowSize = 16, thresho
     const window = correctnessHistory.slice(-windowSize);
     const numCorrect = window.filter(Boolean).length;
     return {
-	windowLength: window.length,
-	numCorrect,
-	windowSize,
-	threshold,
-	accuracy: window.length > 0 ? numCorrect / window.length : null,
-	// A partial window cannot satisfy the criterion: before `windowSize`
-	// trials exist there is nothing to evaluate.
-	criterionMet: window.length >= windowSize && numCorrect >= threshold,
+        windowLength: window.length,
+        numCorrect,
+        windowSize,
+        threshold,
+        accuracy: window.length > 0 ? numCorrect / window.length : null,
+        // A partial window cannot satisfy the criterion: before `windowSize`
+        // trials exist there is nothing to evaluate.
+        criterionMet: window.length >= windowSize && numCorrect >= threshold,
     };
 }
 
@@ -721,10 +721,10 @@ function meetsAdvancementCriterion(correctnessHistory, windowSize = 16, threshol
 function isTrialCorrectForAdvancement(trialData) {
     let correct = true;
     if (trialData.accuracy1 != null) {
-	correct = correct && trialData.accuracy1.startsWith('correct');
+        correct = correct && trialData.accuracy1.startsWith('correct');
     }
     if (trialData.accuracy2 != null) {
-	correct = correct && trialData.accuracy2.startsWith('correct');
+        correct = correct && trialData.accuracy2.startsWith('correct');
     }
     return Boolean(correct);
 }
