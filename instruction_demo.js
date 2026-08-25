@@ -5,20 +5,18 @@
 // only on the stages whose copy is actually about the border. It is a diagram,
 // not a preview — nobody is meant to read a coherence level off it.
 //
-// WHY THIS DOES NOT CALL superExperiment.block(). Three blockers, any one fatal:
-//   1. `Game.oobCount` is a hardcoded 150 (fork src/game.js:36), not read from
-//      config, so SE cannot draw 8 objects without a fork change + bundle rebuild.
-//   2. `Timeline`'s constructor attaches a window keydown handler that is removed
-//      only when a NON-LOOPING block ends (fork src/trial.js:457-459). A demo under
-//      an instruction screen would compete with showInstructions' own "press any
-//      key" handler for the same keystroke, and a looping one would leak the
-//      handler for the rest of the session.
-//   3. `endBlock()` calls `cancelAllAnimationFrames()`, which cancels EVERY rAF id
-//      on the page, not just its own (fork block.js:128).
-// So this reimplements only what a still-life demo needs from the fork's
-// src/oob.js — position, velocity, the elliptical fade/respawn, sprite-frame
-// cycling — and uses the SAME sprite sheets the real task uses, so the demo birds
-// are literally the participant's birds.
+// Why this doesn't call superExperiment.block() — three blockers, any one fatal:
+//   1. `Game.oobCount` is hardcoded to 150 (fork src/game.js:36), not
+//      config-driven, so SE can't draw 8 objects without a fork rebuild.
+//   2. `Timeline`'s constructor attaches a window keydown handler removed only
+//      when a non-looping block ends (fork src/trial.js:457-459) — it would
+//      fight showInstructions' own "press any key" handler, or leak for
+//      looping demos.
+//   3. `endBlock()`'s `cancelAllAnimationFrames()` cancels EVERY rAF on the
+//      page, not just its own (fork block.js:128).
+// Reimplements only what a still-life needs from the fork's src/oob.js —
+// position, velocity, elliptical fade/respawn, sprite-frame cycling — using
+// the same sprite sheets, so the demo birds are the participant's birds.
 //
 // SPRITE SHEET GEOMETRY (from session.js loadSprites + fork src/oob.js +
 // bird_sprites/README.md). The bird sheets share the fish sheets' geometry exactly,
@@ -58,16 +56,14 @@ const DEMO_SOA_MS = 700;        // default gap before a `then` event (PRP)
 const DEMO_CUE_COLORS = { mov: '#fb0', or: '#0af' };
 
 // Pixel-art keycaps (Python/KeyboardAnimation/ai.py, `--scheme-frames`). Every
-// frame draws all four physical keycaps but PRINTS a letter only on the two keys
-// the scheme uses; the others are blank keycaps, so the physical layout is
-// preserved while unused keys carry no legend. Filenames list the two printed
-// keys as a lowercase pair in physical-cluster order (wasd=[W,A,S,D],
-// ijkl=[I,J,K,L]) — `ad`, `ws`, `jl`, `ik`. The bare pair is the idle (nothing
-// pressed) frame; a `_<PRESSED>` suffix marks the depressed key (`ad_A`, `ad_D`,
-// …). (A pure case toggle like `Ad.png` would collide with `ad.png` on a
-// case-insensitive filesystem — macOS's default — so the suffix disambiguates.)
-// The disjoint scheme uses the HORIZONTAL keys (a/d, j/l); the fourcue scheme
-// uses the VERTICAL keys (w/s, i/k) — hence the idle frame differs by scheme.
+// frame draws all four physical keycaps but prints a letter only on the two
+// the scheme uses, so unused keys stay blank while the physical layout holds.
+// Filenames are the two printed keys as a lowercase pair in physical-cluster
+// order (wasd=[W,A,S,D], ijkl=[I,J,K,L]) — `ad`, `ws`, `jl`, `ik` — idle with
+// no suffix, `_<PRESSED>` for the depressed key (`ad_A`, `ad_D`, …); the
+// suffix exists because `Ad.png` would collide with `ad.png` on macOS's
+// case-insensitive filesystem. Disjoint uses the horizontal keys (a/d, j/l),
+// fourcue the vertical ones (w/s, i/k) — hence the idle frame differs by scheme.
 const DEMO_KEY_IDLE = {
     wasd: { disjoint: 'frames_wasd/ad.png', fourcue: 'frames_wasd/ws.png' },
     ijkl: { disjoint: 'frames_ijkl/jl.png', fourcue: 'frames_ijkl/ik.png' },
@@ -466,16 +462,14 @@ function createInstructionDemo(spec, sprites) {
 }
 
 // ---- Placement on an instruction screen ------------------------------------
-// Where the cartoon lands used to be decided by showInstructions alone: insert
-// after the FIRST paragraph break and eat that break. That rule was written for
-// the training screens, every one of which opens with a "STEP n of 8 — title"
-// heading, so "after the first paragraph" means "under the heading".
+// Old rule: insert after the first paragraph break, eating it. Written for
+// training screens, which all open with a "STEP n of 8 — title" heading, so
+// "after the first paragraph" meant "under the heading".
 //
-// It does NOT generalize to the test screens. Those are prefixed at assembly
-// time with CP_TEST_BLOCK_PREAMBLE ("Practice is over ..."), whose own paragraph
-// break is the first one on the screen — so the same rule would drop the cartoon
-// between the preamble and its `- - -` divider, i.e. above the copy it
-// illustrates. Rather than special-case the preamble, copy can now name the spot
+// Doesn't generalize to test screens: they're prefixed at assembly time with
+// CP_TEST_BLOCK_PREAMBLE ("Practice is over..."), whose paragraph break is the
+// first on the screen, so the old rule would drop the cartoon above the copy
+// it illustrates. Instead of special-casing the preamble, copy names the spot
 // with a marker on its own line:
 //
 //     ...FACING?\n   Right hand: J = leftward, L = rightward.\n\n[[demo]]\n\nAnswer them...
