@@ -123,24 +123,19 @@ const Session = (() => {
         return new Promise(resolve => {
             const overlay = document.createElement('div');
             overlay.className = 'instructions-overlay';
-            // Whether the cartoon can actually be placed has to be settled BEFORE
-            // the copy is rendered, because a `[[demo]]` marker whose cartoon
-            // never arrives must not survive into the text the participant reads.
-            // The headless DOM stub in test_training.js has no querySelector (the
-            // same tell showBreak uses), and that is the intended degradation:
-            // the cartoon is pure presentation and no training assertion depends
-            // on it.
+            // Must know whether the cartoon can be placed BEFORE rendering the
+            // copy, so a `[[demo]]` marker never survives into the participant-
+            // facing text. test_training.js's headless DOM has no querySelector
+            // (same tell showBreak uses) — the cartoon is pure presentation and
+            // no training assertion depends on it.
             const willDemo = Boolean(demo && typeof overlay.querySelector === 'function');
             overlay.innerHTML =
                 `<div class="instructions-content">${instructionHtml(text, willDemo)}</div>`;
 
-            // The animated cartoon, if this screen has one. WHERE it lands is
-            // instruction_demo.js's business (placeInstructionDemo): a training
-            // screen carries no marker and takes the after-the-first-paragraph
-            // rule, eating that break — which is why it costs ~148 px of the
-            // height budget rather than its full height — while a test screen
-            // names the spot with `[[demo]]`, because its own first paragraph
-            // belongs to CP_TEST_BLOCK_PREAMBLE.
+            // Placement is instruction_demo.js's call (placeInstructionDemo): a
+            // training screen has no marker and eats the after-first-paragraph
+            // break instead; a test screen names the spot with `[[demo]]`
+            // since its first paragraph belongs to CP_TEST_BLOCK_PREAMBLE.
             let running = null;
             const content = overlay.firstElementChild;
             if (willDemo && content) {
@@ -150,10 +145,7 @@ const Session = (() => {
 
             const handler = () => {
                 document.removeEventListener('keydown', handler);
-                // Before the overlay goes: the cartoon owns an rAF loop and a
-                // handful of pending timers, and nothing else will stop them.
-                // Leaking one per screen would leave seven running under the
-                // first test block.
+                // The cartoon owns an rAF loop and timers nothing else stops.
                 if (running) running.stop();
                 overlay.remove();
                 resolve();
@@ -297,15 +289,10 @@ const Session = (() => {
 	const taskParent = taskSide === 'right' ? rightParent : leftParent;
 	const canvasId = 'canvas' + (taskSide === 'right' ? 'Right' : 'Left');
 
-	// S1 (the asterisk) and the task canvas both go up at trial onset. The SOA
-	// lives INSIDE the task canvas's timeline (applySOAOffset in
-	// generateSidedTrials), so it is delivered with frame accuracy and the two
-	// canvases are on screen together — exactly the layout the dual-canvas PRP
-	// condition presents. Previously this slept setTimeout(soa) and only THEN
-	// created the task canvas, which made the baseline SOA wall-clock-jittery
-	// and gave the baseline a canvas pop-in that real PRP trials do not have,
-	// contaminating the single-task RT reference this condition exists to
-	// provide.
+	// Both canvases go up at trial onset; the SOA lives INSIDE the task
+	// canvas's timeline (applySOAOffset in generateSidedTrials) rather than a
+	// setTimeout here, so it lands with frame accuracy and there's no
+	// canvas pop-in contaminating this condition's single-task RT reference.
 	const placeholder = document.createElement('div');
 	placeholder.style.cssText = 'width:100%; min-height:580px; display:flex; align-items:center; justify-content:center; font-size:6em; color:#888; background:#000;';
 	placeholder.textContent = '*';
@@ -434,7 +421,6 @@ const Session = (() => {
 	    canvasContainer.classList.toggle('dual-canvas-mode', false);
 	}
 
-        // Show instructions
         if (instructions) {
             await showInstructions(instructions, demo);
         }
@@ -460,7 +446,6 @@ const Session = (() => {
 	let blockOutcomes = [];
         for (let i = 0; i < trials.length && (!blockDef.isTraining || !meetsAdvancementCriterion(blockOutcomes, advancementWindow, advancementThreshold)); i++) {
             if (!isRunning) break;
-            // Update status display
             updateStatus(blockConfig.blockId, i + 1, trials.length, blockOrder);
 	    const task_1 = trials[i].meta.t1_task;
 	    const task_2 = trials[i].meta.t2_task;
@@ -547,7 +532,7 @@ const Session = (() => {
             allTrialData.push(trialData);
 
         }
-	// originally I ran getFinalEstimate here but in perfect blocks, subtracting the prior causes serious problems
+	// Not getFinalEstimate: in a near-perfect block, subtracting the prior back out is unstable.
 	if (blockDef.runQuest) {
 	    return quest.getNextIntensity();
 	}
