@@ -216,6 +216,26 @@ function fourcueSingleTaskKeyMaps(task, hand) {
 }
 
 /**
+ * One canvas's SE config: the active task gets `keys`, the other gets DUMMY_KEYS.
+ * Shared shape behind buildDualCanvasSEConfigs and buildAlternatingSEConfig.
+ *
+ * @param {string} task - 'mov' or 'or' — which pathway is active on this canvas
+ * @param {object} keys - key map for the active task (not yet spread)
+ * @param {{earlyResolve: boolean, feedback: boolean, acceptFirstResponse: boolean, size: number}} opts
+ */
+function makeCanvasSEConfig(task, keys, { earlyResolve, feedback, acceptFirstResponse, size }) {
+    const config = { size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
+    if (task === 'mov') {
+        config.movementKeyMap = { ...keys };
+        config.orientationKeyMap = { ...DUMMY_KEYS };
+    } else {
+        config.orientationKeyMap = { ...keys };
+        config.movementKeyMap = { ...DUMMY_KEYS };
+    }
+    return config;
+}
+
+/**
  * Build SE configs for simultaneous dual-canvas display.
  * Left canvas uses left-hand keys, right canvas uses right-hand keys.
  * The inactive pathway on each canvas gets dummy (unmatchable) keys.
@@ -227,18 +247,11 @@ function fourcueSingleTaskKeyMaps(task, hand) {
  */
 function buildDualCanvasSEConfigs(leftTask, rightTask, earlyResolve, feedback, acceptFirstResponse, size, mapping) {
     const { left: leftKeys, right: rightKeys } = handKeysForMapping(mapping);
-    let leftConfig, rightConfig;
-    if (leftTask === 'mov') {
-        leftConfig = { movementKeyMap: { ...leftKeys }, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
-    } else {
-        leftConfig = { orientationKeyMap: { ...leftKeys }, movementKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
-    }
-    if (rightTask === 'mov') {
-        rightConfig = { movementKeyMap: { ...rightKeys }, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
-    } else {
-        rightConfig = { orientationKeyMap: { ...rightKeys }, movementKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
-    }
-    return { leftConfig, rightConfig };
+    const opts = { earlyResolve, feedback, acceptFirstResponse, size };
+    return {
+        leftConfig: makeCanvasSEConfig(leftTask, leftKeys, opts),
+        rightConfig: makeCanvasSEConfig(rightTask, rightKeys, opts),
+    };
 }
 
 /**
@@ -252,11 +265,8 @@ function buildDualCanvasSEConfigs(leftTask, rightTask, earlyResolve, feedback, a
  */
 function buildAlternatingSEConfig(task, side, earlyResolve, feedback, acceptFirstResponse, size, mapping) {
     const handKeys = handKeysForMapping(mapping);
-    const sideMapping = side === 'left' ? { ...handKeys.left } : { ...handKeys.right };
-    if (task === 'mov') {
-        return { movementKeyMap: sideMapping, orientationKeyMap: { ...DUMMY_KEYS }, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
-    }
-    return { movementKeyMap: { ...DUMMY_KEYS }, orientationKeyMap: sideMapping, size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
+    const sideKeys = side === 'left' ? handKeys.left : handKeys.right;
+    return makeCanvasSEConfig(task, sideKeys, { earlyResolve, feedback, acceptFirstResponse, size });
 }
 
 // ============================================================
