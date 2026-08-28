@@ -1000,6 +1000,22 @@ assert(fbConfig2.acceptFirstResponse === true, 'buildSEConfig: acceptFirstRespon
 
 // ============================================================
 
+section('buildSEConfig — cueBorderStyle parameter');
+
+const testMovKeyMap = { 180: 'a', 0: 'd' };
+const testOrKeyMap = { 180: 'j', 0: 'l' };
+
+const solidConfig = buildSEConfig('disjoint', false, true, true, { mov: testMovKeyMap, or: testOrKeyMap }, 'hue', 'solid');
+assert(solidConfig.cueBorderStyle === 'solid', 'buildSEConfig: cueBorderStyle solid passed explicitly');
+
+const defaultKeyMapConfig = buildSEConfig('disjoint', false, true, true, { mov: testMovKeyMap, or: testOrKeyMap });
+assert(defaultKeyMapConfig.cueBorderStyle === 'solid', 'buildSEConfig: keyMaps config defaults cueBorderStyle to solid');
+
+const defaultIdenticalConfig = buildSEConfig('identical');
+assert(defaultIdenticalConfig.cueBorderStyle === 'segmented', 'buildSEConfig: identical RSO defaults to segmented');
+
+// ============================================================
+
 section('buildDualCanvasSEConfigs — feedback and acceptFirstResponse parameters');
 
 const { leftConfig: lcFb, rightConfig: rcFb } = buildDualCanvasSEConfigs('mov', 'or', false, true, false, TEST_SIZE);

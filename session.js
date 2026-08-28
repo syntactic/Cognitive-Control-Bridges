@@ -417,7 +417,7 @@ const Session = (() => {
 		preVec = vectors;
 	    }
 	    trials = generateBlockTrials(blockConfig, preVec ? preVec.task1.length : numTrials, preVec);
-	    seConfig = buildSEConfig(blockConfig.rso, blockConfig.earlyResolve, feedback, acceptFirstResponse, blockConfig.keyMaps, blockConfig.cueMode);
+	    seConfig = buildSEConfig(blockConfig.rso, blockConfig.earlyResolve, feedback, acceptFirstResponse, blockConfig.keyMaps, blockConfig.cueMode, blockConfig.cueBorderStyle);
 	    canvasContainer.classList.toggle('dual-canvas-mode', false);
 	}
 
@@ -502,7 +502,7 @@ const Session = (() => {
                     const km = fourcueSingleTaskKeyMaps(task_1, trials[i].meta.hand);
                     trialSeConfig = buildSEConfig(
                         blockConfig.rso, blockConfig.earlyResolve, feedback,
-                        acceptFirstResponse, km, blockConfig.cueMode);
+                        acceptFirstResponse, km, blockConfig.cueMode, blockConfig.cueBorderStyle);
                 }
                 trialData = await runTrial(trials[i], trialSeConfig, prevResponseTime);
             }

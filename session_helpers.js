@@ -86,6 +86,7 @@ const CP_SCHEMES = {
         keyMaps: { mov: { ...LEFT_HAND_KEYS }, or: { ...RIGHT_HAND_KEYS } },
         keyResolution: 'dimension-tied',
         cueMode: 'hue',
+        cueBorderStyle: 'solid',
         sequenceDir: 'sequences',
     },
     fourcue: {
@@ -94,6 +95,7 @@ const CP_SCHEMES = {
         keyMaps: { mov: { ...LEFT_HAND_KEYS_VERTICAL }, or: { ...RIGHT_HAND_KEYS_VERTICAL } },
         keyResolution: 'cue-driven',
         cueMode: 'hue+position',
+        cueBorderStyle: 'solid',
         sequenceDir: 'sequences_fourcue',
     },
     fourcue_cse: {
@@ -102,6 +104,7 @@ const CP_SCHEMES = {
         keyMaps: { mov: { ...LEFT_HAND_KEYS_VERTICAL }, or: { ...RIGHT_HAND_KEYS_VERTICAL } },
         keyResolution: 'cue-driven',
         cueMode: 'hue+position',
+        cueBorderStyle: 'solid',
         sequenceDir: 'sequences_fourcue_cse',
     },
 };
@@ -149,8 +152,9 @@ function seHandSideOf(keyMap) {
  *   into the SE config; the fork's game.js reads it to localize the border to the
  *   cued hand's half. `movCueSide`/`orCueSide` (inferred from the key hands) tell
  *   it which half.
+ * @param {string} [cueBorderStyle] - 'solid' or 'segmented'.
  */
-function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps, cueMode) {
+function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps, cueMode, cueBorderStyle) {
     if (keyMaps) {
         return {
             movementKeyMap: { ...keyMaps.mov },
@@ -161,6 +165,7 @@ function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps
             feedback,
             earlyResolve,
             cueMode: cueMode || 'hue',
+            cueBorderStyle: cueBorderStyle || 'solid',
             movCueSide: seHandSideOf(keyMaps.mov),
             orCueSide: seHandSideOf(keyMaps.or),
         };
@@ -173,7 +178,8 @@ function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps
             resolveDelay: RESOLVE_DELAY,
             acceptFirstResponse,
             feedback,
-            earlyResolve
+            earlyResolve,
+            cueBorderStyle: cueBorderStyle || 'segmented',
         };
     }
     // identical RSO (default, Hirsch)
@@ -184,7 +190,8 @@ function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps
         resolveDelay: RESOLVE_DELAY,
         acceptFirstResponse,
         feedback,
-        earlyResolve
+        earlyResolve,
+        cueBorderStyle: cueBorderStyle || 'segmented',
     };
 }
 
