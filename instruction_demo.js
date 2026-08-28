@@ -373,7 +373,7 @@ function createInstructionDemo(spec, sprites) {
             }
             ctx.fill();
         } else if (f.or === null) {
-            const t = 16;   // bird_neutral.png tile
+            const t = (sprites.imgDist.naturalWidth || sprites.imgDist.width) / 4;   // bird_neutral.png tile
             ctx.drawImage(sprites.imgDist, f.frame * t, f.variant * t, t, t,
                           f.x - s / 2, f.y - s / 2, s, s);
         } else if (f.or === 90 || f.or === 270) {
@@ -383,7 +383,7 @@ function createInstructionDemo(spec, sprites) {
             // that exactly so the cartoon birds face up/down the same way the real
             // stimulus does. Horizontal facing (0/180) keeps its baked-row path
             // below, unchanged, so the disjoint cartoon is untouched.
-            const t = 18;
+            const t = (sprites.img.naturalWidth || sprites.img.width) / 4;
             const rowIdx = f.variant * 2;   // right-facing row, then rotate
             ctx.save();
             ctx.translate(f.x, f.y);
@@ -392,7 +392,7 @@ function createInstructionDemo(spec, sprites) {
                           -s / 2, -s / 2, s, s);
             ctx.restore();
         } else {
-            const t = 18;   // bird_oriented.png tile
+            const t = (sprites.img.naturalWidth || sprites.img.width) / 4;   // bird_oriented.png tile
             const facingLeft = f.or > 90 && f.or < 270;
             const rowIdx = f.variant * 2 + (facingLeft ? 1 : 0);
             ctx.drawImage(sprites.img, f.frame * t, rowIdx * t, t, t,
