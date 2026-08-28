@@ -785,33 +785,20 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
           + 'them with your other hand. Each question has its own two keys and\n'
           + 'they never swap.';
 
-    // The border is NOT new at S4, and telling the participant it is makes the
-    // first thing they are taught about it false. SE schedules cue1 with go1 from
-    // trial onset on every stage, and game.js paints it at full opacity whenever
-    // its go signal is running, so an orange (S2/S3a) or blue (S3/S3b) border has
-    // been on screen for FOUR stages by the time S4 starts. What actually changes
-    // at S4 is that the border becomes (a) INFORMATIVE — two tasks are now mixed,
-    // so the color has something to disambiguate — and (b) PREDICTIVE, because
-    // cueCsi 200 puts it ahead of the stimulus where S2/S3/S3a/S3b ran at csi 0.
-    // The single-task stages therefore name the border and tell the participant to
-    // ignore it, and S4 introduces its MEANING rather than its existence.
+    // 2026-08-25 REORDER & 2026-08-27 CUE TIMING:
+    // Cues are suppressed in S2/S3 (single-task pathway) and S3a/S3b (Stroop) so
+    // no border is shown during early training. The colored border is introduced
+    // at S4 (task switching), where it becomes both informative and predictive.
     //
     // TRIMMED FOR THE DEMO (2026-08-17). Every screen carries an animated cartoon
     // (~148 px of a 598 px budget). Copy the cartoon SHOWS was cut; copy it cannot
     // show was kept. Re-run `node analysis/measure_instructions.js` after any edit.
-    //
-    // 2026-08-25 REORDER: Stroop (single-task conflict) moved up to S3a/S3b, right
-    // after learning each pathway, because Stroop is itself a single task. The old
-    // congruent-only S5 was dropped (conflict is no longer new by S6), and a shared
-    // PRP stage (S7) was added before the paradigm-final S8. Eight steps now.
     const S2 =
         'STEP 1 of 8 — the flying task.\n\n'
         + 'Your job: say which way the group of birds is FLYING.\n\n'
         + `  ${movLine}\n\n`
         + 'Answer as FAST as you can while still getting it right. The birds\n'
         + 'start out very easy to read and gradually get harder.\n\n'
-        + 'There is a colored border around the edge of the screen. It does\n'
-        + 'not mean anything yet — ignore it for now.\n\n'
         + 'This step continues until you are answering reliably, then moves on\n'
         + 'by itself. Press any key to begin.';
 
@@ -821,8 +808,6 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
         + `either ${vocab.eitherOr}.\n\n`
         + `  ${orLine}\n\n`
         + secondMapNote + '\n\n'
-        + 'The border is a different color this time. Still ignore it — it\n'
-        + 'becomes useful a little later.\n\n'
         + 'Again: as fast as you can while staying accurate. Press any key to begin.';
 
     // S3a/S3b: the Stroop stages. Conflict is FIRST introduced here, in the
@@ -846,14 +831,13 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
         + 'face. Ignore the flying — answer the FACING question only.\n\n'
         + 'Press any key to begin.';
 
-    // S4: the border becomes informative (two tasks mixed) and predictive (appears
-    // before the birds). CP_BORDER_LEGEND STAYS: this is where the colour mapping is
-    // taught, and a participant who misreads the cartoon has nothing else.
+    // S4: the border is introduced as a new component to tell the participant
+    // which question to answer, appearing just before the birds (predictive CSI).
     const S4 =
-        'STEP 5 of 8 — the border now tells you what to do.\n\n'
+        'STEP 5 of 8 — a colored border now tells you what to do.\n\n'
         + 'From now on the two questions are mixed, and can change every trial.\n\n'
-        + 'The border you have been ignoring is what tells you which — and it\n'
-        + 'now appears just BEFORE the birds, so you can get ready.\n\n'
+        + 'A colored border now appears just BEFORE the birds to tell you which\n'
+        + 'question to answer, so you can get ready:\n\n'
         + legend + '\n\n'
         + bothLines + '\n\n'
         + 'Press any key to begin.';

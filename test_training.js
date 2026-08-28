@@ -315,6 +315,7 @@ for (const [stage, task, level] of [['S2', 'mov', 0.8], ['S3', 'or', 0.3]]) {
     assert(s.isTraining === true, `${stage} is a criterion stage`);
     assert(s.numTrials === undefined, `${stage} sets no numTrials (runBlock uses TRAINING_CAP)`);
     assert(s.blockConfig.csi === 0, `${stage} runs at CSI 0`);
+    assert(s.blockConfig.cueDuration === 0, `${stage} suppresses cues (cueDuration: 0)`);
     assert(s.blockConfig.switchRate === 0, `${stage} is a pure single task`);
     assert(s.blockConfig.task1 === task, `${stage} trains the ${task} task`);
     assert(s.blockConfig.congruency.conditions.join() === 'univalent', `${stage} is univalent`);
@@ -328,6 +329,7 @@ section('buildSharedTrainingStages — S4 (cue introduction)');
 assert(byStage.S4.isTraining === true, 'S4 is a criterion stage');
 assert(byStage.S4.blockConfig.csi > 0, 'S4 CSI is positive — the cue is an advance signal');
 assert(byStage.S4.blockConfig.csi === 200, 'S4 uses the default cue-training CSI');
+assert(byStage.S4.blockConfig.cueDuration === undefined, 'S4 does not suppress cues');
 assert(byStage.S4.blockConfig.switchRate === 50, 'S4 mixes both tasks');
 assert(byStage.S4.blockConfig.startTask === null, 'S4 does not fix the starting task');
 assert(byStage.S4.blockConfig.congruency.conditions.join() === 'univalent', 'S4 is still univalent');
@@ -347,6 +349,7 @@ for (const [stage, task, level] of [['S3a', 'mov', 0.8], ['S3b', 'or', 0.3]]) {
     assert(s.blockConfig.switchRate === 0, `${stage} never switches — the defining Stroop feature`);
     assert(s.blockConfig.task1 === task, `${stage} sustains the ${task} task`);
     assert(s.blockConfig.csi === 0, `${stage} runs at CSI 0 (border not yet predictive)`);
+    assert(s.blockConfig.cueDuration === 0, `${stage} suppresses cues (cueDuration: 0)`);
     assert(s.blockConfig.congruency.conditions.join() === 'congruent,incongruent',
         `${stage} pits the task against a congruent/incongruent distractor`);
     assert(s.blockConfig.coherence.distractor === 0.5, `${stage} shows the distractor at test level`);
@@ -1301,31 +1304,25 @@ assert(prpDemo.segments.every(seg => Array.isArray(seg.then.border)
     && seg.then.border.length === 2),
     'cp_prp/S8: both cues are on screen once the second stimulus arrives');
 
-section('canonical sessions — the border is introduced honestly (not "new" at S4)');
+section('canonical sessions — the border is introduced at S4');
 
-// SE schedules cue1 with go1 from trial onset on EVERY stage and game.js paints
-// it at full opacity while its go signal runs, so a colored border is on screen
-// throughout S2-S3. The copy used to tell participants at S4 that "a colored
-// border appears" — the first thing they are taught about the border, and false.
-// What actually changes at S4 is that it becomes informative (two tasks are now
-// mixed) and predictive (cueCsi 200 puts it ahead of the stimulus).
+// Cues are suppressed in S2/S3/S3a/S3b (cueDuration: 0), so no colored border
+// is painted during early single-task training. The colored border is introduced
+// at S4, where it becomes informative (tasks are mixed) and predictive (appears
+// just before the birds).
 for (const id of Object.keys(CP_EXPECTED)) {
     for (const stage of ['S2', 'S3']) {
         const text = stageOf(id, stage).instructions;
-        assert(/border/i.test(text),
-            `${id}/${stage}: names the border that is already on screen`);
-        assert(/ignor/i.test(text),
-            `${id}/${stage}: tells the participant to ignore it for now`);
+        assert(!/border/i.test(text),
+            `${id}/${stage}: does not mention a border because cues are suppressed`);
         assert(!/ORANGE|BLUE/.test(text),
-            `${id}/${stage}: but does NOT yet give it a meaning — that is S4's job`);
+            `${id}/${stage}: does not mention border colors`);
     }
     const s4 = stageOf(id, 'S4').instructions;
-    assert(!/border appears|a colored border appears/i.test(s4),
-        `${id}/S4: does not claim the border is new — it has been there since S2`);
-    assert(/been ignoring/i.test(s4),
-        `${id}/S4: refers back to the border the participant already knows`);
+    assert(/colored border/i.test(s4),
+        `${id}/S4: introduces the colored border`);
     assert(/BEFORE the birds/.test(s4),
-        `${id}/S4: states the other real change — the border now precedes the stimulus`);
+        `${id}/S4: states that the border now appears just BEFORE the birds`);
 }
 
 // One vocabulary for one object. S2-S4 said "frame" and S5/S6/S8 + the legend

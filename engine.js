@@ -656,7 +656,7 @@ function buildTimingParams(spec) {
     // differ: cue lasts through the stimulus, go window is responseWindow ms
     // from stimulus onset. Matches convert.py's effective_start_go1 = cue1.
     timingParams.start_1 = 0;
-    timingParams.dur_1 = spec.csi + spec.dur_ch1;
+    timingParams.dur_1 = (spec.cueDuration !== undefined) ? spec.cueDuration : (spec.csi + spec.dur_ch1);
     timingParams.start_go_1 = 0;
     timingParams.dur_go_1 = spec.csi + spec.responseWindow;
 
@@ -673,7 +673,7 @@ function buildTimingParams(spec) {
         // full CSI of its own — cue2 used to open at csi+soa (with S2), giving
         // T2 no prep interval at all.
         timingParams.start_2 = spec.soa;
-        timingParams.dur_2 = spec.csi + spec.dur_ch2;
+        timingParams.dur_2 = (spec.cueDuration !== undefined) ? spec.cueDuration : (spec.csi + spec.dur_ch2);
         timingParams.start_go_2 = spec.soa;
         timingParams.dur_go_2 = spec.csi + spec.responseWindow;
 
@@ -883,6 +883,7 @@ function generateBlockTrials(blockConfig, numTrials, preloadedVectors = null) {
             dur_ch1: blockConfig.stimulusDuration,
             dur_ch2: isDualTask ? blockConfig.stimulusDuration : 0,
             soa: soa ?? 0,
+            cueDuration: blockConfig.cueDuration,
             responseWindow: blockConfig.responseWindow,
             coherence: resolvedCoherence,
             dir: dir,

@@ -171,10 +171,11 @@ function buildSharedTrainingStages(spec) {
         demo: demoFor(stage),
     });
 
-    // Single-task pathway stages (S2, S3): univalent, CSI 0, coherence ramped from
-    // ceiling down to that task's test level.
+    // Single-task pathway stages (S2, S3): univalent, CSI 0, cue suppressed (cueDuration: 0),
+    // coherence ramped from ceiling down to that task's test level.
     const pathwayStage = (stage, task) => criterionStage(stage, {
         csi: 0,
+        cueDuration: 0,
         switchRate: 0,
         startTask: task,
         task1: task,
@@ -188,15 +189,11 @@ function buildSharedTrainingStages(spec) {
     // (the defining feature of Stroop, vs. the switching stages below); the
     // distractor makes the stimulus bivalent; both congruencies introduce
     // response conflict. No ramp — S2/S3 already brought the target to test level,
-    // and the distractor sits at its own test level. This is where conflict is
-    // FIRST met, in the simplest possible setting (2026-08-25 reorder: Stroop is a
-    // single task, so it belongs with the single-task stages, before switching).
+    // and the distractor sits at its own test level. Cues are suppressed (cueDuration: 0)
+    // because the task is sustained and known in advance.
     const stroopStage = (stage, task) => criterionStage(stage, {
-        // csi 0 (like S2/S3): with only one task on screen the border has nothing
-        // to predict, so it stays a non-predictive same-onset border here. The
-        // PREDICTIVE cue is still first introduced at S4, keeping that narrative
-        // intact — S2, S3, S3a, S3b all run at csi 0.
         csi: 0,
+        cueDuration: 0,
         switchRate: 0,
         startTask: task,
         task1: task,
