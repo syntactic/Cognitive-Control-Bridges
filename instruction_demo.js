@@ -1,41 +1,39 @@
 // instruction_demo.js — the animated stimulus cartoon shown on instruction screens.
 //
-// A *simplified* depiction of the task: 8 birds instead of the real display's 150,
+// A simplified depiction of the task: 8 birds instead of the real display's 150,
 // in a 150 px box instead of the full 600 px canvas, with the cue border drawn
-// only on the stages whose copy is actually about the border. It is a diagram,
-// not a preview — nobody is meant to read a coherence level off it.
+// only on the stages whose copy is about the border. It's a diagram, not a
+// preview — nobody is meant to read a coherence level off it.
 //
-// Why this doesn't call superExperiment.block() — three blockers, any one fatal:
-//   1. `Game.oobCount` is hardcoded to 150 (fork src/game.js:36), not
-//      config-driven, so SE can't draw 8 objects without a fork rebuild.
+// Why it doesn't call superExperiment.block() — three blockers, any one fatal:
+//   1. `Game.oobCount` is hardcoded to 150 (fork src/game.js:36), so SE can't
+//      draw 8 objects without a fork rebuild.
 //   2. `Timeline`'s constructor attaches a window keydown handler removed only
-//      when a non-looping block ends (fork src/trial.js:457-459) — it would
-//      fight showInstructions' own "press any key" handler, or leak for
-//      looping demos.
-//   3. `endBlock()`'s `cancelAllAnimationFrames()` cancels EVERY rAF on the
-//      page, not just its own (fork block.js:128).
-// Reimplements only what a still-life needs from the fork's src/oob.js —
-// position, velocity, elliptical fade/respawn, sprite-frame cycling — using
-// the same sprite sheets, so the demo birds are the participant's birds.
+//      when a non-looping block ends (fork src/trial.js:457-459) — it would fight
+//      showInstructions' own "press any key" handler, or leak for looping demos.
+//   3. `endBlock()`'s `cancelAllAnimationFrames()` cancels every rAF on the page,
+//      not just its own (fork block.js:128).
+// So it reimplements just what a still-life needs from the fork's src/oob.js —
+// position, velocity, elliptical fade/respawn, sprite-frame cycling — using the
+// same sprite sheets, so the demo birds are the participant's birds.
 //
-// SPRITE SHEET GEOMETRY (from session.js loadSprites + fork src/oob.js +
-// bird_sprites/README.md). The bird sheets share the fish sheets' geometry exactly,
-// so the tile math below is unchanged:
+// Sprite sheet geometry (from session.js loadSprites + fork src/oob.js +
+// bird_sprites/README.md); the bird sheets share the fish sheets' geometry, so the
+// tile math below is unchanged:
 //   bird_oriented.png  72x72 -> 4 cols x 4 rows of 18 px;
 //                      row = variant*2 + (facing left ? 1 : 0)
 //   bird_neutral.png   64x32 -> 4 cols x 2 rows of 16 px
-// SE draws the NEUTRAL (head-on) sprite whenever a trial's orientation pathway
-// never fires (Oob.drawNonOrientated), which is exactly the univalent movement
-// stimulus. Passing `orientation: null` here reproduces that for free, so S1/S2
-// show birds that fly without also facing anywhere — as their copy promises.
+// SE draws the neutral (head-on) sprite whenever a trial's orientation pathway
+// never fires (Oob.drawNonOrientated) — the univalent movement stimulus. Passing
+// `orientation: null` here reproduces that for free, so the movement-only stages
+// show birds that fly without facing anywhere, as their copy promises.
 
 // ---- Layout ---------------------------------------------------------------
-// 150 px is "about a quarter of the screen" (of the 600 px canvas) and is the
-// largest box that leaves every instruction screen inside its height budget.
-// RAISING IT OVERFLOWS SCREENS, which is a correctness bug and not a cosmetic
-// one: showInstructions dismisses on ANY keydown, so a screen taller than the
-// canvas cannot be scrolled — Space starts the block. Re-run
-// `node analysis/measure_instructions.js` after changing this.
+// 150 px is about a quarter of the 600 px canvas, and the largest box that keeps
+// every instruction screen inside its height budget. Raising it overflows screens,
+// which is a correctness bug, not a cosmetic one: showInstructions dismisses on
+// any keydown, so a screen taller than the canvas can't be scrolled — Space starts
+// the block. Re-run `node analysis/measure_instructions.js` after changing this.
 const INSTRUCTION_DEMO_PX = 150;
 // Backing store, larger than the display box so sprites stay crisp. All geometry
 // below is in these units.
@@ -56,14 +54,14 @@ const DEMO_SOA_MS = 700; // default gap before a `then` event (PRP)
 const DEMO_CUE_COLORS = { mov: '#fb0', or: '#0af' };
 
 // Pixel-art keycaps (Python/KeyboardAnimation/ai.py, `--scheme-frames`). Every
-// frame draws all four physical keycaps but prints a letter only on the two
-// the scheme uses, so unused keys stay blank while the physical layout holds.
-// Filenames are the two printed keys as a lowercase pair in physical-cluster
-// order (wasd=[W,A,S,D], ijkl=[I,J,K,L]) — `ad`, `ws`, `jl`, `ik` — idle with
-// no suffix, `_<PRESSED>` for the depressed key (`ad_A`, `ad_D`, …); the
-// suffix exists because `Ad.png` would collide with `ad.png` on macOS's
-// case-insensitive filesystem. Disjoint uses the horizontal keys (a/d, j/l),
-// fourcue the vertical ones (w/s, i/k) — hence the idle frame differs by scheme.
+// frame draws all four physical keycaps but letters only the two the scheme uses,
+// so unused keys stay blank while the physical layout holds. Filenames are the two
+// printed keys as a lowercase pair in physical-cluster order (wasd=[W,A,S,D],
+// ijkl=[I,J,K,L]) — `ad`, `ws`, `jl`, `ik` — idle with no suffix, `_<PRESSED>` for
+// the depressed key (`ad_A`, `ad_D`, …). The uppercase suffix avoids `Ad.png`
+// colliding with `ad.png` on macOS's case-insensitive filesystem. Disjoint uses
+// the horizontal keys (a/d, j/l), fourcue the vertical ones (w/s, i/k), so the
+// idle frame differs by scheme.
 const DEMO_KEY_IDLE = {
     wasd: { disjoint: 'frames_wasd/ad.png', fourcue: 'frames_wasd/ws.png' },
     ijkl: { disjoint: 'frames_ijkl/jl.png', fourcue: 'frames_ijkl/ik.png' },
@@ -118,7 +116,7 @@ class DemoBird {
     }
 
     /**
-     * Apply a segment's stimulus state. A non-signal birds takes a random
+     * Apply a segment's stimulus state. A non-signal bird takes a random
      * direction rather than the target one — the same thing SE's coherence does
      * (coherence 0 randomises direction; it does not hide the object).
      * `undefined` leaves a pathway untouched, which is how a `then` event can
@@ -141,7 +139,7 @@ class DemoBird {
             this.frame = (this.frame + 1) % 4;
         }
         // The dt < 64 guard mirrors the fork's Oob.update: a backgrounded tab
-        // returns a huge delta that would teleport every birds off screen at once.
+        // returns a huge delta that would teleport every bird off screen at once.
         if (this.mov !== null && dt < 64) {
             const rad = (this.mov * Math.PI) / 180;
             this.x += (Math.cos(rad) * DEMO_SPEED * dt) / 1000;
@@ -167,8 +165,8 @@ class DemoBird {
  *   {
  *     count?:     how many birds (default 8)
  *     coherence?: 0..1, fraction carrying the signal (default 1)
- *     taskWords?: { mov, or } words printed under each keycap cluster (08-18 l.105).
- *                 Defaults to { mov:'flying', or:'facing' }.
+ *     taskWords?: { mov, or } words printed under each keycap cluster.
+ *                 Defaults to { mov: 'flying', or: 'facing' }.
  *     segments:   [ Segment, ... ] played in order, then looped
  *   }
  *   Segment = {
@@ -217,11 +215,8 @@ function createInstructionDemo(spec, sprites) {
     const ctx = canvas.getContext('2d');
     row.appendChild(canvas);
 
-    // The task WORD printed under each keycap cluster (advisor 08-18 l.105: "print
-    // the task name beneath the key cluster it belongs to"). The words track the
-    // FLYING/FACING copy; cpTrainingDemos passes them so the vocabulary lives in
-    // one place, and this default keeps a standalone demo (or the abstract preview)
-    // labelled sensibly.
+    // The task word printed under each keycap cluster (e.g. "flying" vs "facing").
+    // Tracks the copy provided by cpTrainingDemos to keep vocabulary aligned.
     const taskWords = spec.taskWords || { mov: 'flying', or: 'facing' };
 
     // Work out which keyboard graphics this demo needs, in first-use order. A
@@ -502,26 +497,22 @@ function createInstructionDemo(spec, sprites) {
 }
 
 // ---- Placement on an instruction screen ------------------------------------
-// Old rule: insert after the first paragraph break, eating it. Written for
-// training screens, which all open with a "STEP n of 8 — title" heading, so
-// "after the first paragraph" meant "under the heading".
-//
-// Doesn't generalize to test screens: they're prefixed at assembly time with
-// CP_TEST_BLOCK_PREAMBLE ("Practice is over..."), whose paragraph break is the
-// first on the screen, so the old rule would drop the cartoon above the copy
-// it illustrates. Instead of special-casing the preamble, copy names the spot
-// with a marker on its own line:
+// The copy names the cartoon's spot with a marker on its own line:
 //
 //     ...FACING?\n   Right hand: J = leftward, L = rightward.\n\n[[demo]]\n\nAnswer them...
 //
-// The marker is consumed whether or not a demo is supplied, so a screen that
-// carries one is safe to render without one (the audit harness measures both,
-// and a blockDef whose demo is null still reads correctly).
+// The fallback for screens with no marker is to insert after the first paragraph
+// break (see placeInstructionDemo). That fallback was written for training
+// screens, which open with a "STEP n of 8 — title" heading; it breaks on test
+// screens, which are prefixed with CP_TEST_BLOCK_PREAMBLE, so the cartoon would
+// land above the copy it illustrates. The explicit marker avoids special-casing
+// the preamble. It's consumed whether or not a demo is supplied, so a screen that
+// carries the marker renders correctly with or without one.
 const INSTRUCTION_DEMO_ANCHOR = '[[demo]]';
 const INSTRUCTION_DEMO_ANCHOR_CLASS = 'demo-anchor';
-// Any run of newlines around the marker collapses to ONE <br> before the cartoon
-// and none after — the same spacing the eat-a-paragraph-break rule produces, so
-// an anchored screen costs exactly what an unanchored one does.
+// Any run of newlines around the marker collapses to one <br> before the cartoon
+// and none after — the same spacing the after-first-paragraph fallback produces,
+// so an anchored screen costs exactly what an unanchored one does.
 const INSTRUCTION_DEMO_ANCHOR_RE = /\n*\[\[demo\]\]\n*/;
 
 /**
@@ -544,18 +535,16 @@ function instructionHtml(text, hasDemo) {
 }
 
 /**
- * Build the cartoon and put it in its place inside an already-rendered
- * `.instructions-content`. Anchored screens win; screens with no marker keep the
- * original behaviour (after the first paragraph break, which it eats), which is
- * what every S2-S8 training screen relies on.
+ * Build the cartoon and place it inside an already-rendered
+ * `.instructions-content`. A marker wins if present; otherwise it goes after the
+ * first paragraph break (consuming it), which the S2-S8 training screens rely on.
  *
  * Shared by showInstructions (session.js) and the height audit
- * (analysis/measure_instructions.html) so the two cannot drift — the audit
- * measuring a different placement from the one that ships is the failure this
- * consolidation exists to prevent.
+ * (analysis/measure_instructions.html) so the two can't drift — the audit
+ * measuring a different placement than ships is the failure this prevents.
  *
- * @returns {{element: HTMLElement, stop: function}} the running demo — the
- *   CALLER MUST call stop(); it owns an rAF loop and timers.
+ * @returns {{element: HTMLElement, stop: function}} the running demo — the caller
+ *   must call stop(); it owns an rAF loop and timers.
  */
 function placeInstructionDemo(content, demo, sprites) {
     const running = createInstructionDemo(demo, sprites);

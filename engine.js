@@ -74,9 +74,8 @@ function generateTaskSequence(numTrials, sequenceType, switchRate, startTask = n
             sequence.push(Math.random() < switchRate / 100 ? switchTask(prev) : prev);
         }
     } else if (sequenceType === 'AABB') {
-        // Alternating runs of 2: mov, mov, or, or, mov, mov, ...
+        // Runs of 2: mov, mov, or, or, mov, mov, ... — switch every second trial.
         for (let i = 1; i < numTrials; i++) {
-            // Switch every 2 trials
             if (i % 2 === 0) {
                 sequence.push(switchTask(sequence[i - 1]));
             } else {
@@ -224,18 +223,17 @@ function deriveTask2Vector(task1, n, blockConfig, errorPrefix) {
         } else if (effectiveT2Rule === 'switch') {
             task2 = task1.map(switchTask);
         } else if (effectiveT2Rule === 'independent') {
-            // Always Random with switchRate 50 for truly independent T2 sampling
+            // Random @ switchRate 50 samples T2 independently of T1.
             task2 = generateTaskSequence(n, 'Random', 50, null);
         } else {
             throw new Error(`${errorPrefix || ''}Unknown t2Rule: '${effectiveT2Rule}'`);
         }
     } else if (blockConfig.paradigm === 'prp-baseline') {
-        // Asterisk is T1 (null), actual task moves to T2
+        // Asterisk is T1 (null); the actual task moves to T2.
         task2 = [...task1];
         resolvedTask1 = Array(n).fill(null);
     } else {
-        // Single-task or alternating: no T2
-        task2 = Array(n).fill(null);
+        task2 = Array(n).fill(null); // single-task or alternating: no T2
     }
 
     return { task1: resolvedTask1, task2 };
@@ -717,12 +715,12 @@ function buildDirectionParams(spec) {
 function buildTimingParams(spec) {
     const timingParams = {};
 
-    // Cue and go SHARE an onset: SE draws the cue border at zero-alpha whenever
+    // Cue and go share an onset: SE draws the cue border at zero-alpha whenever
     // its go signal is inactive (game.js draw(), '#fb00'/'#0af0'), so a cue
-    // starting before go would be invisible. Starting go_1 with the cue — not
-    // the stimulus — is what makes CSI a visible prep interval. Ends still
-    // differ: cue lasts through the stimulus, go window is responseWindow ms
-    // from stimulus onset. Matches convert.py's effective_start_go1 = cue1.
+    // starting before go would be invisible. Starting go_1 with the cue — not the
+    // stimulus — is what makes CSI a visible prep interval. Their ends still
+    // differ: the cue lasts through the stimulus, the go window is responseWindow
+    // ms from stimulus onset. Matches convert.py's effective_start_go1 = cue1.
     timingParams.start_1 = 0;
     timingParams.dur_1 =
         spec.cueDuration !== undefined ? spec.cueDuration : spec.csi + spec.dur_ch1;
@@ -784,9 +782,8 @@ function buildTrialParams(spec) {
         ...buildDirectionParams(spec),
     };
 
-    // Zero out duration for pathways with coh=0.
-    // The SE package renders coh=0 as visible random noise, not invisible.
-    // Zeroing duration is the only way to truly silence a pathway.
+    // Silence coh=0 pathways by zeroing their duration. SE renders coh=0 as
+    // visible random noise, not as nothing, so zero duration is the only way off.
     if (params.coh_mov_1 === 0) {
         params.start_mov_1 = 0;
         params.dur_mov_1 = 0;
@@ -804,16 +801,11 @@ function buildTrialParams(spec) {
         params.dur_or_2 = 0;
     }
 
-    // Recompute ch2 relative offsets AFTER zeroing.
-    //
-    // SE chains ch2 stimulus timing off ch1 counterparts:
-    //   mov2_absolute = start_mov_2 + mov1.end
-    //   or2_absolute  = start_or_2  + or1.end
-    //
-    // buildTimingParams computed offsets assuming ch1 counterparts have their
-    // full duration. But zeroing silenced pathways (coh=0 -> dur=0) changes
-    // their end times to 0. We must recompute offsets using the actual
-    // post-zeroing ch1 end times so SE places ch2 stimuli correctly.
+    // Recompute ch2 offsets after zeroing. SE chains ch2 stimulus timing off its
+    // ch1 counterpart (mov2_absolute = start_mov_2 + mov1.end, likewise for or).
+    // buildTimingParams assumed ch1 had its full duration, but zeroing a silenced
+    // pathway moved its end to 0, so the offsets must be recomputed against the
+    // actual post-zeroing ch1 ends for SE to place ch2 correctly.
     if (spec.task2 !== null) {
         const mov1End = params.start_mov_1 + params.dur_mov_1;
         const or1End = params.start_or_1 + params.dur_or_1;
@@ -1086,12 +1078,12 @@ function applySOAOffset(params, offset) {
 }
 
 // TODO: dual-canvas trials are always univalent (one task per canvas, no
-// distractors) — within-canvas congruency isn't wired up. Would need a
-// per-canvas congruency config feeding buildSingleCanvasSpec's distractor
-// dir, the way assignDirections does for single-canvas. Also not done: a
-// "dual-PRP" where each canvas runs a full two-channel PRP trial itself —
-// architecturally fine (each canvas is its own SE instance) but needs a
-// four-key-per-canvas response scheme participants don't have fingers for.
+// distractors); within-canvas congruency isn't wired up. It would need a
+// per-canvas congruency config feeding buildSingleCanvasSpec's distractor dir,
+// as assignDirections does for single-canvas. Also unbuilt: a "dual-PRP" where
+// each canvas runs its own two-channel PRP trial — feasible (each canvas is its
+// own SE instance) but it needs four keys per canvas, more than a participant has
+// fingers for.
 
 /**
  * Generates trial objects for dual-canvas PRP blocks.

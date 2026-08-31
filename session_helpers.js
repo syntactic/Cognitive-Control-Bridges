@@ -5,10 +5,10 @@
 // Key mapping constants
 // ============================================================
 
-// How long the SE library keeps a trial alive after an earlyResolve response,
-// in ms — enough for the feedback flash to land. Passed into every SE config so
-// the library and the ITI bookkeeping in session.js cannot drift apart: the
-// runner subtracts this to recover the moment the participant actually responded.
+// How long (ms) the SE library keeps a trial alive after an earlyResolve response
+// — enough for the feedback flash. Passed into every SE config so the library and
+// session.js's ITI bookkeeping stay in sync: the runner subtracts this to recover
+// the moment the participant actually responded.
 const RESOLVE_DELAY = 150;
 
 // Horizontal 2-direction presets (parallel / spatially-compatible S-R)
@@ -16,19 +16,17 @@ const LEFT_HAND_KEYS = { 180: 'a', 0: 'd' };
 const RIGHT_HAND_KEYS = { 180: 'j', 0: 'l' };
 const DUMMY_KEYS = { 180: '!', 0: '!' };
 
-// Orthogonal 2-direction presets: VERTICAL stimulus directions (90=up, 270=down)
-// mapped onto the HORIZONTAL a/d, j/l keys. This deliberately removes any spatial
-// correspondence between stimulus and response. Contrast with NATURAL_WASD below,
-// which is the parallel (spatially-compatible) vertical mapping (up='w', down='s').
+// Orthogonal 2-direction presets: vertical stimulus directions (90=up, 270=down)
+// on the horizontal a/d, j/l keys, removing any spatial stimulus-response
+// correspondence. Contrast NATURAL_WASD below, the parallel vertical mapping.
 const LEFT_HAND_KEYS_ORTHOGONAL = { 90: 'a', 270: 'd' };
 const RIGHT_HAND_KEYS_ORTHOGONAL = { 90: 'j', 270: 'l' };
 
-// Vertical 2-direction presets for the four-cue scheme (90=up, 270=down) mapped
-// onto the physically-vertical W/S (left hand) and I/K (right hand) keys — a
-// PARALLEL vertical S-R mapping. Distinct from the *_ORTHOGONAL presets, which
-// put up/down onto the horizontal A/D, J/L keys. Deriving a task's direction pool
-// from these keys yields [90, 270], which is what makes the fourcue stimulus
-// vertical without any separate geometry flag in the generator.
+// Vertical presets for the four-cue scheme: up/down on the physically-vertical
+// W/S (left) and I/K (right) keys — a parallel vertical mapping, unlike the
+// *_ORTHOGONAL presets. A task's direction pool derived from these keys is
+// [90, 270], which makes the fourcue stimulus vertical with no separate geometry
+// flag in the generator.
 const LEFT_HAND_KEYS_VERTICAL = { 90: 'w', 270: 's' };
 const RIGHT_HAND_KEYS_VERTICAL = { 90: 'i', 270: 'k' };
 
@@ -51,34 +49,33 @@ const NATURAL_IJKL = { 0: 'l', 90: 'i', 180: 'j', 270: 'k' };
 const UNNATURAL_WASD = { 0: 'a', 90: 's', 180: 'd', 270: 'w' };
 
 // ============================================================
-// Response-set SCHEMES (Phase 2)
+// Response-set schemes (Phase 2)
 // ============================================================
-// SINGLE source of truth for what differs between the two response-set
-// schemes. cpApplyScheme (canonical_paradigms.js) stamps these fields onto
-// every blockConfig at session build time; nothing branches on the scheme
-// NAME anywhere else. A third scheme is a new entry here, not new `if`s.
+// Single source of truth for what differs between the response-set schemes.
+// cpApplyScheme (canonical_paradigms.js) stamps these fields onto every
+// blockConfig at session build time; nothing else branches on the scheme name. A
+// third scheme is a new entry here, not new `if`s.
 //
-// Self-contained on purpose: loaded standalone by test_session.js/
-// test_quest.js, so this may reference only constants defined ABOVE (the
-// hand-key presets), never canonical_paradigms.js. The disjoint keyMaps below
-// duplicate CP_DISJOINT_KEY_MAPS on purpose — that file's copy is the
-// load-time default baked into configs; this one is what cpApplyScheme
-// stamps at runtime.
+// Self-contained: loaded standalone by test_session.js/test_quest.js, so it may
+// reference only constants defined above (the hand-key presets), never
+// canonical_paradigms.js. The disjoint keyMaps below duplicate
+// CP_DISJOINT_KEY_MAPS — that file's copy is the load-time default baked into
+// configs, this one is what cpApplyScheme stamps at runtime.
 //
 // Fields:
 //   geometry.levelToDeg — maps SweetPea's abstract target_dir levels
-//       ('left'/'right') to concrete SE angles. Horizontal for disjoint,
-//       vertical for fourcue — the one explicit geometry seam; everything
-//       else falls out of `keyMaps` via assignDirections.
-//   keyMaps — { mov, or } direction->key maps; buildSEConfig consumes directly.
+//       ('left'/'right') to SE angles. Horizontal for disjoint, vertical for
+//       fourcue — the one explicit geometry seam; the rest falls out of `keyMaps`
+//       via assignDirections.
+//   keyMaps — { mov, or } direction->key maps; consumed directly by buildSEConfig.
 //   keyResolution — 'dimension-tied' (a key stays with its dimension) vs
-//       'cue-driven' (key comes from the cued hand, so a single-cue trial's
-//       two dimensions can resolve onto one hand — the substrate for a
-//       response-level Stroop effect). Coincide under task-tied PRP; differ
-//       only in single-cue bivalent trials. Drives training/model, not the
-//       runtime go-signal (always the target's hand either way).
-//   cueMode — 'hue' (border colored by task) vs 'hue+position' (also
-//       localized to the cued hand's half; the SE fork reads this).
+//       'cue-driven' (key comes from the cued hand, so a single-cue trial's two
+//       dimensions can resolve onto one hand — the substrate for a response-level
+//       Stroop effect). These coincide under task-tied PRP and differ only on
+//       single-cue bivalent trials. Drives training/model, not the runtime
+//       go-signal (always the target's hand).
+//   cueMode — 'hue' (border colored by task) vs 'hue+position' (also localized to
+//       the cued hand's half; read by the SE fork).
 const CP_SCHEMES = {
     disjoint: {
         name: 'disjoint',
@@ -347,30 +344,25 @@ function buildKeyTaskMap(seConfig, trial) {
 // ============================================================
 
 /**
- * Extract RT and accuracy from a single keypress stream.
- * This is the shared core logic used by all response extractors.
+ * Extract RT and accuracy from a single keypress stream. Shared core used by all
+ * the response extractors. Walks presses in order:
+ *   - before stimulus onset → counted as anticipations and skipped
+ *   - first correct press → record RT, classify 'correct' or 'corrected'
+ *   - incorrect presses before a correct one → tracked as errors
+ *   - no correct press → 'error' (if any presses) or 'miss' (if none)
  *
- * Walks through keypresses in order:
- *   - Presses landing before the imperative stimulus → counted as anticipations
- *     and skipped (they cannot be a response to a stimulus that is not on screen)
- *   - First correct press → record RT, classify as 'correct' or 'corrected'
- *   - Incorrect presses before a correct → track as errors
- *   - No correct press found → 'error' (if any presses) or 'miss' (if none)
- *
- * Skipping anticipations matters most under acceptFirstResponse, which otherwise
- * takes the very first keypress no matter when it arrived: on a dual-canvas trial
- * the T2 canvas sits blank for one SOA, so a twitch during that window was being
- * recorded as the T2 response with a NEGATIVE rt, and the participant's real
- * response was then thrown away.
+ * Skipping anticipations matters under acceptFirstResponse, which otherwise takes
+ * the first keypress whenever it arrived: on a dual-canvas trial the T2 canvas is
+ * blank for one SOA, so a twitch in that window was being recorded as the T2
+ * response with a negative rt, discarding the real response.
  *
  * @param {Array} keyPresses - array of { key, time, isCorrect }
- * @param {number} stimulusOnset - onset of the imperative stimulus, in the same
- *   canvas-local ms as kp.time. This is the RT zero point. It is deliberately NOT
- *   the go-signal onset: since the CSI fix, the go signal opens with the cue,
- *   csi ms before the stimulus.
+ * @param {number} stimulusOnset - imperative stimulus onset, in the same
+ *   canvas-local ms as kp.time; the RT zero point. Not the go-signal onset: since
+ *   the CSI fix, go opens with the cue, csi ms before the stimulus.
  * @returns {{ rt, rt_raw, accuracy, consumedCount, anticipations }}
- *   consumedCount: how many keypresses were processed (up to and including the
- *   first correct). Used by the identical-RSO path to split the stream for T2.
+ *   consumedCount: presses processed up to and including the first correct one;
+ *   the identical-RSO path uses it to split the stream for T2.
  */
 function extractSingleStreamResponse(keyPresses, stimulusOnset, acceptFirstResponse) {
     let rt_raw = null;
@@ -587,21 +579,13 @@ function makeSeededRng(seed) {
 }
 
 /**
- * Draw `count` DISTINCT sequence ids from a pool of `poolSize`, deterministically
- * from `seedKey`.
+ * Draw `count` distinct sequence IDs from a pool of `poolSize`, sampled deterministically
+ * without replacement and shuffled using `seedKey`.
  *
- * Distinctness is the point: running the same pool block twice would double
- * every cell of that block's design for that participant and contaminate their
- * repetition effects, and — because each block exports normal-looking rows —
- * nothing downstream would notice. A partial Fisher-Yates shuffle gives
- * without-replacement draws and a randomised ORDER in one step (block position
- * is itself a nuisance variable: practice and fatigue load onto whichever
- * sequence sits first or last).
- *
- * @param {string} seedKey - stable per participant, e.g. `${pid}|${paradigm}|${condition}`
- * @param {number} poolSize - highest sequence id available (ids are 1-based)
- * @param {number} count - how many to draw
- * @returns {number[]} `count` distinct ids in [1, poolSize]
+ * @param {string} seedKey - Stable participant seed, e.g. `${pid}|${paradigm}|${condition}`
+ * @param {number} poolSize - Total available sequences in the pool (1-indexed)
+ * @param {number} count - Number of unique sequences to draw
+ * @returns {number[]} Array of distinct sequence IDs in random order
  */
 function drawSequenceIds(seedKey, poolSize, count) {
     if (!Number.isInteger(poolSize) || poolSize < 1) {
@@ -733,31 +717,27 @@ function createQuest(priorMean, priorSD) {
     };
 }
 
-const TRAINING_CAP = 36; // hard cap on trials per training stage (lowered from 48
-// on 2026-08-25: the 8-stage reorder added stages, so the cap was tightened to keep
-// worst-case training in budget. Good participants pass early anyway, so the cap
-// mostly bounds strugglers. Windows now run 16..36 = 21 overlapping windows, which
-// LOWERS chance-passing — advancement_rates.js recomputes the exact floors.)
+// Hard cap on trials per training stage. Good participants pass the criterion
+// early, so the cap mostly bounds strugglers and keeps worst-case training in
+// budget. Windows run 16..36 (21 overlapping windows); advancement_rates.js
+// computes the exact chance-passing floors.
+const TRAINING_CAP = 36;
 
 /**
  * Summarize the rolling advancement window over everything run so far.
  *
- * Single source of truth for BOTH the stop-early predicate and the per-stage
- * log fields (`criterion_met`, `final_window_accuracy`): they are the same
- * threshold over the same slice of the same array, so computing them in two
- * places would let them drift.
+ * Single source of truth for both the stop-early predicate and the per-stage log
+ * fields (`criterion_met`, `final_window_accuracy`) — same threshold, same slice,
+ * so they can't drift apart.
  *
- * @param {boolean[]} correctnessHistory - one entry per trial run in this
- *   stage so far, in order; true = counted as correct for advancement
+ * @param {boolean[]} correctnessHistory - one entry per trial run in this stage
+ *   so far, in order; true = counted as correct for advancement
  * @param {number} windowSize - rolling window size (default: 16)
- * @param {number} threshold - correct responses needed within the window
- *   (default: 14). A stage may override it — the two-response PRP stage uses 12
- *   — but the DEFAULT must never be lowered: at 10/16 a pure guesser clears a
- *   single-response window 22.7% of the time and **76.2% across the 48-trial
- *   cap**, which would void the exclusion rule for the single-task stages. (The
- *   cap figure is not 1-(1-p)^3: runBlock re-checks this predicate before EVERY
- *   trial from 16 on, so the guesser gets 33 overlapping windows, not 3 disjoint
- *   ones. Recompute with analysis/advancement_rates.js rather than by hand.)
+ * @param {number} threshold - correct responses needed in the window (default:
+ *   14). A stage may override it (the two-response PRP stage uses 12), but the
+ *   default must never be lowered: at 10/16 a pure guesser clears the criterion
+ *   most of the time across the cap, voiding the exclusion rule for the
+ *   single-task stages. See analysis/advancement_rates.js for the exact rates.
  * @returns {{ windowLength: number, numCorrect: number, windowSize: number,
  *             threshold: number, accuracy: number|null, criterionMet: boolean }}
  *   accuracy is the mean over the last min(windowSize, history length) trials,
@@ -773,22 +753,19 @@ function summarizeAdvancementWindow(correctnessHistory, windowSize = 16, thresho
         windowSize,
         threshold,
         accuracy: window.length > 0 ? numCorrect / window.length : null,
-        // A partial window cannot satisfy the criterion: before `windowSize`
-        // trials exist there is nothing to evaluate.
+        // A partial window (fewer than windowSize trials) can't meet the criterion.
         criterionMet: window.length >= windowSize && numCorrect >= threshold,
     };
 }
 
 /**
- * Returns true if the participant currently meets the rolling-window
- * advancement criterion (14/16 correct), given everything run so far.
- * Before `windowSize` trials exist there's nothing to evaluate, so it
- * should return false
+ * True if the participant meets the rolling-window advancement criterion (14/16
+ * correct) given everything run so far. False until a full window exists.
  *
- * @param {boolean[]} correctnessHistory - one entry per trial run in this
- *   stage so far, in order; true = counted as correct for advancement
+ * @param {boolean[]} correctnessHistory - one entry per trial run in this stage
+ *   so far, in order; true = counted as correct for advancement
  * @param {number} windowSize - rolling window size (default: 16)
- * @param {number} threshold - correct responses needed within the window (default: 14)
+ * @param {number} threshold - correct responses needed in the window (default: 14)
  * @returns {boolean}
  */
 function meetsAdvancementCriterion(correctnessHistory, windowSize = 16, threshold = 14) {
@@ -796,10 +773,9 @@ function meetsAdvancementCriterion(correctnessHistory, windowSize = 16, threshol
 }
 
 /**
- * Whether a trial counts as "correct" for training-stage advancement
- * (input to meetsAdvancementCriterion's correctnessHistory). 'correct' and
- * 'corrected' both count; 'error'/'miss' do not. A trial with two responses
- * (accuracy2 present) only counts if BOTH are correct.
+ * Whether a trial counts as "correct" for training-stage advancement (feeds
+ * meetsAdvancementCriterion's correctnessHistory). 'correct' and 'corrected' both
+ * count; 'error'/'miss' don't. A two-response trial counts only if both are correct.
  *
  * @param {object} trialData - merged trial result, as pushed to allTrialData
  *   (has accuracy1 always; accuracy2 only for two-response stages, else null)
@@ -816,26 +792,19 @@ function isTrialCorrectForAdvancement(trialData) {
     return Boolean(correct);
 }
 
-// Default length of the S2-S4 coherence ramp, in trials.
-//
-// It is deliberately windowSize - 1 = 15, i.e. the ramp bottoms out ON trial
-// index 15 (the 16th trial). The 14/16 advancement criterion is only ever
-// evaluated over a full rolling window of 16 trials, and the earliest such
-// window is trials 0..15. If the ramp were still declining anywhere inside a
-// window the criterion checks, "14/16 correct" would partly reflect
-// easier-than-test-level trials — undermining the exact thing the ramp is for:
-// making the criterion mean "has the mapping" rather than "got
-// lucky". Bottoming out at index 15 means every window the criterion ever
-// sees is entirely at real test-level difficulty.
+// Default length of the S2-S4 coherence ramp, in trials. Set to windowSize - 1 =
+// 15 so the ramp bottoms out on the 16th trial, i.e. exactly when the earliest
+// 14/16 window (trials 0..15) closes. If the ramp were still declining inside a
+// window the criterion evaluates, "14/16 correct" would partly reflect
+// easier-than-test trials — so every window the criterion sees is at real test
+// difficulty, keeping "met criterion" meaning "has the mapping".
 const TRAINING_RAMP_LENGTH = 15;
 
 /**
- * Reject the blockConfig flag combinations that produce silently WRONG data
- * rather than an error. Called by runBlock before a single trial is generated.
- *
- * Nothing else catches either of these: both configurations run to completion and
- * export a full CSV, so the failure only shows up as an uninterpretable effect
- * during analysis. Hence throwing rather than warning.
+ * Reject blockConfig flag combinations that produce silently wrong data. Called
+ * by runBlock before any trial is generated. Both bad configs run to completion
+ * and export a full CSV, so the failure only surfaces as an uninterpretable
+ * effect during analysis — hence throwing rather than warning.
  *
  * @param {object} blockConfig
  * @throws {Error} on earlyResolve-without-acceptFirstResponse, or a coherence
@@ -844,14 +813,14 @@ const TRAINING_RAMP_LENGTH = 15;
 function assertValidBlockConfig(blockConfig) {
     const id = blockConfig.blockId || '(unnamed block)';
 
-    // SE's src/trial.js is
+    // SE's src/trial.js gates early resolution on
     //   earlyResolve && (isCorrect || acceptFirstResponse)
-    // so earlyResolve ALONE resolves the trial early only on a *correct* press: a
-    // wrong press leaves the trial running, the participant corrects it, and
-    // extractSingleStreamResponse scores the trial 'corrected' with the RT of the
-    // SECOND press. That is the most correction-friendly regime available, not a
-    // neutral one, and isTrialCorrectForAdvancement counts 'corrected' as correct
-    // — so a training criterion becomes satisfiable by pressing both keys.
+    // so earlyResolve alone resolves early only on a correct press: a wrong press
+    // leaves the trial running, the participant corrects it, and
+    // extractSingleStreamResponse scores it 'corrected' with the second press's RT.
+    // That's the most correction-friendly regime, not a neutral one, and
+    // isTrialCorrectForAdvancement counts 'corrected' as correct — so a training
+    // criterion becomes satisfiable by pressing both keys.
     if (blockConfig.earlyResolve && !blockConfig.acceptFirstResponse) {
         throw new Error(
             `blockConfig '${id}': earlyResolve is true but acceptFirstResponse is false. ` +
@@ -944,17 +913,16 @@ function rampedCoherence(
  * that replaces trial-level feedback.
  *
  * `feedback: false` in the test blocks removes the participant's only
- * speed-accuracy signal. It was removed on purpose: an exogenous right/wrong
- * event on trial n lands inside trial n+1's response-selection window, and
- * post-error effects are a deferred research question we do not want baked into
- * the data. A summary shown strictly BETWEEN blocks restores the calibration at
- * zero trial-level cost, which is the whole reason the compromise is safe — see
- * the caller in session.js, which must never move it next to a trial.
+ * speed-accuracy signal, on purpose: a right/wrong event on trial n would land
+ * inside trial n+1's response-selection window, and post-error effects are a
+ * research question we don't want baked into the data. A summary shown strictly
+ * between blocks restores that calibration at zero trial-level cost — which is why
+ * the caller in session.js must never move it next to a trial.
  *
- * Counts RESPONSES, not trials, so a two-response PRP block reports the same
+ * Counts responses, not trials, so a two-response PRP block reports the same
  * quantity a single-task block does (a joint "both correct" rate would read as
- * mysteriously low to a participant doing fine on each task). Mean RT is over
- * correct responses only, as everywhere else.
+ * mysteriously low to someone doing fine on each task). Mean RT is over correct
+ * responses only, as everywhere else.
  *
  * @param {object[]} rows - trial rows as pushed to allTrialData
  * @returns {{numResponses, numCorrect, accuracy, meanRt}|null} null when the
@@ -990,10 +958,10 @@ function summarizeBlockPerformance(rows) {
 }
 
 /**
- * One participant-facing line for the break screen, or null when there is
- * nothing to report. Deliberately purely factual and identically worded every
- * time: a summary whose PHRASING varied with performance would be an evaluative
- * signal rather than the calibration the summary is there to restore.
+ * One participant-facing line for the break screen, or null when there's nothing
+ * to report. Purely factual and worded identically every time: phrasing that
+ * varied with performance would be an evaluative signal, which is exactly what
+ * this summary is meant to avoid.
  */
 function formatBreakSummary(summary) {
     if (!summary) return null;
@@ -1003,24 +971,19 @@ function formatBreakSummary(summary) {
     return `Since the last break: ${accuracy}${rt}.`;
 }
 
-// ---- Capped, mash-proof inter-block break (advisor 08-18 l.12-13) -----------
+// ---- Capped, mash-proof inter-block break --------------------------------
 //
-// Sebastian: breaks stay participant-paced but "maximum a minute... put a timer
-// down... if you want to proceed further, please press this button and then
-// maybe they have to confirm another time so that they don't accidentally press
-// anything." Tim (l.13): the cap exists "so they don't extend the time and
-// Prolific just thinks they worked really hard" — i.e. the minute is a hard
-// ceiling, so at expiry the break AUTO-ADVANCES (the DOM side owns that timer).
+// Breaks stay participant-paced but capped at one minute (so an idle break can't
+// stretch the session and mislead Prolific about time worked). At the cap the
+// break auto-advances; the DOM side owns that timer.
 //
-// The anti-mash rule is what lives here, as a pure state machine so it can be
-// tested without a DOM: only ONE specific key advances (every other key is
-// ignored — this is the whole difference from showInstructions' any-key path), a
-// FIRST press merely arms a confirmation, and a SECOND press confirms. Auto-
-// repeat (a held key) is ignored, and the confirm is refused until confirmMinMs
-// after arming, so a single bounced/double-fired keydown cannot arm-and-confirm
-// in one physical press.
-const BREAK_CAP_MS = 60000; // hard ceiling on one break (l.12 "a minute")
-const BREAK_ADVANCE_KEY = 'Enter'; // the one key that advances; matches KeyboardEvent.key
+// The anti-mash rule lives here as a pure state machine so it's testable without
+// a DOM: only one key advances (unlike showInstructions' any-key path), a first
+// press arms a confirmation and a second press confirms. Auto-repeat (a held key)
+// is ignored, and the confirm is refused until confirmMinMs after arming, so a
+// single bounced or double-fired keydown can't arm and confirm in one press.
+const BREAK_CAP_MS = 60000; // hard ceiling on one break
+const BREAK_ADVANCE_KEY = 'Enter'; // the one advancing key; matches KeyboardEvent.key
 const BREAK_CONFIRM_MIN_MS = 250; // confirm ignored until this long after arming
 
 /**
@@ -1042,8 +1005,8 @@ function createBreakController(opts = {}) {
             return armedAt !== null;
         },
         press(key, now, repeat = false) {
-            if (repeat) return 'ignored'; // held key: never advances
-            if (key !== advanceKey) return 'ignored'; // only the one key counts
+            if (repeat) return 'ignored';
+            if (key !== advanceKey) return 'ignored';
             if (armedAt === null) {
                 armedAt = now;
                 return 'armed';
@@ -1057,30 +1020,26 @@ function createBreakController(opts = {}) {
     };
 }
 
-// Length, in trials, of PRP's S8 descending-SOA introduction.
-//
-// It is the criterion WINDOW size (16), not windowSize - 1 as TRAINING_RAMP_LENGTH
-// is, and for the opposite reason. The ramp must FINISH before the earliest
-// criterion window closes so that "14/16" is never scored on easier-than-test
-// trials. The SOA schedule must instead fit ENTIRELY INSIDE that window, so a
-// participant cannot meet criterion having practiced only the long, easy SOAs and
-// then meet the short ones for the first time in the test block.
+// Length, in trials, of PRP's S8 descending-SOA introduction. Set to the
+// criterion window size (16) — unlike TRAINING_RAMP_LENGTH's windowSize - 1, and
+// for the opposite reason. The coherence ramp must finish before the first
+// criterion window closes; the SOA schedule must fit entirely inside it, so a
+// participant can't meet criterion having practiced only the long, easy SOAs and
+// then hit the short ones for the first time in the test block.
 const TRAINING_SOA_SCHEDULE_LENGTH = 16;
 
 /**
  * SOA for one trial of PRP's paradigm-specific training stage (S8).
  *
- * A coherence ramp is forbidden in PRP's S8 (a T1-only ramp is a
- * T1-difficulty manipulation crossed with SOA — the confound PRP measures), so
- * what S8 shapes instead is RESPONSE ORDER. The stage opens at the longest SOA,
- * where "answer T1, then T2" is self-evident because T1 is essentially finished
- * before T2 appears, and descends to the shortest SOA, where the two responses
- * genuinely overlap. After the schedule the stage falls back to the block's own
- * (mixed) SOA sequence, because the test block presents SOA in random order and
- * the last thing practiced should match it.
+ * A coherence ramp is forbidden here (a T1-only ramp crosses T1 difficulty with
+ * SOA — the confound PRP measures), so S8 shapes response order instead. It opens
+ * at the longest SOA, where "T1 then T2" is self-evident (T1 finishes before T2
+ * appears), and descends to the shortest, where the responses overlap. After the
+ * schedule it falls back to the block's mixed SOA sequence, matching the test
+ * block's random order.
  *
- * Pure and paradigm-agnostic: it takes the SOA levels rather than reading
- * CP_PRP_SOA_LEVELS, which is still a placeholder pending advisor input.
+ * Pure and paradigm-agnostic: takes the SOA levels rather than reading the
+ * CP_PRP_SOA_LEVELS placeholder.
  *
  * @param {number} trialIndex - 0-based index of the trial within the stage
  * @param {number[]} soaLevels - the stage's SOA levels, in any order

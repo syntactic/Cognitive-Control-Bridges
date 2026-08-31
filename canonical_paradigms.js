@@ -1,6 +1,6 @@
-// canonical_paradigms.js — Five canonical single-canvas cognitive-control paradigms,
-// built to validate each in isolation (with proper counterbalancing) before
-// trusting the novel task-switching<->PRP bridge.
+// canonical_paradigms.js — Five single-canvas cognitive-control paradigms, each
+// validated in isolation (with proper counterbalancing) before evaluating the
+// task-switching <-> PRP bridge.
 //
 //   1. PRP / dual-task                 — cp_prp
 //   2. Task switching (basic)          — cp_taskswitch
@@ -8,36 +8,30 @@
 //   4. Stroop (basic)                  — cp_stroop
 //   5. Stroop (crossed target x dist)  — cp_stroop_crossed
 //
-// All single-canvas. Coherence is an explicit factor — no QUEST. Congruent/
+// All single-canvas. Coherence is an explicit factor (no QUEST). Congruent/
 // incongruent throughout.
 //
-// Response keys: ONE disjoint, task-tied layout across all five paradigms
-// (movement = A/D left hand, orientation = J/L right hand). PRP/switching need
-// disjoint keys anyway (two tasks, two response sets — also what lets the
-// extractor separate T1/T2 in the keypress stream). Stroop got disjoint keys
-// too as of 2026-08-18 (Sebastian, l.147-160; RESPONSE_SET_PROBLEM.md §5), to
-// unify layout/training across paradigms. Cost, accepted deliberately: the
-// Stroop distractor now lands on keys never pressed, so Stroop reduces to
-// dimensional interference (weaker, possibly absent for birds since neither
-// dimension is over-learned like word-reading). CP_IDENTICAL_KEY_MAPS below
-// documents the superseded shared-key Stroop design; nothing references it now.
+// Response keys: one disjoint, task-tied layout across all five paradigms
+// (movement = A/D left hand, orientation = J/L right hand). PRP and switching need
+// disjoint keys so the extractor can separate T1/T2 in the keypress stream.
+// Stroop also uses disjoint keys to unify layout and training across paradigms.
+// Accepted cost: the distractor now lands on keys never pressed, so Stroop reduces
+// to dimensional interference (weaker, possibly absent for birds — neither dimension
+// is over-learned the way word-reading is).
+// CP_IDENTICAL_KEY_MAPS below documents the prior shared-response design.
 //
-// Known unresolved conflict: task-tied disjoint keys mean a task switch is
-// always also an effector switch, so key-level response repetition can't be
-// counterbalanced against task transition (only abstract left/right repetition
-// can — response_transition in sweetpea/designs.py). This contradicts the
-// counterbalancing rationale in Sebastian's 2026-06-08 email; the code follows
-// his later 2026-07-31 l.49 instruction instead.
+// Task-tied disjoint keys make every task switch an effector switch, so key-level
+// response repetition cannot be counterbalanced independently against task transition;
+// abstract left/right repetition is balanced instead (response_transition in sweetpea/designs.py).
 //
-// Trial sequences come from engine.js for now; final counterbalancing
-// (response_transition especially) is deferred to SweetPea, which will replace
-// generateSequenceVectors via a CSV loader without touching these configs.
+// Trial sequences are loaded from counterbalanced SweetPea CSVs, falling back to
+// engine.js interim sequence generation.
 
 // ============================================================
-// Tunable constants (placeholders confirmed with Tim)
+// Tunable constants
 // ============================================================
 
-// Coherence values (0-1). Higher = easier. Placeholders — tune with advisor.
+// Coherence values (0-1). Higher = easier.
 const CP_EASY = 0.8;
 const CP_HARD = 0.3;
 const CP_DISTRACTOR = 0.5; // bivalent distractor strength (Stroop/switching)
@@ -54,14 +48,14 @@ const CP_PRP_SOA_LEVELS = [100, 300, 600];
 const CP_SWITCH_RATE = 50;
 
 // Participant-counterbalanced choices:
-const CP_EASY_TASK = 'mov'; // asymmetric switching: which task is the EASY one
-const CP_TARGET_TASK = 'mov'; // Stroop: which dimension is the TARGET (other = distractor)
+const CP_EASY_TASK = 'mov'; // asymmetric switching: which task is the easy one
+const CP_TARGET_TASK = 'mov'; // Stroop: which dimension is the target (other = distractor)
 
 // Key maps (block-config level; config files load before session_helpers.js).
-// Identical mapping: both dimensions answered with the SAME two keys (left hand
-// A/D). SUPERSEDED 2026-08-18 — no canonical paradigm uses this any more (Stroop
-// now takes CP_DISJOINT_KEY_MAPS like the rest). Kept only to document the prior
-// shared-response Stroop design; see the response-key note at the top of this file.
+// Identical mapping: both dimensions answered with the same two keys (left hand
+// A/D). Superseded — no paradigm uses it now (Stroop moved to CP_DISJOINT_KEY_MAPS
+// like the rest). Kept only as documentation of the prior shared-response Stroop
+// design; see the response-key note at the top of this file.
 const CP_IDENTICAL_KEY_MAPS = {
     mov: { 180: 'a', 0: 'd' },
     or: { 180: 'a', 0: 'd' },
@@ -73,10 +67,10 @@ const CP_DISJOINT_KEY_MAPS = {
     or: { 180: 'j', 0: 'l' },
 };
 
-// Direction vocabulary for generated key lines. These live UP HERE, not down in
-// the instructions section, because cpKeyPhrase reads them and
-// CP_STROOP_INSTRUCTIONS calls it while CP_STROOP_SESSION is being built below —
-// i.e. at load time, before a `const` declared later has initialised.
+// Direction vocabulary for generated key lines. Declared here, not in the
+// instructions section, because cpKeyPhrase reads them and CP_STROOP_INSTRUCTIONS
+// calls it while CP_STROOP_SESSION is built below — at load time, before a later
+// `const` would have initialised.
 // 0 = rightward, 180 = leftward, 90 = up, 270 = down (canvas Y-axis inverted).
 const CP_DIRECTION_WORDS = { 0: 'right', 90: 'up', 180: 'left', 270: 'down' };
 // Reading order for a key line: left/right first, since every canonical paradigm
@@ -84,11 +78,8 @@ const CP_DIRECTION_WORDS = { 0: 'right', 90: 'up', 180: 'left', 270: 'down' };
 const CP_DIRECTION_ORDER = [180, 0, 90, 270];
 
 // Home-row letter sets used by cpHandFor to infer which hand a key map is on.
-// Up here in the constants block (not next to cpHandFor below) because
-// CP_STROOP_INSTRUCTIONS calls cpKeyLine -> cpHandFor AT LOAD TIME now that
-// Stroop uses disjoint keys — CP_STROOP_SESSION is built further down, and a
-// `const` in the temporal dead zone would throw "Cannot access ... before
-// initialization". Same reason CP_DIRECTION_WORDS/ORDER live here.
+// Declared here rather than beside cpHandFor for the same load-order reason as
+// CP_DIRECTION_WORDS above: CP_STROOP_INSTRUCTIONS reaches cpHandFor at load time.
 const CP_LEFT_HAND_LETTERS = 'qwertasdfgzxcvb';
 const CP_RIGHT_HAND_LETTERS = 'yuiophjklnm';
 
@@ -103,23 +94,20 @@ const CP_DEFAULTS = {
     iti: { type: 'uniform', value: 500, params: [400, 600] },
     congruency: { conditions: ['congruent', 'incongruent'], proportions: [0.5, 0.5] },
 
-    // Response regime. All three are set explicitly:
-    // none of them implies another, and engine.js defaults earlyResolve to false.
-    //
-    // earlyResolve: the trial ends on the response instead of running the full
-    //   2000 ms. Without it a test trial costs ~2.5 s while a training trial ends on
-    //   the response, i.e. the response regime would change exactly at the
-    //   training -> test boundary. For a dual-task trial SE resolves only once
-    //   BOTH go signals have settled (src/trial.js resolveEarly), so PRP still
-    //   collects both responses.
-    // acceptFirstResponse: the first press IS the response. Required alongside
-    //   earlyResolve — SE's src/trial.js:248 is
-    //   `earlyResolve && (isCorrect || acceptFirstResponse)`, so earlyResolve on
-    //   its own resolves early only on a CORRECT press and quietly invites
-    //   corrections, which score as 'corrected' with the second press's RT.
-    // feedback: OFF in test blocks so that no exogenous event on trial n
-    //   lands inside trial n+1's response-selection window. Training turns it back
-    //   on (training_stages.js), where shaping needs it.
+    // Response regime, all three set explicitly (none implies another, and
+    // engine.js defaults earlyResolve to false):
+    //   earlyResolve — end the trial on the response rather than run the full
+    //     2000 ms, so the regime doesn't change at the training->test boundary. On
+    //     a dual-task trial SE resolves only once both go signals settle
+    //     (src/trial.js resolveEarly), so PRP still collects both responses.
+    //   acceptFirstResponse — the first press is the response. Required alongside
+    //     earlyResolve: SE gates on `earlyResolve && (isCorrect ||
+    //     acceptFirstResponse)`, so earlyResolve alone resolves only on a correct
+    //     press and quietly invites corrections scored 'corrected' with the second
+    //     press's RT.
+    //   feedback — off in test blocks so no right/wrong event on trial n lands in
+    //     trial n+1's response-selection window. Training turns it back on, where
+    //     shaping needs it.
     earlyResolve: true,
     acceptFirstResponse: true,
     feedback: false,
@@ -140,7 +128,7 @@ const cpPRP = {
     rso: 'disjoint',
     keyMaps: CP_DISJOINT_KEY_MAPS,
     task1: 'mov',
-    t2Rule: 'switch', // T2 is always the OTHER task (mov->or / or->mov)
+    t2Rule: 'switch', // T2 is always the other task
     sequenceType: 'Factorial',
     switchRate: 0,
     startTask: null,
@@ -161,8 +149,7 @@ const cpTaskSwitch = {
     blockId: 'cp_taskswitch',
     blockType: 'mixed',
     paradigm: 'single-task',
-    // Two tasks => separate response sets (Sebastian, 07-31 l.49). See the
-    // response-key note at the top of this file for the cost this accepts.
+    // Two tasks => disjoint response sets (left hand mov, right hand or).
     rso: 'disjoint',
     keyMaps: CP_DISJOINT_KEY_MAPS,
     sequenceType: 'Factorial',
@@ -291,12 +278,11 @@ const CP_CSV_COHERENCE_OVERRIDES = {
 // a participant.
 const CP_SEQUENCE_POOL_SIZE = 50;
 
-// Test blocks per session. Not hardcoded anywhere else — the draw takes its count
-// from the session's own test-block count, so changing the sessions below is
-// enough. Five gives four inter-block breaks, which is Sebastian's "breaks every
-// ~100 trials" (07-31) directly. NB 5 x 96 = 480 test trials, up from the 96 a
-// participant ran under the per-participant-CSV scheme, and 60% above the ~300
-// endorsed on 08-11 — flagged for sign-off in EXPERIMENT_OVERVIEW.md §1.
+// Test blocks per session. Not hardcoded anywhere else — the sequence draw counts
+// the session's own test blocks — so changing the sessions below is enough. Five
+// gives four inter-block breaks (Sebastian's "breaks every ~100 trials") and
+// 5 x 96 = 480 test trials; see EXPERIMENT_OVERVIEW.md §1 for the trial-count
+// sign-off.
 const CP_TEST_BLOCKS_PER_SESSION = 5;
 
 /**
@@ -414,15 +400,15 @@ function cpApplySweetPea(sessionArray, condition, sequenceIds, scheme) {
 // Instructions
 // ============================================================
 
-// Instruction vocabulary derived from a scheme descriptor. The KEY LINES already
+// Instruction vocabulary derived from a scheme descriptor. The key lines already
 // adapt on their own (cpKeyLine reads CP_DIRECTION_WORDS, which knows 90->up,
 // 270->down); this helper covers the remaining hard-coded prose — the two
-// direction WORDS a task's stimulus can take, and whether the cue carries a side.
+// direction words a task's stimulus can take, and whether the cue carries a side.
 //
-// Deliberately CP_SCHEMES-free: the load-time CP_*_SESSION builds call the
-// instruction generators before session_helpers.js has defined CP_SCHEMES, so a
-// missing/undefined scheme resolves to the disjoint defaults inline (left/right,
-// hue) rather than by looking the descriptor up.
+// CP_SCHEMES-free on purpose: the load-time CP_*_SESSION builds call the
+// instruction generators before session_helpers.js defines CP_SCHEMES, so a
+// missing scheme resolves to the disjoint defaults inline (left/right, hue) rather
+// than by looking the descriptor up.
 function cpSchemeVocab(scheme) {
     const levelToDeg = (scheme && scheme.geometry && scheme.geometry.levelToDeg) || {
         left: 180,
@@ -440,19 +426,19 @@ function cpSchemeVocab(scheme) {
     };
 }
 
-// The cue is a COLORED border (src/game.js: movCueColor '#fb0' orange,
-// orCueColor '#0af' blue). Dashes vs dots separate the FIRST from the SECOND task
-// of a dual-task trial, not movement from orientation — see the note above
+// The cue is a colored border (src/game.js: movCueColor '#fb0' orange, orCueColor
+// '#0af' blue). Dashes vs dots separate the first from the second task of a
+// dual-task trial, not movement from orientation — see the note above
 // CP_TASKSWITCH_INSTRUCTIONS.
 //
-// DISJOINT: colour alone carries the task, and each task is answered with a fixed
-// hand, so the two-line colour legend is the whole rule.
+// Disjoint: color alone carries the task, each answered with a fixed hand, so the
+// two-line color legend is the whole rule.
 //
-// FOURCUE: the cue is a 2x2 (cueMode 'hue+position'). Colour is the QUESTION and
-// SIDE is the HAND, and the two are INDEPENDENT — orange can appear on either
-// side, blue on either side. So the legend teaches the two rules separately; it
-// must not tie a colour to a side (the pre-2x2 version did, inferring the side
-// from the task's key hand, which is only correct while hand is task-tied).
+// Fourcue: the cue is a 2x2 (cueMode 'hue+position'). Color is the question, side
+// is the hand, and they're independent — orange or blue can appear on either side.
+// So the legend teaches the two rules separately; it must not tie a color to a
+// side (the pre-2x2 version did, inferring the side from the task's key hand,
+// which only holds while hand is task-tied).
 function cpBorderLegend(keyMaps, scheme) {
     if (!cpSchemeVocab(scheme).positional) {
         return (
@@ -484,13 +470,12 @@ function cpFourcueHandLines(keyMaps) {
 // instructions are a function of the T1 task — same pattern as
 // CP_STROOP_INSTRUCTIONS below. Key maps are task-tied and never swap:
 // mov = left hand A/D, or = right hand J/L, in either order.
-// KEEP THIS SHORT. showInstructions dismisses on ANY keydown after 200 ms, so a
-// participant who presses Space or PageDown to read a screen taller than the
+// Keep this short. showInstructions dismisses on any keydown after 200 ms, so a
+// participant who presses Space or PageDown to scroll a screen taller than the
 // 600 px canvas starts the block instead. The overflow CSS on
-// .instructions-overlay is a safety net, not a reading affordance — intercepting
-// the scroll keys is not an option either, because every screen ends with "press
-// any key" and that has to stay true. This screen was 819 px before it was
-// trimmed; measure with `node analysis/measure_instructions.js` after any edit.
+// .instructions-overlay is a safety net, not a reading affordance, and we can't
+// intercept the scroll keys since every screen ends with "press any key". Measure
+// with `node analysis/measure_instructions.js` after any edit.
 const CP_PRP_INSTRUCTIONS = (t1Task, keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
     const movFirst = t1Task === 'mov';
     const vocab = cpSchemeVocab(scheme);
@@ -504,10 +489,9 @@ const CP_PRP_INSTRUCTIONS = (t1Task, keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => 
     const stimulusStory = movFirst
         ? `The birds fly first, then turn to face ${vocab.eitherOr}.`
         : `The birds face ${vocab.eitherOr} first, then start to fly.`;
-    // The blank lines INSIDE the numbered list were spent on the cartoon (see
-    // cpTestDemo). Nothing the screen says was cut to pay for it — the numbering
-    // separates the two items as well as a blank line did, and this is the
-    // tallest screen in the session, so it is the one with no slack to spare.
+    // No blank lines inside the numbered list — that vertical space went to the
+    // cartoon (cpTestDemo). The numbering separates the two items well enough, and
+    // this is the tallest screen in the session, with no slack to spare.
     return (
         'Two tasks on every trial, always in this order:\n' +
         `1) ${movFirst ? movItem : orItem}\n` +
@@ -523,18 +507,16 @@ const CP_PRP_INSTRUCTIONS = (t1Task, keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => 
     );
 };
 
-// Each task has its OWN keys and its own hand (07-31 l.49), so the mapping is
-// stated per task rather than once for both.
-// NOTE ON THE CUE. SE draws the cue as a COLORED border: src/game.js `draw()`
-// picks movCueColor ('#fb0', orange) for a cueMov and orCueColor ('#0af', blue)
-// for a cueOr. The dashes-vs-dots distinction in `_drawBorder` separates cue1
-// from cue2 (i.e. the first from the second task of a dual-task trial), NOT
-// movement from orientation. This block previously told participants
-// "Dotted = MOVEMENT, Dashed = ORIENTATION", which is wrong on both counts.
+// Each task has its own keys and its own hand, so the mapping is stated per task.
+// On the cue: SE draws it as a colored border — movCueColor ('#fb0', orange) for
+// a cueMov, orCueColor ('#0af', blue) for a cueOr (src/game.js `draw()`). The
+// dashes-vs-dots distinction in `_drawBorder` separates cue1 from cue2 (first vs
+// second task of a dual-task trial), not movement from orientation. So the copy
+// keys the task off color, never off line style.
 const cpTaskSwitchInstructions = (keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
-    // FOURCUE: colour is the QUESTION and side is the HAND, independently. The
+    // Fourcue: color is the question and side is the hand, independently. The
     // border legend teaches both rules; the key lines are hand-based (per side),
-    // not task-based, because either task can appear on either hand.
+    // not task-based, since either task can appear on either hand.
     if (cpSchemeVocab(scheme).positional) {
         return (
             'ONE task per trial. It may switch from trial to trial.\n' +
@@ -562,37 +544,21 @@ const cpTaskSwitchInstructions = (keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
     );
 };
 
-// NOTE: cp_taskswitch_asym deliberately gets NO extra copy. Its screen used to
-// append "(Note: one task is systematically harder than the other.)", which was
-// removed 2026-08-11 (Tim). Telling participants that one task is harder is a
-// demand characteristic aimed squarely at the dependent variable: the paradigm
-// exists to measure an ASYMMETRIC switch cost, and a participant told to expect
-// asymmetry can produce it by strategy (extra caution on the "hard" task) rather
-// than by the coherence manipulation. The asymmetry has to come from the stimulus,
-// not from the instructions. The two switching paradigms therefore share the same
-// screen verbatim, which is also what makes them comparable.
+// cp_taskswitch_asym gets no extra copy on purpose. Telling participants one task
+// is harder is a demand characteristic aimed straight at the dependent variable:
+// this paradigm measures an asymmetric switch cost, and a participant who expects
+// asymmetry can produce it by strategy (extra caution on the "hard" task) instead
+// of via the coherence manipulation. The asymmetry must come from the stimulus,
+// so both switching paradigms share this screen verbatim — which also makes them
+// comparable.
 
-// VOCABULARY (fixed 2026-08-17). This screen used to say "Respond to the dot
-// MOVEMENT; ignore the triangle orientation". Both nouns were wrong and the
-// combination was actively misleading:
-//   - "dot"/"triangle" are SE's ABSTRACT stimulus names (defaultConfig's objName
-//     'triangles' / distName 'circles'). Every real participant runs the bird
-//     sprites (stimulus defaults to 'bird' in loadSprites), so the sentence
-//     described objects that were not on screen.
-//   - All seven training screens say FLYING and FACING. Switching to
-//     MOVEMENT/ORIENTATION here, at the exact moment feedback stops, made
-//     "ignore the dot movement" read as an instruction to DO the movement task —
-//     reported from a real run of condition B.
-// The other two test screens (PRP, task switching) already glossed the dimension
-// in bird terms; this one now matches them. NOTE the same stale nouns still
-// appear in switch-frequency.js and hirsch_block_configs.js — different
-// paradigms, not part of this study, deliberately left alone.
-//
-// The key line is derived from CP_DISJOINT_KEY_MAPS rather than written out, so
-// it cannot drift from the map the block actually runs. The target task's OWN
-// keys are shown (mov = A/D left hand, or = J/L right hand); `false` = disjoint
-// response set, which is what makes cpKeyLine print the hand — matching the
-// training screens, which say the same thing for the same reason.
+// The wording says FLYING and FACING, matching the training screens (and the
+// other test screens). Don't switch to MOVEMENT/ORIENTATION here: at the moment
+// feedback stops, "ignore the movement" reads as an instruction to DO the
+// movement task. The key line is derived from the key map rather than written
+// out, so it can't drift from the block; the target task's own keys are shown
+// (mov = A/D left hand, or = J/L right hand), and `false` = disjoint response set
+// makes cpKeyLine print the hand.
 const CP_STROOP_INSTRUCTIONS = (task, keyMaps = CP_DISJOINT_KEY_MAPS) => {
     const target = task === 'mov' ? 'FLYING' : 'FACING';
     const other = task === 'mov' ? 'FACING' : 'FLYING';
@@ -613,20 +579,17 @@ const CP_STROOP_INSTRUCTIONS = (task, keyMaps = CP_DISJOINT_KEY_MAPS) => {
 // Trial counts are full-length; Abridged mode (index.html) runs ~1/10 for fast testing.
 //
 // Every test session is CP_TEST_BLOCKS_PER_SESSION (5) blockDefs sharing one
-// blockConfig, each drawing its own pool CSV. Why 5, not 1: (1) bug fix — the
-// break summary (runSession) only shows BETWEEN blocks and is skipped after a
-// training block, so a single-block session showed no summary at all, leaving
-// `feedback: false` with no speed-accuracy signal anywhere; (2) breaks are
-// meant to land every ~100 trials (Sebastian, 07-31) — five ~96-trial blocks
-// gives four breaks at that spacing; (3) one block = one pool CSV, so the
-// block boundary is the sequence boundary, nothing needs slicing.
+// blockConfig, each drawing its own pool CSV. Five rather than one because: the
+// break summary (runSession) only shows between blocks, so a single-block session
+// showed no speed-accuracy signal at all under `feedback: false`; breaks should
+// land every ~100 trials, and five ~96-trial blocks give four at that spacing;
+// and one block = one pool CSV, so the block boundary is the sequence boundary
+// with nothing to slice.
 //
-// Block sizes are NOT free. These are `sequenceType: 'Factorial'`, and
-// generateFactorialSequence fills any shortfall below a whole crossing
-// repetition with randomly sampled cells (engine.js ~line 163) — a block
-// length that isn't a multiple of the crossing size silently unbalances the
-// design (verified empirically: 200 replications/paradigm, plus a negative
-// control at a deliberately bad length):
+// Block sizes are not free. These are `sequenceType: 'Factorial'`, and
+// generateFactorialSequence fills any shortfall below a whole crossing with
+// randomly sampled cells (engine.js ~line 163), so a length that isn't a multiple
+// of the crossing size silently unbalances the design:
 //
 //     paradigm             crossing                                cells  block
 //     cp_prp               soa(3) x congruency(2)                    6      96
@@ -635,29 +598,24 @@ const CP_STROOP_INSTRUCTIONS = (task, keyMaps = CP_DISJOINT_KEY_MAPS) => {
 //     cp_stroop            congruency(2)                             2      96
 //     cp_stroop_crossed    congruency(2) x target(3) x distractor(3) 18     108
 //
-// JS-generator crossings shown; SweetPea's are finer (12/16/8/4/36,
-// designs.CROSSING_SIZE — it also crosses target_dir), and these block sizes
-// are whole multiples of those too, so one pool CSV = one balanced block.
-// Changing a trial count means rechecking both tables and updating
-// sweetpea/generate.py's DEFAULT_TRIALS — on the participant path the CSV's
+// (JS-generator crossings; SweetPea's are finer — 12/16/8/4/36,
+// designs.CROSSING_SIZE, which also crosses target_dir — and these sizes are whole
+// multiples of those too.) Changing a trial count means rechecking both tables and
+// updating sweetpea/generate.py's DEFAULT_TRIALS; on the participant path the CSV
 // row count wins and `numTrials` is ignored.
 //
-// Only the first block carries instructions; blocks 2-5 are preceded by the
-// break screen instead.
+// Only the first block carries instructions; blocks 2-5 get the break screen.
 
 /**
- * The test screen's cartoon. The SAME builder the paradigm's S8 uses, because a
- * test block IS that paradigm's shape — cp_prp's test trials are S8's PRP trials
- * without the descending SOA schedule, and the switching / Stroop ones likewise.
- * Reusing cpFinalStageDemo is what keeps the two from drifting apart; a separate
- * test-only cartoon would be one more thing to keep in step with the copy.
+ * The test screen's cartoon — the same builder the paradigm's S8 uses, because a
+ * test block is that paradigm's shape (cp_prp's test trials are S8's PRP trials
+ * minus the descending SOA schedule, and likewise for switching/Stroop). Reusing
+ * cpFinalStageDemo keeps the two from drifting.
  *
- * Test screens carry the cartoon for a different reason than training ones do.
- * In training it teaches; here it re-states, wordlessly, the thing the copy is
- * longest about — which border means which question, and which finger answers
- * it — at the exact moment trial-by-trial feedback is being taken away
- * (CP_DEFAULTS' `feedback: false`). That is also what paid for the copy trims
- * below: the illustration says it, so the sentence need not.
+ * Where training's cartoon teaches, the test cartoon re-states wordlessly the
+ * thing the copy is longest about — which border means which question, and which
+ * finger answers it — right as trial-by-trial feedback is withdrawn
+ * (`feedback: false`). It's also what let the copy below be trimmed.
  */
 function cpTestDemo(keyMaps, finalStage, scheme) {
     return { ...cpFinalStageDemo(keyMaps, finalStage, scheme), ...cpCueMeta(keyMaps, scheme) };
@@ -665,8 +623,8 @@ function cpTestDemo(keyMaps, finalStage, scheme) {
 
 /**
  * Five blockDefs on one blockConfig: the first with a screen, the rest without.
- * The cartoon rides along with the screen, so blocks 2-5 (which are preceded by
- * the break screen, not an instruction screen) carry neither.
+ * The cartoon rides with the screen, so blocks 2-5 (preceded by the break screen)
+ * carry neither.
  */
 function cpTestBlocks(blockConfig, numTrials, instructions, demo = null) {
     return Array.from({ length: CP_TEST_BLOCKS_PER_SESSION }, (_, i) => ({
@@ -678,12 +636,12 @@ function cpTestBlocks(blockConfig, numTrials, instructions, demo = null) {
 }
 
 // Default instructions assume condition A (movement first). The no-param path is
-// demo-only — cpApplySweetPea never runs, so the JS-generator fallback's trial
-// sequence does not necessarily match these instructions. With
-// ?paradigm=&condition=, cpApplySweetPea overrides them per condition.
-// The cartoon each test screen carries. Declared next to the sessions rather than
-// inline so the load-time statics and cpTestSessionFor (which rebuilds these per
-// condition and scheme) demonstrably ask for the SAME shape per paradigm.
+// demo-only: cpApplySweetPea never runs, so the JS-generator fallback's sequence
+// may not match these instructions. With ?paradigm=&condition=, cpApplySweetPea
+// overrides them per condition.
+// The cartoon each test screen carries. Declared beside the sessions, not inline,
+// so the load-time statics and cpTestSessionFor (which rebuilds these per
+// condition and scheme) provably ask for the same shape per paradigm.
 const CP_TEST_FINAL_STAGE = {
     cp_prp: (task) => ({ kind: 'prp', t1Task: task }),
     cp_taskswitch: () => ({ kind: 'switching' }),
@@ -735,28 +693,24 @@ const CP_STROOP_CROSSED_SESSION = cpTestBlocks(
 // ============================================================
 // Each paradigm gets one participant-facing session: shared shaping S2-S6
 // (buildSharedTrainingStages), a shared PRP stage S7, its own S8
-// (buildParadigmFinalStage), then its test block(s) — 8 training steps total
-// (S1/S5 dropped). "Exactly the same across paradigms" is read as identical
-// STRUCTURE, with key maps/coherence following each paradigm's own test
-// block — every spec below is built from this file's constants, nothing
-// hardcoded in training_stages.js.
+// (buildParadigmFinalStage), then its test block(s) — 8 training steps total.
+// "The same across paradigms" means identical structure, with key maps and
+// coherence following each paradigm's own test block. Every spec below is built
+// from this file's constants; nothing is hardcoded in training_stages.js.
 
 // ------------------------------------------------------------
 // Instruction copy
 // ------------------------------------------------------------
-// Sebastian's standard: "you would like your grandmother to be able to do the
-// task" (07-31 l.59) — every screen says what's on screen, what to decide,
-// which keys, and (from S4 on) what the border means. Copy is GENERATED from
-// the spec's key maps rather than written out literally, since maps differ by
-// paradigm and two hand-written copies of the same sentence would drift.
+// The standard is "your grandmother should be able to do the task": every screen
+// says what's on screen, what to decide, which keys, and (from S4 on) what the
+// border means. Copy is generated from the spec's key maps rather than written
+// out, since maps differ by paradigm and two hand-written copies would drift.
 
 // CP_DIRECTION_WORDS / CP_DIRECTION_ORDER and CP_LEFT_HAND_LETTERS /
-// CP_RIGHT_HAND_LETTERS used to live here. They moved up to the constants block
-// because cpKeyPhrase and cpHandFor read them and CP_STROOP_INSTRUCTIONS now
-// calls both AT LOAD TIME (CP_STROOP_SESSION is built above, and Stroop's
-// disjoint keys make cpKeyLine reach cpHandFor). Function declarations hoist; the
-// `const`s they close over do not, so calling one from here threw "Cannot access
-// '...' before initialization".
+// CP_RIGHT_HAND_LETTERS moved up to the constants block: cpKeyPhrase and cpHandFor
+// read them and CP_STROOP_INSTRUCTIONS reaches both at load time. Function
+// declarations hoist but the `const`s they close over don't, so declaring these
+// here threw "Cannot access '...' before initialization".
 
 /** "A = left, D = right" for one direction->key map. */
 function cpKeyPhrase(keyMap) {
@@ -819,9 +773,9 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     const legend = cpBorderLegend(keyMaps, scheme);
     const movLine = cpKeyLine(keyMaps.mov, shared);
     const orLine = cpKeyLine(keyMaps.or, shared);
-    // Under fourcue the hand is NOT tied to the task (it follows the border side),
-    // so a per-task "Flying: <keys>" line would be wrong. The border legend
-    // already gives the keys per hand, so this collapses to a one-line reminder.
+    // Under fourcue the hand isn't tied to the task (it follows the border side),
+    // so a per-task "Flying: <keys>" line would be wrong. The border legend already
+    // gives the keys per hand, so this collapses to a one-line reminder.
     const bothLines = vocab.positional
         ? '  (Up-key = up, down-key = down, on the hand the border points to.)'
         : `  Flying:  ${cpKeyPhrase(keyMaps.mov)}.\n` + `  Facing:    ${cpKeyPhrase(keyMaps.or)}.`;
@@ -834,14 +788,13 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
           'them with your other hand. Each question has its own two keys and\n' +
           'they never swap.';
 
-    // 2026-08-25 REORDER & 2026-08-27 CUE TIMING:
-    // Cues are suppressed in S2/S3 (single-task pathway) and S3a/S3b (Stroop) so
-    // no border is shown during early training. The colored border is introduced
-    // at S4 (task switching), where it becomes both informative and predictive.
+    // Cues are suppressed in S2/S3 (single-task pathway) and S3a/S3b (Stroop), so
+    // no border shows during early training. The colored border is introduced at S4
+    // (task switching), where it becomes informative and predictive.
     //
-    // TRIMMED FOR THE DEMO (2026-08-17). Every screen carries an animated cartoon
-    // (~148 px of a 598 px budget). Copy the cartoon SHOWS was cut; copy it cannot
-    // show was kept. Re-run `node analysis/measure_instructions.js` after any edit.
+    // Copy is kept tight because every screen also carries an animated cartoon
+    // (~148 px of a 598 px budget): anything the cartoon shows was cut, anything it
+    // can't was kept. Re-run `node analysis/measure_instructions.js` after any edit.
     const S2 =
         'STEP 1 of 8 — the flying task.\n\n' +
         'Your job: say which way the group of birds is FLYING.\n\n' +
@@ -860,10 +813,9 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
         '\n\n' +
         'Again: as fast as you can while staying accurate. Press any key to begin.';
 
-    // S3a/S3b: the Stroop stages. Conflict is FIRST introduced here, in the
-    // simplest possible setting — one sustained task with a distractor that can
-    // disagree. The cartoon shows a conflicting stimulus, so the copy only needs to
-    // name the rule ("answer this question, ignore that one").
+    // S3a/S3b: the Stroop stages. Conflict is introduced here for the first time,
+    // in the simplest setting — one sustained task with a distractor that can
+    // disagree. The cartoon shows the conflict, so the copy just names the rule.
     const S3a =
         'STEP 3 of 8 — the flying task, now with a distraction.\n\n' +
         'Still just ONE question: which way are the birds FLYING?\n\n' +
@@ -894,8 +846,8 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
         '\n\n' +
         'Press any key to begin.';
 
-    // S6: bivalence + conflict, now WHILE switching. Conflict is not new (S3a/S3b),
-    // so this screen frames the COMBINATION, not a first encounter with conflict.
+    // S6: bivalence + conflict, now while switching. Conflict isn't new (S3a/S3b),
+    // so this screen frames the combination, not a first encounter with conflict.
     const S6 =
         'STEP 6 of 8 — both at once, while the border switches.\n\n' +
         'This combines the two things you just practiced: the birds are BOTH\n' +
@@ -970,9 +922,9 @@ function cpCueMeta(keyMaps, scheme) {
     return {
         cueMode: (scheme && scheme.cueMode) || 'hue',
         cueSides: { mov: cpHandFor(keyMaps.mov), or: cpHandFor(keyMaps.or) },
-        // The task word printed under each keycap cluster (08-18 l.105). Kept in
-        // step with the FLYING/FACING copy; instruction_demo reads it off the
-        // spec, so the vocabulary is declared once, here.
+        // The task word printed under each keycap cluster. instruction_demo reads
+        // it off the spec, so the vocabulary is declared once, here, and stays in
+        // step with the flying/facing copy.
         taskWords: { mov: 'flying', or: 'facing' },
     };
 }
@@ -984,19 +936,19 @@ function cpDirsOf(keyMap) {
 }
 
 function cpTrainingDemos(keyMaps, finalStage, scheme) {
-    // Angles come from the KEY MAPS, not from literals, so a scheme with vertical
-    // geometry (fourcue: mov {90:'w',270:'s'}, or {90:'i',270:'k'}) draws up/down
-    // instead of left/right with no second code path — and the keycap graphic is
-    // still chosen from the key character, so demoKeycap() throws for a key with no
-    // pixel art rather than depicting the wrong finger. dirsOf gives the two
-    // directions in reading order; movA/orA is the FIRST, movB/orB the second.
+    // Angles come from the key maps, not literals, so a vertical-geometry scheme
+    // (fourcue: mov {90:'w',270:'s'}, or {90:'i',270:'k'}) draws up/down instead of
+    // left/right with no second code path. The keycap graphic is chosen from the
+    // key character, so demoKeycap() throws for a key with no pixel art rather than
+    // showing the wrong finger. cpDirsOf gives the two directions in reading order;
+    // movA/orA is the first, movB/orB the second.
     const [movA, movB] = cpDirsOf(keyMaps.mov);
     const [orA, orB] = cpDirsOf(keyMaps.or);
 
     const positional = cpSchemeVocab(scheme).positional;
     const withCue = (demo) => ({ ...demo, ...cpCueMeta(keyMaps, scheme) });
 
-    // Under fourcue the response hand follows the border SIDE, not the task, so a
+    // Under fourcue the response hand follows the border side, not the task, so a
     // segment can put either task on either hand. `keyFor(hand, dir)` picks the
     // keycap for that hand+direction from whichever key map sits on that hand.
     const leftMap = cpHandFor(keyMaps.mov) === 'left' ? keyMaps.mov : keyMaps.or;
@@ -1041,9 +993,8 @@ function cpTrainingDemos(keyMaps, finalStage, scheme) {
             keyTask: 'or',
         },
     ];
-    // (The old S5 congruent-only fourcue cartoon was removed with S5, 2026-08-25.)
     // S6 incongruent: movement and facing disagree; the depressed key follows the
-    // CUED task, so the same stimulus yields a different answer on each border.
+    // cued task, so the same stimulus yields a different answer on each border.
     const s6Fourcue = [
         {
             movement: movA,
@@ -1138,10 +1089,8 @@ function cpTrainingDemos(keyMaps, finalStage, scheme) {
                       },
                   ],
         }),
-        // S6: bivalent, INCONGRUENT — changing only the border (and, under fourcue,
-        // its side) flips the correct key. That contrast is the whole lesson of the
-        // stage, and is why the legend could come out of the copy. (Old S5, the
-        // congruent-only cartoon, was dropped in the 2026-08-25 reorder.)
+        // S6: bivalent, incongruent — changing only the border (and, under fourcue,
+        // its side) flips the correct key.
         S6: withCue({
             segments: positional
                 ? s6Fourcue
@@ -1181,10 +1130,10 @@ function cpFinalStageDemo(keyMaps, finalStage, scheme) {
     const keyFor = (hand, dir) => (hand === 'left' ? leftMap : rightMap)[dir];
 
     if (finalStage.kind === 'switching') {
-        // A repeat then a switch, which is the manipulation the test block
-        // measures and the one thing S6's cartoon does not show. Under fourcue the
-        // hand also varies with the border side, so the switch is shown as a task
-        // AND hand change (all four cues appear across the loop).
+        // A repeat then a switch — the manipulation the test block measures, and
+        // the one thing S6's cartoon doesn't show. Under fourcue the hand also
+        // varies with the border side, so the switch is shown as a task-and-hand
+        // change (all four cues appear across the loop).
         if (positional) {
             return {
                 segments: [
@@ -1251,16 +1200,16 @@ function cpFinalStageDemo(keyMaps, finalStage, scheme) {
     }
 
     if (finalStage.kind === 'stroop') {
-        // One task for the rest of the session. Both segments conflict, because
-        // that is what the Stroop test block is made of. Under fourcue the COLOUR
-        // is fixed (the target task) but the HAND still varies with the side, so
-        // the cartoon shows the one task on both hands.
+        // One task for the rest of the session. Both segments conflict, since
+        // that's what the Stroop test block is made of. Under fourcue the color is
+        // fixed (the target task) but the hand still varies with the side, so the
+        // cartoon shows the one task on both hands.
         const task = finalStage.task === 'or' ? 'or' : 'mov';
         const keys = keyMaps[task];
         const [dA, dB] = cpDirsOf(keys);
         if (positional) {
             // Conflicting stimulus (target dir vs the other direction) on each
-            // hand; the depressed key answers the TARGET task on that hand's keys.
+            // hand; the depressed key answers the target task on that hand's keys.
             const conflict = (targetDir, hand) => ({
                 movement: task === 'mov' ? targetDir : targetDir === dA ? dB : dA,
                 orientation: task === 'or' ? targetDir : targetDir === dA ? dB : dA,
@@ -1331,20 +1280,15 @@ function cpFinalStageDemo(keyMaps, finalStage, scheme) {
  * to a single task after S4-S6 taught both.
  */
 function cpFinalStageInstructions(keyMaps, finalStage, scheme) {
-    // PARADIGM-AGNOSTIC by design (08-18 l.131-145). S8 keeps its per-paradigm
-    // TRIAL structure and its per-paradigm visual example (the cartoon), but the
-    // instruction TEXT is IDENTICAL for every paradigm AND every between-subjects
+    // Paradigm-agnostic by design. S8 keeps its per-paradigm trial structure and
+    // cartoon, but the instruction text is identical across every paradigm and
     // condition. The wording — not the trials — is what installs a task strategy,
-    // so letting it vary across paradigms would confound them; that is the whole
-    // point of unifying it. Nothing here reads finalStage.kind or the condition:
-    //   - `finalStage` is accepted only to keep the call signature stable (the
-    //     caller passes it); it is deliberately unused.
-    //   - the only thing that varies is cpBorderLegend, which is a function of the
-    //     SCHEME, not the paradigm, and is identical across all five paradigms and
-    //     both conditions. Under fourcue it already carries the SIDE=hand rule.
-    // Whatever is genuinely paradigm-specific (one answer vs two, response order,
-    // "ignore the distractor") the participant learned in S2-S6 and sees again in
-    // this stage's own cartoon — it is not restated in words.
+    // so letting it vary would confound the paradigms. Nothing here reads
+    // finalStage.kind or the condition: `finalStage` is accepted only to keep the
+    // call signature stable, and the only thing that varies is cpBorderLegend,
+    // which depends on the scheme, not the paradigm. Anything genuinely
+    // paradigm-specific (one answer vs two, response order, "ignore the
+    // distractor") was learned in S2-S6 and is shown again in this stage's cartoon.
     void finalStage;
     return (
         'STEP 6 of 6 — putting it all together.\n\n' +
@@ -1359,11 +1303,9 @@ function cpFinalStageInstructions(keyMaps, finalStage, scheme) {
 }
 
 /** Prefix that turns a test block's own instructions into "practice is over". */
-// Lines kept under ~58 chars so neither wraps at .instructions-content's
-// max-width: 80% — this is on all five test screens, so one wrapped line here
-// costs every screen a line (analysis/measure_instructions.js). The `- - -`
-// rule that used to separate this from the block's own copy is gone
-// (2026-08-23): the cartoon now separates them better and freed 52px/screen.
+// Keep lines under ~58 chars so none wrap at .instructions-content's
+// max-width: 80% — this shows on all five test screens, so one wrapped line here
+// costs every screen a line (analysis/measure_instructions.js).
 const CP_TEST_BLOCK_PREAMBLE =
     'Practice is over — the real task starts now.\n' +
     'You will no longer be told whether each answer was right.\n\n';
@@ -1372,13 +1314,13 @@ const CP_TEST_BLOCK_PREAMBLE =
 // Per-paradigm training specs
 // ------------------------------------------------------------
 //
-// Judgment call, flagged rather than promoted to a decision: `rampTarget`
-// below is the EASIEST coherence level the task carries in the test block,
-// not the hardest — the design just says S2-S4 ramp "down to test levels",
-// ambiguous once a task has two. Easiest is the safer floor because an S2/S3
-// cap failure is the pre-registered exclusion rule, which has to mean "hasn't
-// learned the mapping" and not "finds 0.3 coherence hard"; full-range
-// exposure is S6's job (gets each test block's coherence table verbatim).
+// Judgment call, flagged rather than settled: `rampTarget` below is the easiest
+// coherence level the task carries in the test block, not the hardest. The design
+// only says S2-S4 ramp "down to test levels", which is ambiguous once a task has
+// two. Easiest is the safer floor: an S2/S3 cap failure is the pre-registered
+// exclusion rule and must mean "hasn't learned the mapping", not "finds 0.3
+// coherence hard". Full-range exposure is S6's job (it gets each test block's
+// coherence table verbatim).
 //
 // Training also runs bivalent stimuli for all five paradigms, including
 // cp_prp whose test block is univalent — so its S5/S6 use CP_DISTRACTOR. A
@@ -1412,17 +1354,17 @@ function cpStampScheme(blockConfig, scheme) {
 /**
  * Build one paradigm's five test blocks for a condition and scheme. Mirrors the
  * static CP_*_SESSION load-time builds, but with the blockConfig scheme-stamped
- * and the first block's instruction copy AND cartoon generated from the scheme's
- * key maps. `scheme` absent => disjoint (the generators' own default), so this
+ * and the first block's instruction copy and cartoon generated from the scheme's
+ * key maps. Absent `scheme` => disjoint (the generators' default), so this
  * reproduces the static sessions exactly.
  */
 function cpTestSessionFor(paradigm, condition = 'A', scheme) {
     const condTask = condition === 'B' ? 'or' : 'mov';
     const km = scheme ? scheme.keyMaps : undefined; // undefined => generator default (disjoint)
     const stamp = (bc) => cpStampScheme(bc, scheme);
-    // The cartoon's angles and keycaps come from the key maps, so it has to be
-    // built from the SAME `km` the copy is — a demo left on the disjoint default
-    // under fourcue would depict horizontal birds and the wrong fingers.
+    // The cartoon's angles and keycaps come from the key maps, so it must be built
+    // from the same `km` as the copy — a demo left on the disjoint default under
+    // fourcue would show horizontal birds and the wrong fingers.
     const demoKeyMaps = km || CP_DISJOINT_KEY_MAPS;
     const demo = (finalStage) => cpTestDemo(demoKeyMaps, finalStage, scheme);
     switch (paradigm) {
@@ -1495,23 +1437,21 @@ function cpBuildTrainingSession(spec) {
         instructions: instructions.S8,
         demo: demos.S8,
     });
-    // S7 — the shared PRP (dual-task) stage EVERY paradigm now runs (2026-08-25),
-    // so that dual-tasking is trained for all participants, not only PRP ones. It is
-    // built via the same kind:'prp' builder as PRP's own S8, but with the CANONICAL
-    // PRP parameters (cpPRP coherence/CSI, CP_PRP_SOA_LEVELS) rather than the host
-    // paradigm's, and a FIXED movement-first order — the training stage is identical
-    // for everyone, which is the whole point. buildParadigmFinalStage always tags
-    // its output S8/`prefix_S8`, so re-tag it as S7.
+    // S7 — the shared PRP (dual-task) stage every paradigm runs, so dual-tasking
+    // is trained for all participants, not just PRP ones. Built via the same
+    // kind:'prp' builder as PRP's own S8, but with the canonical PRP parameters
+    // (cpPRP coherence/CSI, CP_PRP_SOA_LEVELS) and a fixed movement-first order —
+    // identical for everyone. buildParadigmFinalStage always tags its output S8, so
+    // re-tag it as S7.
     //
-    // rso is forced to 'disjoint' here, NOT inherited from spec.rso. Every canonical
-    // paradigm's KEY MAP is already disjoint (mov = A/D left hand, or = J/L right
-    // hand) — Stroop included since Phase 1 — so a two-handed PRP is available to
-    // everyone. Stroop's spec.rso is the label 'identical' (a leftover documenting
-    // its shared-response origin, inert for its single-task test extraction); passing
-    // it here would tell the extractor to attribute the two PRP responses by ORDER
-    // while the runtime routes them by HAND (the maps are disjoint) — the exact
-    // extractor/runtime disagreement the T9 note warns against. 'disjoint' makes S7 a
-    // proper two-handed PRP with hand-based attribution for every paradigm.
+    // rso is forced to 'disjoint' rather than inherited from spec.rso. Every
+    // paradigm's key map is already disjoint (mov = A/D left, or = J/L right), so a
+    // two-handed PRP works for all. Stroop's spec.rso is the label 'identical' (a
+    // leftover from its shared-response origin, inert for single-task extraction);
+    // passing it here would tell the extractor to attribute the two PRP responses
+    // by order while the runtime routes them by hand — the extractor/runtime
+    // mismatch the T9 note warns about. 'disjoint' gives every paradigm a proper
+    // two-handed PRP with hand-based attribution.
     const prpShared = buildParadigmFinalStage({
         kind: 'prp',
         keyMaps: spec.keyMaps,
@@ -1532,10 +1472,10 @@ function cpBuildTrainingSession(spec) {
     // The training stages carry spec.keyMaps already; stamp the rest of the scheme
     // (geometry/cueMode/keyResolution) onto them. The test blocks were already
     // stamped by cpTestSessionFor.
-    // S2-S3 teach ONE task at a time on its default (task-tied) hand, so the hand
-    // does not vary there even under fourcue — the 2x2 (color x side) is introduced
-    // at S4 with the informative cue. Later single-task stages (S4-S6, S8 switching/
-    // rehearsal) vary hand like the test blocks; PRP's S8 is dual-task and never does.
+    // S2-S3 teach one task at a time on its default (task-tied) hand, so hand
+    // doesn't vary there even under fourcue — the 2x2 (color x side) is introduced
+    // at S4 with the informative cue. Later single-task stages (S4-S6, S8
+    // switching/rehearsal) vary hand like the test blocks; PRP's S8 never does.
     const EARLY_SINGLE_HAND_STAGES = new Set(['S2', 'S3', 'S3a', 'S3b']);
     const stampStage = (blockDef) => {
         const stamped = cpStampScheme(blockDef.blockConfig, scheme);
@@ -1561,9 +1501,8 @@ function cpBuildPrpTrainingSession(condition = 'A', scheme) {
         scheme,
         rampTarget: { mov: CP_EASY, or: CP_EASY },
         // Bivalent stimuli in training even though cp_prp's test block is univalent
-        // (its `coherence.distractor` is 0). Deliberately NOT passing
-        // testCoherence, which would make S5/S6 univalent and skip bivalence
-        // entirely.
+        // (its `coherence.distractor` is 0). testCoherence is not passed on purpose
+        // — it would make S6 univalent and skip bivalence entirely.
         trainingDistractor: CP_DISTRACTOR,
         testSession: cpTestSessionFor('cp_prp', condition, scheme),
         finalStage: {
@@ -1571,9 +1510,7 @@ function cpBuildPrpTrainingSession(condition = 'A', scheme) {
             csi: cpPRP.csi, // 0 — S8 matches the test block exactly
             coherence: cpPRP.coherence,
             t1Task,
-            // PLACEHOLDER: CP_PRP_SOA_LEVELS is Tim's stand-in
-            // until Sebastian hears back from Ahmed (07-31 l.61). Passed in rather
-            // than read inside the builder so the placeholder has exactly one home.
+            // SOA levels passed explicitly so the configuration source remains centralized.
             soaLevels: CP_PRP_SOA_LEVELS,
         },
     });
@@ -1585,8 +1522,8 @@ function cpBuildTaskSwitchTrainingSession(condition = 'A', scheme) {
         keyMaps: scheme ? scheme.keyMaps : CP_DISJOINT_KEY_MAPS,
         rso: 'disjoint',
         scheme,
-        // Each task carries both levels here, so the ramp bottoms at the easy one —
-        // see the JUDGMENT CALL note above.
+        // Each task carries both levels here, so the ramp bottoms at the easy one
+        // (see the judgment-call note above).
         rampTarget: { mov: CP_EASY, or: CP_EASY },
         trainingDistractor: CP_DISTRACTOR,
         testCoherence: cpTaskSwitch.coherence,
@@ -1656,9 +1593,8 @@ function cpBuildStroopTrainingSession(condition = 'A', scheme) {
             csi: cpStroop.csi,
             coherence: cpStroop.coherence,
             task: targetTask,
-            // PLACEHOLDER: the rehearsal runs PARADIGM_FINAL_STAGE_DEFAULTS'
-            // stroopTrials (16 trials, no new content). Whether 16 is the right
-            // length is still an open parameter question, so no numTrials override
+            // The rehearsal runs PARADIGM_FINAL_STAGE_DEFAULTS' stroopTrials (16,
+            // no new content). 16 is a placeholder length, so no numTrials override
             // is invented here.
         },
     });
@@ -1671,10 +1607,10 @@ function cpBuildStroopCrossedTrainingSession(condition = 'A', scheme) {
         keyMaps: scheme ? scheme.keyMaps : CP_DISJOINT_KEY_MAPS,
         rso: 'identical',
         scheme,
-        // Easiest of the three crossed levels, per the JUDGMENT CALL note above.
+        // Easiest of the three crossed levels (see the judgment-call note above).
         rampTarget: { mov: CP_STROOP_LEVELS.high, or: CP_STROOP_LEVELS.high },
-        // S5 needs ONE distractor strength; the middle level is the least
-        // committal choice, and S6 then spans all three via levelFactors.
+        // The bivalent stages need one distractor strength; the middle level is the
+        // least committal choice, and S6 then spans all three via levelFactors.
         trainingDistractor: CP_STROOP_LEVELS.mid,
         testCoherence: cpStroopCrossed.coherence,
         levelFactors: cpStroopCrossed.levelFactors,
@@ -1685,7 +1621,7 @@ function cpBuildStroopCrossedTrainingSession(condition = 'A', scheme) {
             coherence: cpStroopCrossed.coherence,
             levelFactors: cpStroopCrossed.levelFactors,
             task: targetTask,
-            // PLACEHOLDER: same 16-trial default as cp_stroop above.
+            // Same placeholder 16-trial default as cp_stroop above.
         },
     });
 }

@@ -93,16 +93,15 @@ const Session = (() => {
 
     // --- Inter-trial interval bookkeeping -------------------------------
     //
-    // Wall-clock (performance.now()) of the event the current ITI is measured
-    // FROM: the participant's response on an earlyResolve trial, otherwise the
-    // end of the trial's timeline. Null before the first trial of a block.
+    // Wall-clock (performance.now()) of the event the current ITI is measured from:
+    // the participant's response on an earlyResolve trial, otherwise the end of the
+    // trial's timeline. Null before a block's first trial.
     //
-    // Sleeping `iti` ms starting from wherever the teardown happened to finish
-    // overshot the configured interval every time — by the resolve delay (the
-    // trial keeps running after the response), plus a frame of detection lag,
-    // plus canvas teardown and creation. Hirsch's nominal 100 ms RSI was landing
-    // near 280 ms. Anchoring the sleep to the response and waiting until the
-    // deadline absorbs all of that.
+    // Sleeping `iti` ms from wherever teardown happened to finish overshot the
+    // interval every time — by the resolve delay, a frame of detection lag, and
+    // canvas teardown/creation — turning a nominal 100 ms RSI into ~280 ms.
+    // Anchoring the sleep to the response and waiting until the deadline absorbs
+    // all of that.
     let itiAnchor = null;
 
     /**
@@ -266,14 +265,11 @@ const Session = (() => {
     }
 
     /**
-     * A capped, mash-proof inter-block break (advisor 08-18 l.12-13). Unlike
-     * showInstructions this deliberately does NOT dismiss on any key: it shows a
-     * live one-minute countdown and advances only on the deliberate
-     * arm-then-confirm gesture that createBreakController (session_helpers.js)
-     * decides, so a participant mashing keys cannot skip their rest. At the cap the
-     * break AUTO-ADVANCES — the minute is a hard ceiling so idle time cannot be
-     * stretched to inflate paid time (Tim, l.13). Resolves when the break ends,
-     * early or at the cap.
+     * A capped, mash-proof inter-block break. Unlike showInstructions, this
+     * deliberately does NOT dismiss on any key: it shows a live one-minute
+     * countdown and advances only on a deliberate arm-then-confirm gesture
+     * (managed by createBreakController), preventing accidental skips.
+     * At the 60s cap, the break auto-advances.
      */
     function showBreak(bodyText) {
         return new Promise((resolve) => {
@@ -281,17 +277,13 @@ const Session = (() => {
             overlay.className = 'instructions-overlay';
             const idlePrompt = `Press ${BREAK_ADVANCE_KEY} if you want to continue now.`;
             const armedPrompt = `Press ${BREAK_ADVANCE_KEY} again to confirm.`;
-            // Built as an innerHTML STRING (like showInstructions) so the whole
-            // screen — the summary line included — is observable as overlay.innerHTML,
-            // which is how the headless suite reads screens. The countdown and prompt
-            // are their own elements, updated live in the browser via querySelector;
-            // under the DOM stub querySelector is absent, so those updates are simply
-            // skipped and the screen still reads correctly.
+            // Built as an innerHTML string so the full screen (including summary)
+            // is observable in headless testing. Live countdown updates happen via querySelector.
             overlay.innerHTML =
                 '<div class="instructions-content">' +
                 bodyText.replace(/\n/g, '<br>') +
                 '<div class="break-countdown" style="margin-top:16px; font-variant-numeric:tabular-nums;"></div>' +
-                `<div class="break-prompt" style = "margin-top:12px; color:#c0c0c0;" > ${idlePrompt}</div > ` +
+                `<div class="break-prompt" style="margin-top:12px; color:#c0c0c0;">${idlePrompt}</div>` +
                 '</div>';
             canvasContainer.appendChild(overlay);
 
@@ -305,9 +297,6 @@ const Session = (() => {
             let iv = null;
 
             const handler = (e) => {
-                // Clock the gesture off the event timestamp (a DOMHighResTimeStamp
-                // on the same clock as performance.now()); the stubbed DOM supplies
-                // it explicitly to drive the two-press advance deterministically.
                 const now = e && typeof e.timeStamp === 'number' ? e.timeStamp : performance.now();
                 const result = controller.press(e && e.key, now, e && e.repeat);
                 if (result === 'armed') {
@@ -327,13 +316,12 @@ const Session = (() => {
                 const remMs = BREAK_CAP_MS - (performance.now() - startedAt);
                 const remSec = Math.max(0, Math.ceil(remMs / 1000));
                 if (countdown) countdown.textContent = `Break: ${remSec} s remaining.`;
-                if (remMs <= 0) finish(); // cap reached — auto-advance (l.13)
+                if (remMs <= 0) finish(); // cap reached — auto-advance
             };
             renderCountdown();
             iv = setInterval(renderCountdown, 250);
 
-            // Same 200 ms guard as showInstructions: don't catch a key still held
-            // from the block that just ended.
+            // 200 ms guard prevents catching keys held down from the preceding trial.
             setTimeout(() => document.addEventListener('keydown', handler), 200);
         });
     }
@@ -346,24 +334,19 @@ const Session = (() => {
      * @returns {object} Trial data with meta + rt + accuracy
      */
     async function runTrial(trial, seConfig, prevResponseTime) {
-        // --- ITI ---
         const itiAchieved = await waitITI(trial.meta.iti);
 
-        // --- Run SE block (single trial) ---
         const data = await seBlock(
-            [trial.seParams], // single-element trial sequence
-            0, // regen = 0 (no inter-trial interval from SE)
+            [trial.seParams], // single-trial sequence
+            0, // regen
             seConfig,
             false, // isLoop
             seConfig.feedback, // isFeedback
             null, // canvasId (auto-create)
             canvasContainer, // parent element
         );
-
-        // --- Tear down ---
         await seEndBlock();
 
-        // --- Extract RT and accuracy ---
         const result = extractResponse(data, trial, seConfig);
         markITIAnchor(seConfig, result);
         return {
@@ -416,10 +399,10 @@ const Session = (() => {
         const taskParent = taskSide === 'right' ? rightParent : leftParent;
         const canvasId = 'canvas' + (taskSide === 'right' ? 'Right' : 'Left');
 
-        // Both canvases go up at trial onset; the SOA lives INSIDE the task
-        // canvas's timeline (applySOAOffset in generateSidedTrials) rather than a
-        // setTimeout here, so it lands with frame accuracy and there's no
-        // canvas pop-in contaminating this condition's single-task RT reference.
+        // Both canvases go up at trial onset; the SOA lives inside the task
+        // canvas's timeline (applySOAOffset in generateSidedTrials), not a
+        // setTimeout here, so it lands with frame accuracy and no canvas pop-in
+        // contaminates this condition's single-task RT reference.
         const placeholder = document.createElement('div');
         placeholder.style.cssText =
             'width:100%; min-height:580px; display:flex; align-items:center; justify-content:center; font-size:6em; color:#888; background:#000;';
@@ -522,19 +505,12 @@ const Session = (() => {
         // un-guarded one costs a whole session's data.
         assertValidBlockConfig(blockConfig);
         const numTrials = blockDef.isTraining ? TRAINING_CAP : blockDef.numTrials;
-        // A stage may ask for its own advancement threshold —
-        // PRP's S8 uses 12/16 because isTrialCorrectForAdvancement requires BOTH
-        // responses correct there, and 14/16 on a product of two accuracies would
-        // send a competent participant to the cap (at 80%/task: 26.4% pass under
-        // 14/16 vs 81.1% under 12/16, across the cap). Resolved ONCE here and handed
-        // to both the stop-early predicate and the stage summary: if the two ever
-        // diverged, a stage could stop while its logged criterionMet said it had not.
-        // Left `undefined` when the stage does not ask, so session_helpers.js's
-        // defaults (16/14) stay the single place the shared default lives — and it
-        // must never be lowered, since at 10/16 a pure guesser clears the stage 76.2%
-        // of the time. NB the predicate below runs before EVERY trial, so a stage
-        // offers 33 overlapping windows, not 3 disjoint ones; quote across-cap rates,
-        // not per-window ones.
+        // A stage may ask for its own advancement threshold — PRP's S8 uses 12/16
+        // (see training_stages.js for why). Resolved once here and handed to both
+        // the stop-early predicate and the stage summary, so they can't diverge and
+        // let a stage stop while its logged criterionMet says otherwise. Left
+        // `undefined` when the stage doesn't ask, so the 16/14 defaults in
+        // session_helpers.js stay the single home for the shared value.
         const advancementWindow = blockDef.advancementWindow;
         const advancementThreshold = blockDef.advancementThreshold;
         let trials;
@@ -917,7 +893,6 @@ const Session = (() => {
         trainingLog = [];
         isRunning = true;
 
-        // Clear container
         canvasContainer.innerHTML = '';
 
         // Pre-fetch SweetPea-generated sequence CSVs for any block that declares
@@ -935,10 +910,10 @@ const Session = (() => {
             spriteConfig = null;
         }
 
-        const questCoherences = { mov: 0.4, or: 0.6 }; // some defaults
+        const questCoherences = { mov: 0.4, or: 0.6 }; // starting values, refined by QUEST
         // Index into allTrialData of the first trial not yet covered by a break
         // summary. "Since the last break", not "this block": when a break is
-        // skipped the next summary spans everything that has accumulated.
+        // skipped the next summary spans everything accumulated since.
         let summaryAnchor = 0;
         for (let b = 0; b < sessionDef.length; b++) {
             if (!isRunning) break;
@@ -956,27 +931,19 @@ const Session = (() => {
                 trainingLog.push(blockResult);
             }
 
-            // Capped inter-block break (advisor 08-18 l.12-13). It sits (a) between
-            // every pair of TEST blocks and (b) at the training->test seam. It is
-            // SKIPPED between two training stages, which still run straight into the
-            // next stage's own instruction screen — a generic "block complete"
-            // screen there is pure noise, and whether a real break belongs INSIDE
-            // training is open pending the advisor.
+            // Capped inter-block break: placed (a) between test blocks and (b) at the
+            // training->test seam. Skipped between adjacent training stages, which transition
+            // directly via their own instruction screens.
             const isTrainingStage = blockDef.phase === 'training';
             const nextBlockDef = sessionDef[b + 1];
             if (b < sessionDef.length - 1 && isRunning) {
                 const nextIsTraining = nextBlockDef.phase === 'training';
                 const seam = isTrainingStage && !nextIsTraining; // last training -> first test
-                const betweenTests = !isTrainingStage; // one test block -> the next
+                const betweenTests = !isTrainingStage; // test -> test
                 if (seam || betweenTests) {
-                    // The block-level performance summary that replaces the
-                    // trial-by-trial feedback the test blocks no longer show. It is
-                    // shown HERE, strictly between blocks, and must never be moved
-                    // trial-adjacent — the entire point of it is that no exogenous
-                    // performance signal lands inside a trial's response-selection
-                    // window. Training rows are excluded: those stages still run with
-                    // feedback on, and they are not the participant's test data — so
-                    // at the seam (no test data yet) the summary line is empty.
+                    // Block-level performance summary between test blocks. Placed strictly
+                    // between blocks so no exogenous feedback appears during trial response windows.
+                    // Training trials (which have instant feedback) are excluded.
                     const sinceBreak = allTrialData
                         .slice(summaryAnchor)
                         .filter((row) => row.phase !== 'training');

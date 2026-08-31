@@ -122,9 +122,9 @@ const hirschDualCanvasPRP = {
 
 // =========================================================================
 // Orthogonal-mapping variants
-// Identical to the configs above EXCEPT mapping: 'orthogonal' — stimuli are
-// VERTICAL (90=up, 270=down) and answered with the horizontal a/d, j/l keys,
-// removing the spatial stimulus-response correspondence of the default design.
+// Like the configs above but with mapping: 'orthogonal' — vertical stimuli
+// (90=up, 270=down) answered with the horizontal a/d, j/l keys, removing the
+// spatial stimulus-response correspondence of the default design.
 // =========================================================================
 
 const hirschAlternatingPureMovOrtho = {
@@ -327,12 +327,12 @@ const HIRSCH_FAITHFUL_SESSION = [
 ];
 
 // =========================================================================
-// Full faithful replication — ORTHOGONAL MAPPING variant
+// Full faithful replication — orthogonal-mapping variant
 // Structurally identical to HIRSCH_FAITHFUL_SESSION (same block order, trial
 // counts, QUEST, SOAs, timing). Only the stimulus axis and instruction wording
-// differ: stimuli move/point UP or DOWN, answered with horizontal keys.
-//   UP   -> 'a' (left canvas) / 'j' (right canvas)
-//   DOWN -> 'd' (left canvas) / 'l' (right canvas)
+// differ: stimuli move/point up or down, answered with horizontal keys.
+//   up   -> 'a' (left canvas) / 'j' (right canvas)
+//   down -> 'd' (left canvas) / 'l' (right canvas)
 // =========================================================================
 
 const HIRSCH_FAITHFUL_ORTHOGONAL_SESSION = [
