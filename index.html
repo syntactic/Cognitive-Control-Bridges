@@ -322,6 +322,35 @@
           <option value="hirsch_quest_demo">Quest Demo</option>
         </optgroup>
       </select>
+      <!-- Response-set scheme (dev). In dev mode launchSession reads this instead
+           of the ?scheme URL param; a ?scheme in the URL pre-selects it on load. -->
+      <select id="dev-scheme" title="Response-set scheme (dev)">
+        <option value="fourcue_cse" selected>fourcue_cse (n−1)</option>
+        <option value="fourcue">fourcue (2×2)</option>
+        <option value="disjoint">disjoint (horizontal)</option>
+      </select>
+      <!-- Dev-only setup: condition + participant id feed a synthetic
+           participantMode in launchSession, so a dev run uses the same pipeline
+           as a real participant. Only meaningful for cp_* sessions. -->
+      <span
+        class="dev-setup"
+        title="Between-subjects condition (cp_* sessions)"
+      >
+        cond
+        <label class="checkbox-label"
+          ><input type="radio" name="dev-condition" value="A" checked />
+          A</label
+        >
+        <label class="checkbox-label"
+          ><input type="radio" name="dev-condition" value="B" /> B</label
+        >
+      </span>
+      <input
+        id="dev-pid"
+        type="text"
+        placeholder="participant id (optional)"
+        size="18"
+      />
       <button id="start-btn" disabled>Start</button>
       <button id="stop-btn">Stop</button>
       <button id="export-btn" disabled>Export CSV</button>
@@ -367,6 +396,10 @@
     <script src="canonical_paradigms.js"></script>
     <script src="consent_content.js"></script>
     <script src="session_helpers.js"></script>
+    <!-- Before session.js: publishes window.DEV_MODE, which session.js reads at
+         load time for CSV_EXPORT_ENABLED, and the inline script reads to decide
+         auto-launch. Also hides the .controls toolbar for real participants. -->
+    <script src="dev_mode.js"></script>
     <script src="session.js"></script>
     <script type="module" src="data_store.js"></script>
 
@@ -377,6 +410,12 @@
       const exportBtn = document.getElementById("export-btn");
       const abridgedCb = document.getElementById("abridged-cb");
       const container = document.getElementById("canvas-container");
+      const controlsEl = document.querySelector(".controls");
+
+      // A ?scheme in the URL pre-selects the dev scheme dropdown; an unknown value
+      // is a no-op, leaving the fourcue_cse default.
+      const urlScheme = new URLSearchParams(location.search).get("scheme");
+      if (urlScheme) document.getElementById("dev-scheme").value = urlScheme;
 
       selectEl.addEventListener("change", () => {
         startBtn.disabled = !selectEl.value;
@@ -492,9 +531,11 @@
       }
 
       let participantMode = null;
+      let paramError = false;
       try {
         participantMode = readParticipantMode();
       } catch (e) {
+        paramError = true;
         showFatal(e.message);
       }
       if (participantMode) {
@@ -731,26 +772,61 @@
         return blocks;
       }
 
-      startBtn.addEventListener("click", async () => {
-        // Response-set scheme: ?scheme=disjoint (default, the committed Phase 1
-        // build), ?scheme=fourcue (vertical W/S+I/K, positional cue), or
-        // ?scheme=fourcue_cse (fourcue plus n−1 congruency in cp_stroop/cp_prp). Resolved
-        // once here and threaded into both the session build (keys/geometry/copy)
-        // and runSession (cue rendering). An unknown value falls back to disjoint.
-        const schemeName =
-          new URLSearchParams(window.location.search).get("scheme") ||
-          "disjoint";
+      // Launch a session. Called by the dev Start button, and auto-invoked on
+      // load for a real participant (see the bottom of this script), so consent
+      // is the participant's first screen instead of a Start button.
+      async function launchSession() {
+        // Response-set scheme: disjoint (horizontal A/D+J/L, the committed Phase 1
+        // build), fourcue (vertical W/S+I/K, positional cue), or fourcue_cse
+        // (fourcue plus n−1 congruency in cp_stroop/cp_prp). Threaded into both the
+        // session build (keys/geometry/copy) and runSession (cue rendering). In dev
+        // mode the dev-scheme dropdown wins; otherwise the ?scheme URL param
+        // (default disjoint for a real participant). Unknown values fall back to disjoint.
+        const schemeName = window.DEV_MODE
+          ? document.getElementById("dev-scheme").value
+          : new URLSearchParams(window.location.search).get("scheme") ||
+            "disjoint";
         const scheme = cpResolveScheme(schemeName);
+
+        // Dev setup: with no participant URL, build a synthetic participantMode
+        // from the dev controls so a dev run flows through the SAME pipeline as a
+        // real participant — condition-adapted training, sequence pool, upload.
+        // Only cp_* sessions carry a condition / participant id; a PID unlocks the
+        // pool CSVs + Firestore upload, an empty PID stays a local demo.
+        const devCondition =
+          document.querySelector('input[name="dev-condition"]:checked')
+            ?.value || "A";
+        if (window.DEV_MODE && !participantMode) {
+          const id = selectEl.value;
+          const pid = document.getElementById("dev-pid").value.trim();
+          if (id.startsWith("cp_") && pid) {
+            const paradigm = id.replace(/_training$/, "");
+            const sequenceIds = drawSequenceIds(
+              `${pid}|${paradigm}|${devCondition}`,
+              CP_SEQUENCE_POOL_SIZE,
+              CP_TEST_BLOCKS_PER_SESSION,
+            );
+            participantMode = {
+              paradigm,
+              condition: devCondition,
+              participantId: pid,
+              sessionId: id,
+              testOnly: !id.endsWith("_training"),
+              sequenceIds,
+            };
+          }
+        }
+
         const sessionDef = getSessionDef(
           selectEl.value,
-          participantMode ? participantMode.condition : "A",
+          participantMode ? participantMode.condition : devCondition,
           scheme,
         );
         if (!sessionDef) return;
 
-        startBtn.style.display = "none";
-        selectEl.disabled = true;
-        stopBtn.style.display = "";
+        // Free the canvas: hide the whole dev toolbar for the run. (In participant
+        // mode it is already hidden.) A dev aborts by reloading.
+        controlsEl.style.display = "none";
         exportBtn.disabled = true;
         container.focus();
 
@@ -779,10 +855,15 @@
             `Error: ${e.message}`;
         }
 
-        stopBtn.style.display = "none";
-        startBtn.style.display = "";
-        selectEl.disabled = false;
-      });
+        // Restore the dev toolbar so the dev can run another session (Export is
+        // now enabled by session.js if CSV export is on). In participant mode the
+        // toolbar stays hidden.
+        if (window.DEV_MODE) {
+          controlsEl.style.display = "";
+        }
+      }
+
+      startBtn.addEventListener("click", launchSession);
 
       stopBtn.addEventListener("click", () => {
         Session.stopSession();
@@ -791,6 +872,28 @@
       exportBtn.addEventListener("click", () => {
         Session.exportCSV();
       });
+
+      // Not a dev, and no experiment configured: show just the title. The
+      // .controls toolbar is already hidden by dev_mode.js; strip the rest.
+      function renderBlank() {
+        for (const sel of ["#canvas-container", ".info", "#session-status"]) {
+          const el = document.querySelector(sel);
+          if (el) el.style.display = "none";
+        }
+      }
+
+      // Three page states, chosen once on load:
+      //  - DEV_MODE: controls stay visible (dev_mode.js); dev sets up + clicks Start.
+      //  - real participant: auto-launch so the consent form is the first screen
+      //    (its Continue button effectively starts the run — no Start button).
+      //  - otherwise (no params, not a bad URL): the nearly blank page.
+      if (window.DEV_MODE) {
+        // nothing to auto-do; the dev drives the toolbar.
+      } else if (participantMode) {
+        launchSession();
+      } else if (!paramError) {
+        renderBlank();
+      }
     </script>
   </body>
 </html>

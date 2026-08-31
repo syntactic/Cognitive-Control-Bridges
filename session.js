@@ -11,13 +11,12 @@ const Session = (() => {
   let isRunning = false;
   let canvasContainer = null;
 
-  // Master switch for the client-side CSV download. Turned off now that data is
-  // uploaded to Firestore block by block (data_store.js) — the download button
-  // was the pre-Firebase way of getting data off the participant's machine and
-  // is redundant. exportCSV() and all its column logic are kept intact; flip
-  // this back to true to re-enable the debrief download button and the toolbar
-  // Export CSV button.
-  const CSV_EXPORT_ENABLED = false;
+  // Master switch for the client-side CSV download. Real participants upload to
+  // Firestore block by block (data_store.js), so the download is a developer
+  // convenience only — enabled in developer mode (dev_mode.js), off for
+  // participants. exportCSV() and all its column logic stay intact regardless.
+  // Guarded for the node test env, where window is undefined.
+  const CSV_EXPORT_ENABLED = typeof window !== "undefined" && !!window.DEV_MODE;
 
   // SE package references
   let spriteConfig = null; // populated by loadSprites() when sprite mode is on
@@ -173,12 +172,9 @@ const Session = (() => {
   }
 
   function showConsent(containerEl, options = {}) {
-    const urlParams =
-      typeof window !== "undefined" && window.location
-        ? new URLSearchParams(window.location.search)
-        : new URLSearchParams();
-    const bypass =
-      options.skipConsent || urlParams.get("skipConsent") === "true";
+    // Consent is skipped only in developer mode (dev_mode.js). Real participants
+    // always see it. Guarded for the node test env, where window is undefined.
+    const bypass = typeof window !== "undefined" && !!window.DEV_MODE;
     if (bypass) {
       return Promise.resolve();
     }
