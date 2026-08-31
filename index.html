@@ -1,91 +1,178 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bridge Experiment Demos</title>
-    <link rel="icon" type="image/png" href="favicon/favicon-96x96.png" sizes="96x96" />
+    <link
+      rel="icon"
+      type="image/png"
+      href="favicon/favicon-96x96.png"
+      sizes="96x96"
+    />
     <link rel="icon" type="image/svg+xml" href="favicon/favicon.svg" />
     <link rel="shortcut icon" href="favicon/favicon.ico" />
-    <link rel="apple-touch-icon" sizes="180x180" href="favicon/apple-touch-icon.png" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="favicon/apple-touch-icon.png"
+    />
     <link rel="manifest" href="favicon/site.webmanifest" />
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background: #1a1a2e;
-            color: #e0e0e0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        header {
-            padding: 20px;
-            text-align: center;
-        }
-        header h1 { font-size: 1.4em; font-weight: 500; color: #a0c4ff; }
-        header p { font-size: 0.85em; color: #888; margin-top: 4px; }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: #1a1a2e;
+        color: #e0e0e0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      header {
+        padding: 20px;
+        text-align: center;
+      }
+      header h1 {
+        font-size: 1.4em;
+        font-weight: 500;
+        color: #a0c4ff;
+      }
+      header p {
+        font-size: 0.85em;
+        color: #888;
+        margin-top: 4px;
+      }
 
-        .controls {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            padding: 0 20px 16px;
-        }
-        select, button {
-            font-size: 0.9em;
-            padding: 8px 16px;
-            border: 1px solid #333;
-            border-radius: 6px;
-            background: #16213e;
-            color: #e0e0e0;
-            cursor: pointer;
-        }
-        button:disabled {
-            opacity: 0.4;
-            cursor: default;
-        }
-        button:not(:disabled):hover {
-            background: #0f3460;
-        }
-        #stop-btn { background: #5c1a1a; border-color: #8b3a3a; display: none; }
-        #stop-btn:hover { background: #7a2a2a; }
-        #export-btn { background: #1a3c1a; border-color: #3a6b3a; }
-        #export-btn:hover:not(:disabled) { background: #2a5c2a; }
-        .checkbox-label {
-            font-size: 0.85em;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            cursor: pointer;
-            user-select: none;
-        }
+      .controls {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        padding: 0 20px 16px;
+      }
+      select,
+      button {
+        font-size: 0.9em;
+        padding: 8px 16px;
+        border: 1px solid #333;
+        border-radius: 6px;
+        background: #16213e;
+        color: #e0e0e0;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      button:not(:disabled):hover {
+        background: #0f3460;
+      }
+      #stop-btn {
+        background: #5c1a1a;
+        border-color: #8b3a3a;
+        display: none;
+      }
+      #stop-btn:hover {
+        background: #7a2a2a;
+      }
+      #export-btn {
+        background: #1a3c1a;
+        border-color: #3a6b3a;
+      }
+      #export-btn:hover:not(:disabled) {
+        background: #2a5c2a;
+      }
+      .checkbox-label {
+        font-size: 0.85em;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+        user-select: none;
+      }
 
-        #session-status {
-            font-size: 0.85em;
-            color: #888;
-            padding: 0 20px 8px;
-            min-height: 1.2em;
-        }
+      #session-status {
+        font-size: 0.85em;
+        color: #888;
+        padding: 0 20px 8px;
+        min-height: 1.2em;
+      }
 
-        #canvas-container {
-            width: 600px;
-            height: 600px;
-            border: 1px solid #333;
-            border-radius: 8px;
-            background: #0a0a1a;
-            position: relative;
-            outline: none;
-        }
-        #canvas-container:focus {
-            border-color: #4488ff;
-        }
-	#canvas-container.dual-canvas-mode {
-	    width: 1220px;
-	    height: 600px;
-	}
-        /* SE sizes its canvas from the VIEWPORT, not from its parent:
+      #canvas-container {
+        width: 600px;
+        height: 600px;
+        border: 1px solid #333;
+        border-radius: 8px;
+        background: #0a0a1a;
+        position: relative;
+        outline: none;
+        transition:
+          width 0.35s ease,
+          height 0.35s ease;
+      }
+
+      #canvas-container.consent-mode {
+        width: 640px;
+        height: 700px;
+      }
+
+      .consent-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(10, 10, 26, 0.98);
+        display: flex;
+        flex-direction: column;
+        padding: 24px;
+        border-radius: 8px;
+        z-index: 10;
+      }
+
+      .consent-header {
+        margin-bottom: 12px;
+        text-align: center;
+      }
+
+      .consent-header h2 {
+        font-size: 1.2em;
+        color: #a0c4ff;
+        font-weight: 500;
+      }
+
+      .consent-body {
+        flex: 1;
+        overflow-y: auto;
+        background: #0e0e20;
+        border: 1px solid #222;
+        border-radius: 6px;
+        padding: 16px;
+        font-size: 0.88em;
+        line-height: 1.6;
+        color: #b0b0b0;
+        margin-bottom: 16px;
+      }
+
+      .consent-footer {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
+      }
+
+      #canvas-container:focus {
+        border-color: #4488ff;
+      }
+      #canvas-container.dual-canvas-mode {
+        width: 1220px;
+        height: 600px;
+      }
+      /* SE sizes its canvas from the VIEWPORT, not from its parent:
            game.js updateCanvasSize() sets the inline style to
            min(innerWidth, innerHeight) * config.size, and re-runs on every
            window resize. With the single-canvas size of 0.75 that is 675 px in
@@ -97,146 +184,164 @@
            Dual-canvas mode is excluded because it is already handled in JS —
            computeDualCanvasSize() in session.js derives the fraction from this
            container's width, and its two canvases are not direct children. */
-        #canvas-container:not(.dual-canvas-mode) > canvas {
-            width: 100% !important;
-            height: 100% !important;
-        }
-        .instructions-overlay {
-            position: absolute;
-            inset: 0;
-            background: rgba(10, 10, 26, 0.95);
-            display: flex;
-            /* flex-start + `margin: auto 0` on the content, rather than
+      #canvas-container:not(.dual-canvas-mode) > canvas {
+        width: 100% !important;
+        height: 100% !important;
+      }
+      .instructions-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(10, 10, 26, 0.95);
+        display: flex;
+        /* flex-start + `margin: auto 0` on the content, rather than
                align-items: center: a centered flex item taller than its container
                is clipped at BOTH ends and cannot be scrolled back to. Copy longer
                than the canvas now scrolls instead. cp_prp's instructions already
                overflowed 600 px before the training screens were added. */
-            align-items: flex-start;
-            justify-content: center;
-            overflow-y: auto;
-            padding: 20px;
-            z-index: 10;
-            border-radius: 8px;
-        }
-        .instructions-content {
-            /* The copy is authored with hard line breaks at ~66 characters (see
+        align-items: flex-start;
+        justify-content: center;
+        overflow-y: auto;
+        padding: 20px;
+        z-index: 10;
+        border-radius: 8px;
+      }
+      .instructions-content {
+        /* The copy is authored with hard line breaks at ~66 characters (see
                canonical_paradigms.js). At 80% of a 600 px canvas the measure only
                fits ~55, so almost every authored line ALSO soft-wrapped, producing
                a ragged two-line-per-sentence screen. The overlay's 20 px padding
                already supplies the margin, so the content may use the full width
                and the authored breaks land where they were written. */
-            max-width: 100%;
-            margin: auto 0;
-            text-align: center;
-            font-size: 1em;
-            line-height: 1.6;
-            color: #c0c0c0;
-        }
+        max-width: 100%;
+        margin: auto 0;
+        text-align: center;
+        font-size: 1em;
+        line-height: 1.6;
+        color: #c0c0c0;
+      }
 
-        /* The animated stimulus cartoon on a training instruction screen
+      /* The animated stimulus cartoon on a training instruction screen
            (instruction_demo.js). Laid out as a ROW — canvas beside keycaps — so
            the whole thing costs one canvas-height of the screen's budget rather
            than canvas plus keycap. The canvas has a 320 px backing store and is
            displayed at 150 px; do not size it from `config.size`, which is a
            fraction of the VIEWPORT and is what oversized the trial canvas. */
-        .demo-row {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 16px;
-            margin: 12px 0;
-        }
-        .demo-row .demo-canvas {
-            width: 150px;
-            height: 150px;
-            background: #000;
-            border-radius: 6px;
-            flex: none;
-        }
-        .demo-row .demo-key {
-            width: 108px;
-            image-rendering: pixelated;
-            flex: none;
-        }
+      .demo-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        margin: 12px 0;
+      }
+      .demo-row .demo-canvas {
+        width: 150px;
+        height: 150px;
+        background: #000;
+        border-radius: 6px;
+        flex: none;
+      }
+      .demo-row .demo-key {
+        width: 108px;
+        image-rendering: pixelated;
+        flex: none;
+      }
 
-        .info {
-            margin-top: 16px;
-            padding: 0 20px;
-            font-size: 0.8em;
-            color: #555;
-            max-width: 600px;
-            text-align: center;
-        }
+      .info {
+        margin-top: 16px;
+        padding: 0 20px;
+        font-size: 0.8em;
+        color: #555;
+        max-width: 600px;
+        text-align: center;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <header>
-        <h1>Bridge Experiment Demos</h1>
-        <p>Parametric bridges between task switching and dual-task paradigms</p>
+      <h1>Bridge Experiment Demos</h1>
+      <p>Parametric bridges between task switching and dual-task paradigms</p>
     </header>
 
     <div class="controls">
-        <select id="demo-select">
-            <option value="">-- Select a demo --</option>
-            <optgroup label="Generic Demos">
-                <option value="demo_session">Single-Canvas (Pure + Mixed + PRP)</option>
-                <option value="demo_prp_only">Single-Canvas PRP only</option>
-                <option value="demo_mixed_only">Single-Canvas Mixed only</option>
-                <option value="demo_dual_same">Dual-Canvas Same Task</option>
-            </optgroup>
-            <optgroup label="Canonical Paradigms">
-                <option value="cp_prp">PRP / Dual-Task (SOA)</option>
-                <option value="cp_taskswitch">Task Switching (basic)</option>
-                <option value="cp_taskswitch_asym">Task Switching (asymmetric)</option>
-                <option value="cp_stroop">Stroop / Interference (basic)</option>
-                <option value="cp_stroop_crossed">Stroop (crossed target × distractor)</option>
-            </optgroup>
-            <optgroup label="Canonical Paradigms — full session (training + test)">
-                <option value="cp_prp_training">PRP / Dual-Task — training + test</option>
-                <option value="cp_taskswitch_training">Task Switching (basic) — training + test</option>
-                <option value="cp_taskswitch_asym_training">Task Switching (asymmetric) — training + test</option>
-                <option value="cp_stroop_training">Stroop / Interference — training + test</option>
-                <option value="cp_stroop_crossed_training">Stroop (crossed) — training + test</option>
-            </optgroup>
-            <optgroup label="Switch Frequency">
-                <option value="sf_univalent">Univalent (pure switch costs)</option>
-                <option value="sf_neutral">Neutral (orthogonal dimensions)</option>
-                <option value="sf_bivalent">Bivalent (congruency + Gratton)</option>
-            </optgroup>
-            <optgroup label="Hirsch Replication">
-                <option value="hirsch_faithful">Full Replication</option>
-                <option value="hirsch_faithful_orthogonal">Full Replication (Orthogonal Mapping)</option>
-                <option value="hirsch_part1">Part 1: Task Switching</option>
-                <option value="hirsch_part2">Part 2: Dual-Canvas PRP</option>
-            </optgroup>
-            <optgroup label="Hirsch Quick Tests">
-                <option value="hirsch_alt_pure">Alternating Pure</option>
-                <option value="hirsch_alt_mixed">Alternating Mixed</option>
-                <option value="hirsch_prp_baseline">PRP Baseline (Asterisk)</option>
-                <option value="hirsch_prp">PRP Dual-Canvas</option>
-		<option value="hirsch_quest_demo">Quest Demo</option>
-            </optgroup>
-        </select>
-        <button id="start-btn" disabled>Start</button>
-        <button id="stop-btn">Stop</button>
-        <button id="export-btn" disabled>Export CSV</button>
-        <label class="checkbox-label">
-            <input type="checkbox" id="abridged-cb" checked>
-            Abridged (1/10 trials)
-        </label>
+      <select id="demo-select">
+        <option value="">-- Select a demo --</option>
+        <optgroup label="Generic Demos">
+          <option value="demo_session">
+            Single-Canvas (Pure + Mixed + PRP)
+          </option>
+          <option value="demo_prp_only">Single-Canvas PRP only</option>
+          <option value="demo_mixed_only">Single-Canvas Mixed only</option>
+          <option value="demo_dual_same">Dual-Canvas Same Task</option>
+        </optgroup>
+        <optgroup label="Canonical Paradigms">
+          <option value="cp_prp">PRP / Dual-Task (SOA)</option>
+          <option value="cp_taskswitch">Task Switching (basic)</option>
+          <option value="cp_taskswitch_asym">
+            Task Switching (asymmetric)
+          </option>
+          <option value="cp_stroop">Stroop / Interference (basic)</option>
+          <option value="cp_stroop_crossed">
+            Stroop (crossed target × distractor)
+          </option>
+        </optgroup>
+        <optgroup label="Canonical Paradigms — full session (training + test)">
+          <option value="cp_prp_training">
+            PRP / Dual-Task — training + test
+          </option>
+          <option value="cp_taskswitch_training">
+            Task Switching (basic) — training + test
+          </option>
+          <option value="cp_taskswitch_asym_training">
+            Task Switching (asymmetric) — training + test
+          </option>
+          <option value="cp_stroop_training">
+            Stroop / Interference — training + test
+          </option>
+          <option value="cp_stroop_crossed_training">
+            Stroop (crossed) — training + test
+          </option>
+        </optgroup>
+        <optgroup label="Switch Frequency">
+          <option value="sf_univalent">Univalent (pure switch costs)</option>
+          <option value="sf_neutral">Neutral (orthogonal dimensions)</option>
+          <option value="sf_bivalent">Bivalent (congruency + Gratton)</option>
+        </optgroup>
+        <optgroup label="Hirsch Replication">
+          <option value="hirsch_faithful">Full Replication</option>
+          <option value="hirsch_faithful_orthogonal">
+            Full Replication (Orthogonal Mapping)
+          </option>
+          <option value="hirsch_part1">Part 1: Task Switching</option>
+          <option value="hirsch_part2">Part 2: Dual-Canvas PRP</option>
+        </optgroup>
+        <optgroup label="Hirsch Quick Tests">
+          <option value="hirsch_alt_pure">Alternating Pure</option>
+          <option value="hirsch_alt_mixed">Alternating Mixed</option>
+          <option value="hirsch_prp_baseline">PRP Baseline (Asterisk)</option>
+          <option value="hirsch_prp">PRP Dual-Canvas</option>
+          <option value="hirsch_quest_demo">Quest Demo</option>
+        </optgroup>
+      </select>
+      <button id="start-btn" disabled>Start</button>
+      <button id="stop-btn">Stop</button>
+      <button id="export-btn" disabled>Export CSV</button>
+      <label class="checkbox-label">
+        <input type="checkbox" id="abridged-cb" checked />
+        Abridged (1/10 trials)
+      </label>
     </div>
 
     <div id="session-status"></div>
 
     <div id="canvas-container" tabindex="-1">
-        <div class="instructions-overlay">
-            <div class="instructions-content">Select a demo and press Start</div>
-        </div>
+      <div class="instructions-overlay">
+        <div class="instructions-content">Select a demo and press Start</div>
+      </div>
     </div>
 
     <div class="info">
-        Click the canvas area to give it focus before starting.
-        Keys: A = left, D = right.
+      Click the canvas area to give it focus before starting. Keys: A = left, D
+      = right.
     </div>
 
     <!-- Dependencies -->
@@ -260,339 +365,432 @@
          analysis/measure_instructions.html already used. -->
     <script src="instruction_demo.js"></script>
     <script src="canonical_paradigms.js"></script>
+    <script src="consent_content.js"></script>
     <script src="session_helpers.js"></script>
     <script src="session.js"></script>
+    <script type="module" src="data_store.js"></script>
 
     <script>
-        const selectEl = document.getElementById('demo-select');
-        const startBtn = document.getElementById('start-btn');
-        const stopBtn = document.getElementById('stop-btn');
-        const exportBtn = document.getElementById('export-btn');
-        const abridgedCb = document.getElementById('abridged-cb');
-        const container = document.getElementById('canvas-container');
+      const selectEl = document.getElementById("demo-select");
+      const startBtn = document.getElementById("start-btn");
+      const stopBtn = document.getElementById("stop-btn");
+      const exportBtn = document.getElementById("export-btn");
+      const abridgedCb = document.getElementById("abridged-cb");
+      const container = document.getElementById("canvas-container");
 
-        selectEl.addEventListener('change', () => {
-            startBtn.disabled = !selectEl.value;
-        });
+      selectEl.addEventListener("change", () => {
+        startBtn.disabled = !selectEl.value;
+      });
 
-        // ============================================================
-        // Participant mode  (?paradigm=cp_stroop&condition=A&PROLIFIC_PID=...)
-        // ============================================================
-        // A real participant arrives on a URL Prolific TaskFlow routes them to,
-        // one per paradigm x condition cell — TaskFlow is what balances those two
-        // factors, by filling a per-URL target count. The five test sequences need
-        // only randomisation, not balance, so the browser draws them here with no
-        // shared state: five distinct ids from that cell's pool, seeded on the
-        // participant identifier so a refresh yields the same five.
-        //
-        // `&test=true` skips the training stages and runs the test blocks alone
-        // (piloting). Without it the participant runs the full session: S1-S6, S8,
-        // then the test blocks.
-        //
-        // FAILS LOUDLY on a missing or unrecognised paradigm/condition rather than
-        // falling back to a default session. A participant silently running the
-        // wrong condition is worse than a crash, and unlike a crash it is invisible
-        // in the data.
+      // ============================================================
+      // Participant mode  (?paradigm=cp_stroop&condition=A&PROLIFIC_PID=...)
+      // ============================================================
+      // A real participant arrives on a URL Prolific TaskFlow routes them to,
+      // one per paradigm x condition cell — TaskFlow is what balances those two
+      // factors, by filling a per-URL target count. The five test sequences need
+      // only randomisation, not balance, so the browser draws them here with no
+      // shared state: five distinct ids from that cell's pool, seeded on the
+      // participant identifier so a refresh yields the same five.
+      //
+      // `&test=true` skips the training stages and runs the test blocks alone
+      // (piloting). Without it the participant runs the full session: S1-S6, S8,
+      // then the test blocks.
+      //
+      // FAILS LOUDLY on a missing or unrecognised paradigm/condition rather than
+      // falling back to a default session. A participant silently running the
+      // wrong condition is worse than a crash, and unlike a crash it is invisible
+      // in the data.
 
-        const CP_PARADIGM_IDS = [
-            'cp_prp', 'cp_taskswitch', 'cp_taskswitch_asym', 'cp_stroop', 'cp_stroop_crossed',
-        ];
-        const CP_CONDITIONS = ['A', 'B'];
-        // Stands in for PROLIFIC_PID during development, so the dev path is
-        // reproducible rather than blocked. NOT acceptable for a real run: two
-        // participants sharing it would draw the same five blocks, and the output
-        // would not be linkable to a Prolific submission.
-        const DEV_PARTICIPANT_ID = 'DEV';
+      const CP_PARADIGM_IDS = [
+        "cp_prp",
+        "cp_taskswitch",
+        "cp_taskswitch_asym",
+        "cp_stroop",
+        "cp_stroop_crossed",
+      ];
+      const CP_CONDITIONS = ["A", "B"];
+      // Stands in for PROLIFIC_PID during development, so the dev path is
+      // reproducible rather than blocked. NOT acceptable for a real run: two
+      // participants sharing it would draw the same five blocks, and the output
+      // would not be linkable to a Prolific submission.
+      const DEV_PARTICIPANT_ID = "DEV";
 
-        function readParticipantMode() {
-            const params = new URLSearchParams(window.location.search);
-            const paradigm = params.get('paradigm');
-            const condition = params.get('condition');
-            // No paradigm at all = the demo dropdown, which must keep working with
-            // no parameters. Anything else is a participant URL and is checked.
-            if (!paradigm && !condition) return null;
-            if (!paradigm) {
-                throw new Error('URL has ?condition= but no ?paradigm=. Expected ' +
-                    `?paradigm=<${CP_PARADIGM_IDS.join('|')}>&condition=<A|B>.`);
-            }
-            if (!CP_PARADIGM_IDS.includes(paradigm)) {
-                throw new Error(`Unknown ?paradigm=${paradigm}. Expected one of: ` +
-                    CP_PARADIGM_IDS.join(', ') + '.');
-            }
-            if (!condition) {
-                throw new Error(`?paradigm=${paradigm} given without ?condition=. ` +
-                    'Condition is a between-subjects factor and has no default.');
-            }
-            if (!CP_CONDITIONS.includes(condition)) {
-                throw new Error(`Unknown ?condition=${condition}. Expected A or B.`);
-            }
-            const testOnly = params.get('test') === 'true';
-            const sessionId = testOnly ? paradigm : `${paradigm}_training`;
+      function readParticipantMode() {
+        const params = new URLSearchParams(window.location.search);
+        const paradigm = params.get("paradigm");
+        const condition = params.get("condition");
+        // No paradigm at all = the demo dropdown, which must keep working with
+        // no parameters. Anything else is a participant URL and is checked.
+        if (!paradigm && !condition) return null;
+        if (!paradigm) {
+          throw new Error(
+            "URL has ?condition= but no ?paradigm=. Expected " +
+              `?paradigm=<${CP_PARADIGM_IDS.join("|")}>&condition=<A|B>.`,
+          );
+        }
+        if (!CP_PARADIGM_IDS.includes(paradigm)) {
+          throw new Error(
+            `Unknown ?paradigm=${paradigm}. Expected one of: ` +
+              CP_PARADIGM_IDS.join(", ") +
+              ".",
+          );
+        }
+        if (!condition) {
+          throw new Error(
+            `?paradigm=${paradigm} given without ?condition=. ` +
+              "Condition is a between-subjects factor and has no default.",
+          );
+        }
+        if (!CP_CONDITIONS.includes(condition)) {
+          throw new Error(`Unknown ?condition=${condition}. Expected A or B.`);
+        }
+        const testOnly = params.get("test") === "true";
+        const sessionId = testOnly ? paradigm : `${paradigm}_training`;
 
-            // Prolific TaskFlow substitutes {{%PROLIFIC_PID%}} in the URLs it
-            // routes to, so PROLIFIC_PID is the real seed. ?participant= is kept
-            // as a manual override for piloting.
-            const pid = params.get('PROLIFIC_PID') || params.get('participant');
-            if (!pid) {
-                console.warn(
-                    'No PROLIFIC_PID or participant in the URL — seeding the sequence draw ' +
-                    `on '${DEV_PARTICIPANT_ID}'. Every session run this way draws the SAME ` +
-                    'five blocks. Fine for development, never for a real participant.');
-            }
-            const participantId = pid || DEV_PARTICIPANT_ID;
+        // Prolific TaskFlow substitutes {{%PROLIFIC_PID%}} in the URLs it
+        // routes to, so PROLIFIC_PID is the real seed. ?participant= is kept
+        // as a manual override for piloting.
+        const pid = params.get("PROLIFIC_PID") || params.get("participant");
+        if (!pid) {
+          console.warn(
+            "No PROLIFIC_PID or participant in the URL — seeding the sequence draw " +
+              `on '${DEV_PARTICIPANT_ID}'. Every session run this way draws the SAME ` +
+              "five blocks. Fine for development, never for a real participant.",
+          );
+        }
+        const participantId = pid || DEV_PARTICIPANT_ID;
 
-            // Paradigm and condition go into the seed so that an id reused across
-            // cells (e.g. a pilot participant run twice) does not draw the same
-            // positions from two different pools.
-            const seedKey = `${participantId}|${paradigm}|${condition}`;
-            const sequenceIds = drawSequenceIds(
-                seedKey, CP_SEQUENCE_POOL_SIZE, CP_TEST_BLOCKS_PER_SESSION);
+        // Paradigm and condition go into the seed so that an id reused across
+        // cells (e.g. a pilot participant run twice) does not draw the same
+        // positions from two different pools.
+        const seedKey = `${participantId}|${paradigm}|${condition}`;
+        const sequenceIds = drawSequenceIds(
+          seedKey,
+          CP_SEQUENCE_POOL_SIZE,
+          CP_TEST_BLOCKS_PER_SESSION,
+        );
 
-            return { paradigm, condition, testOnly, sessionId, participantId, sequenceIds };
+        return {
+          paradigm,
+          condition,
+          testOnly,
+          sessionId,
+          participantId,
+          sequenceIds,
+        };
+      }
+
+      /** Refuse to run, visibly, in the place the participant is already looking. */
+      function showFatal(message) {
+        document.querySelector(".instructions-content").textContent =
+          `Cannot start.\n\n${message}`;
+        document.getElementById("session-status").textContent =
+          `Error: ${message}`;
+        selectEl.disabled = true;
+        startBtn.disabled = true;
+        console.error("Participant URL rejected:", message);
+      }
+
+      let participantMode = null;
+      try {
+        participantMode = readParticipantMode();
+      } catch (e) {
+        showFatal(e.message);
+      }
+      if (participantMode) {
+        selectEl.value = participantMode.sessionId;
+        selectEl.disabled = true;
+        startBtn.disabled = false;
+        console.log(
+          `Participant mode: ${participantMode.sessionId} ` +
+            `condition ${participantMode.condition}, participant ` +
+            `${participantMode.participantId}, sequences ` +
+            participantMode.sequenceIds.join(", "),
+        );
+      }
+
+      // `cond` is the between-subjects condition the training stages are built
+      // for. It defaults to 'A' so the demo dropdown (no participant URL) keeps
+      // working; a participant URL passes its real condition from the call site
+      // below. Without the parameter every `case '*_training'` below threw
+      // "cond is not defined" and no training session could start at all.
+      function getSessionDef(id, cond = "A", scheme) {
+        let blocks;
+        switch (id) {
+          // Generic demos
+          case "demo_session":
+            blocks = DEMO_SESSION;
+            break;
+          case "demo_prp_only":
+            blocks = [DEMO_SESSION[3]];
+            break;
+          case "demo_mixed_only":
+            blocks = [DEMO_SESSION[2]];
+            break;
+          case "demo_dual_same":
+            blocks = DEMO_DUAL_CANVAS_SAME_SESSION;
+            break;
+          // Canonical paradigms (test-only). Built per scheme so ?scheme=fourcue
+          // runs vertically with W/S+I/K and the positional cue; without the
+          // param the descriptor is disjoint and this reproduces CP_*_SESSION.
+          case "cp_prp":
+            blocks = cpTestSessionFor("cp_prp", cond, scheme);
+            break;
+          case "cp_taskswitch":
+            blocks = cpTestSessionFor("cp_taskswitch", cond, scheme);
+            break;
+          case "cp_taskswitch_asym":
+            blocks = cpTestSessionFor("cp_taskswitch_asym", cond, scheme);
+            break;
+          case "cp_stroop":
+            blocks = cpTestSessionFor("cp_stroop", cond, scheme);
+            break;
+          case "cp_stroop_crossed":
+            blocks = cpTestSessionFor("cp_stroop_crossed", cond, scheme);
+            break;
+          // Canonical paradigms, full participant-facing session:
+          // S1-S6 + S8 training followed by the same
+          // test blocks the five entries above run on their own.
+          case "cp_prp_training":
+            blocks = cpBuildPrpTrainingSession(cond, scheme);
+            break;
+          case "cp_taskswitch_training":
+            blocks = cpBuildTaskSwitchTrainingSession(cond, scheme);
+            break;
+          case "cp_taskswitch_asym_training":
+            blocks = cpBuildTaskSwitchAsymTrainingSession(cond, scheme);
+            break;
+          case "cp_stroop_training":
+            blocks = cpBuildStroopTrainingSession(cond, scheme);
+            break;
+          case "cp_stroop_crossed_training":
+            blocks = cpBuildStroopCrossedTrainingSession(cond, scheme);
+            break;
+          // Switch frequency
+          case "sf_univalent":
+            blocks = SF_UNIVALENT_SESSION;
+            break;
+          case "sf_neutral":
+            blocks = SF_NEUTRAL_SESSION;
+            break;
+          case "sf_bivalent":
+            blocks = SF_BIVALENT_SESSION;
+            break;
+          // Hirsch replication
+          case "hirsch_faithful":
+            blocks = HIRSCH_FAITHFUL_SESSION;
+            break;
+          case "hirsch_faithful_orthogonal":
+            blocks = HIRSCH_FAITHFUL_ORTHOGONAL_SESSION;
+            break;
+          case "hirsch_part1":
+            blocks = HIRSCH_TASK_SWITCHING_SESSION;
+            break;
+          case "hirsch_part2":
+            blocks = HIRSCH_DUAL_CANVAS_SESSION;
+            break;
+          // Hirsch quick tests
+          case "hirsch_alt_pure":
+            blocks = HIRSCH_ALT_PURE_DEMO;
+            break;
+          case "hirsch_alt_mixed":
+            blocks = HIRSCH_ALT_MIXED_DEMO;
+            break;
+          case "hirsch_prp_baseline":
+            blocks = HIRSCH_PRP_BASELINE_DEMO;
+            break;
+          case "hirsch_prp":
+            blocks = HIRSCH_PRP_DEMO;
+            break;
+          case "hirsch_quest_demo":
+            blocks = HIRSCH_QUEST_DEMO;
+            break;
+          default:
+            return null;
         }
 
-        /** Refuse to run, visibly, in the place the participant is already looking. */
-        function showFatal(message) {
-            document.querySelector('.instructions-content').textContent =
-                `Cannot start.\n\n${message}`;
-            document.getElementById('session-status').textContent = `Error: ${message}`;
-            selectEl.disabled = true;
-            startBtn.disabled = true;
-            console.error('Participant URL rejected:', message);
+        // SweetPea pool sequences: each test block gets its own drawn CSV.
+        // Only in participant mode, and only for the session that URL asked
+        // for — the ids were drawn for that paradigm's pool, so applying them
+        // to anything else would point at another paradigm's files. Without
+        // URL params the canonical paradigms use the interim JS generator
+        // (default/fallback). The training sessions are included:
+        // cpApplySweetPea skips their training stages (generated live, no CSV)
+        // and still swaps every test block onto its pool sequence.
+        if (participantMode && id === participantMode.sessionId) {
+          blocks = cpApplySweetPea(
+            blocks,
+            participantMode.condition,
+            participantMode.sequenceIds,
+            scheme,
+          );
         }
 
-        let participantMode = null;
+        const isDualCanvas = blocks.some((b) =>
+          ["dual-canvas", "alternating", "prp-baseline"].includes(
+            b.blockConfig.paradigm,
+          ),
+        );
+        const isOrthogonal = blocks.some(
+          (b) => b.blockConfig.mapping === "orthogonal",
+        );
+        // Single-canvas blocks may still be two-handed: every paradigm with two
+        // tasks now uses task-tied disjoint keys (07-31 l.49), so the hint has to
+        // follow the block's own rso rather than assume one hand.
+        const isDisjointKeys = blocks.some(
+          (b) => b.blockConfig.rso === "disjoint",
+        );
+        // Under the fourcue scheme every canonical block carries vertical W/S+I/K
+        // keyMaps; read the hint straight off the (scheme-stamped) block so it
+        // cannot disagree with what the trial actually listens on.
+        const isFourcue = blocks.some(
+          (b) => b.blockConfig.cueMode === "hue+position",
+        );
+        const infoDiv = document.querySelector(".info");
+        if (isFourcue) {
+          infoDiv.innerHTML =
+            "Click the canvas area to give it focus before starting.<br>Movement: W = up, S = down (left hand)<br>Orientation: I = up, K = down (right hand)";
+        } else if (isOrthogonal) {
+          infoDiv.innerHTML =
+            "Click the canvas area to give it focus before starting.<br>Left canvas: A = up, D = down<br>Right canvas: J = up, L = down";
+        } else if (isDualCanvas) {
+          infoDiv.innerHTML =
+            "Click the canvas area to give it focus before starting.<br>Left task controls: A = left, D = right<br>Right task controls: J = left, L = right";
+        } else if (isDisjointKeys) {
+          infoDiv.innerHTML =
+            "Click the canvas area to give it focus before starting.<br>Movement: A = left, D = right (left hand)<br>Orientation: J = left, L = right (right hand)";
+        } else {
+          infoDiv.innerHTML =
+            "Click the canvas area to give it focus before starting.<br>Keys: A = left, D = right.";
+        }
+
+        // Inject t1Side from URL param into all block configs
+        const t1Side =
+          new URLSearchParams(window.location.search).get("t1Side") || "left";
+        if (t1Side === "right") {
+          blocks = blocks.map((b) => {
+            let text = b.instructions;
+            if (text) {
+              // Swap spatial and motor references for right-first layout.
+              // Each side word is swapped together with its key labels so
+              // hand-follows-side associations stay correct (left canvas = a/d,
+              // right canvas = j/l) — only which side is mentioned first changes.
+              text = text
+                .replace(/LEFT/g, "_TMP_R_")
+                .replace(/RIGHT/g, "LEFT")
+                .replace(/_TMP_R_/g, "RIGHT")
+                .replace(/Left/g, "_TMP_R2_")
+                .replace(/Right/g, "Left")
+                .replace(/_TMP_R2_/g, "Right")
+                .replace(/left/g, "_TMP_R3_")
+                .replace(/right/g, "left")
+                .replace(/_TMP_R3_/g, "right")
+                // Parallel design: horizontal key pairs.
+                .replace(/A\/D/g, "_TMP_K_")
+                .replace(/J\/L/g, "A/D")
+                .replace(/_TMP_K_/g, "J/L")
+                // Orthogonal design: up/down key labels (a/d <-> j/l).
+                .replace(/A = up/g, "_TMP_KU_")
+                .replace(/J = up/g, "A = up")
+                .replace(/_TMP_KU_/g, "J = up")
+                .replace(/D = down/g, "_TMP_KD_")
+                .replace(/L = down/g, "D = down")
+                .replace(/_TMP_KD_/g, "L = down")
+                .replace(/A \(/g, "_TMP_KP1_")
+                .replace(/J \(/g, "A (")
+                .replace(/_TMP_KP1_/g, "J (")
+                .replace(/D \(/g, "_TMP_KP2_")
+                .replace(/L \(/g, "D (")
+                .replace(/_TMP_KP2_/g, "L (");
+            }
+            return {
+              ...b,
+              instructions: text,
+              blockConfig: { ...b.blockConfig, t1Side },
+            };
+          });
+        } else {
+          blocks = blocks.map((b) => ({
+            ...b,
+            blockConfig: { ...b.blockConfig, t1Side },
+          }));
+        }
+
+        if (abridgedCb.checked) {
+          // Criterion training stages carry no numTrials — runBlock caps
+          // them at TRAINING_CAP and stops on the advancement criterion —
+          // so leave those alone. Scaling undefined produced NaN, which
+          // then showed up in the trial counter.
+          blocks = blocks.map((b) =>
+            Number.isFinite(b.numTrials)
+              ? { ...b, numTrials: Math.max(1, Math.round(b.numTrials / 10)) }
+              : b,
+          );
+        }
+
+        return blocks;
+      }
+
+      startBtn.addEventListener("click", async () => {
+        // Response-set scheme: ?scheme=disjoint (default, the committed Phase 1
+        // build), ?scheme=fourcue (vertical W/S+I/K, positional cue), or
+        // ?scheme=fourcue_cse (fourcue plus n−1 congruency in cp_stroop/cp_prp). Resolved
+        // once here and threaded into both the session build (keys/geometry/copy)
+        // and runSession (cue rendering). An unknown value falls back to disjoint.
+        const schemeName =
+          new URLSearchParams(window.location.search).get("scheme") ||
+          "disjoint";
+        const scheme = cpResolveScheme(schemeName);
+        const sessionDef = getSessionDef(
+          selectEl.value,
+          participantMode ? participantMode.condition : "A",
+          scheme,
+        );
+        if (!sessionDef) return;
+
+        startBtn.style.display = "none";
+        selectEl.disabled = true;
+        stopBtn.style.display = "";
+        exportBtn.disabled = true;
+        container.focus();
+
         try {
-            participantMode = readParticipantMode();
+          // Stimulus type: bird sprites by default; ?stimulus=fish for fish; ?stimulus=abstract for circles/triangles.
+          const stimulus =
+            new URLSearchParams(window.location.search).get("stimulus") ||
+            "bird";
+          await Session.runSession(sessionDef, container, {
+            stimulus,
+            abridged: abridgedCb.checked,
+            scheme,
+            // Participant metadata for progressive data upload (data_store.js).
+            // These come from the parsed participant URL. On the demo-dropdown
+            // path participantMode is null, so all three are undefined and
+            // runSession leaves the upload disabled — demo runs never write to
+            // Firestore. Note the shim expects `prolificPid`; participantMode
+            // calls the same value `participantId`, so it is mapped here.
+            paradigm: participantMode?.paradigm,
+            condition: participantMode?.condition,
+            prolificPid: participantMode?.participantId,
+          });
         } catch (e) {
-            showFatal(e.message);
-        }
-        if (participantMode) {
-            selectEl.value = participantMode.sessionId;
-            selectEl.disabled = true;
-            startBtn.disabled = false;
-            console.log(`Participant mode: ${participantMode.sessionId} ` +
-                `condition ${participantMode.condition}, participant ` +
-                `${participantMode.participantId}, sequences ` +
-                participantMode.sequenceIds.join(', '));
+          console.error("Session error:", e);
+          document.getElementById("session-status").textContent =
+            `Error: ${e.message}`;
         }
 
-        // `cond` is the between-subjects condition the training stages are built
-        // for. It defaults to 'A' so the demo dropdown (no participant URL) keeps
-        // working; a participant URL passes its real condition from the call site
-        // below. Without the parameter every `case '*_training'` below threw
-        // "cond is not defined" and no training session could start at all.
-        function getSessionDef(id, cond = 'A', scheme) {
-            let blocks;
-            switch (id) {
-                // Generic demos
-                case 'demo_session':
-                    blocks = DEMO_SESSION;
-                    break;
-                case 'demo_prp_only':
-                    blocks = [DEMO_SESSION[3]];
-                    break;
-                case 'demo_mixed_only':
-                    blocks = [DEMO_SESSION[2]];
-                    break;
-                case 'demo_dual_same':
-                    blocks = DEMO_DUAL_CANVAS_SAME_SESSION;
-                    break;
-                // Canonical paradigms (test-only). Built per scheme so ?scheme=fourcue
-                // runs vertically with W/S+I/K and the positional cue; without the
-                // param the descriptor is disjoint and this reproduces CP_*_SESSION.
-                case 'cp_prp':
-                    blocks = cpTestSessionFor('cp_prp', cond, scheme);
-                    break;
-                case 'cp_taskswitch':
-                    blocks = cpTestSessionFor('cp_taskswitch', cond, scheme);
-                    break;
-                case 'cp_taskswitch_asym':
-                    blocks = cpTestSessionFor('cp_taskswitch_asym', cond, scheme);
-                    break;
-                case 'cp_stroop':
-                    blocks = cpTestSessionFor('cp_stroop', cond, scheme);
-                    break;
-                case 'cp_stroop_crossed':
-                    blocks = cpTestSessionFor('cp_stroop_crossed', cond, scheme);
-                    break;
-                // Canonical paradigms, full participant-facing session:
-                // S1-S6 + S8 training followed by the same
-                // test blocks the five entries above run on their own.
-                case 'cp_prp_training':
-                    blocks = cpBuildPrpTrainingSession(cond, scheme);
-                    break;
-                case 'cp_taskswitch_training':
-                    blocks = cpBuildTaskSwitchTrainingSession(cond, scheme);
-                    break;
-                case 'cp_taskswitch_asym_training':
-                    blocks = cpBuildTaskSwitchAsymTrainingSession(cond, scheme);
-                    break;
-                case 'cp_stroop_training':
-                    blocks = cpBuildStroopTrainingSession(cond, scheme);
-                    break;
-                case 'cp_stroop_crossed_training':
-                    blocks = cpBuildStroopCrossedTrainingSession(cond, scheme);
-                    break;
-                // Switch frequency
-                case 'sf_univalent':
-                    blocks = SF_UNIVALENT_SESSION;
-                    break;
-                case 'sf_neutral':
-                    blocks = SF_NEUTRAL_SESSION;
-                    break;
-                case 'sf_bivalent':
-                    blocks = SF_BIVALENT_SESSION;
-                    break;
-                // Hirsch replication
-                case 'hirsch_faithful':
-                    blocks = HIRSCH_FAITHFUL_SESSION;
-                    break;
-                case 'hirsch_faithful_orthogonal':
-                    blocks = HIRSCH_FAITHFUL_ORTHOGONAL_SESSION;
-                    break;
-                case 'hirsch_part1':
-                    blocks = HIRSCH_TASK_SWITCHING_SESSION;
-                    break;
-                case 'hirsch_part2':
-                    blocks = HIRSCH_DUAL_CANVAS_SESSION;
-                    break;
-                // Hirsch quick tests
-                case 'hirsch_alt_pure':
-                    blocks = HIRSCH_ALT_PURE_DEMO;
-                    break;
-                case 'hirsch_alt_mixed':
-                    blocks = HIRSCH_ALT_MIXED_DEMO;
-                    break;
-                case 'hirsch_prp_baseline':
-                    blocks = HIRSCH_PRP_BASELINE_DEMO;
-                    break;
-                case 'hirsch_prp':
-                    blocks = HIRSCH_PRP_DEMO;
-                    break;
-                case 'hirsch_quest_demo':
-                    blocks = HIRSCH_QUEST_DEMO;
-                    break;
-                default:
-                    return null;
-            }
+        stopBtn.style.display = "none";
+        startBtn.style.display = "";
+        selectEl.disabled = false;
+      });
 
-            // SweetPea pool sequences: each test block gets its own drawn CSV.
-            // Only in participant mode, and only for the session that URL asked
-            // for — the ids were drawn for that paradigm's pool, so applying them
-            // to anything else would point at another paradigm's files. Without
-            // URL params the canonical paradigms use the interim JS generator
-            // (default/fallback). The training sessions are included:
-            // cpApplySweetPea skips their training stages (generated live, no CSV)
-            // and still swaps every test block onto its pool sequence.
-            if (participantMode && id === participantMode.sessionId) {
-                blocks = cpApplySweetPea(
-                    blocks, participantMode.condition, participantMode.sequenceIds, scheme);
-            }
+      stopBtn.addEventListener("click", () => {
+        Session.stopSession();
+      });
 
-            const isDualCanvas = blocks.some(b =>
-                ['dual-canvas', 'alternating', 'prp-baseline'].includes(b.blockConfig.paradigm));
-            const isOrthogonal = blocks.some(b => b.blockConfig.mapping === 'orthogonal');
-            // Single-canvas blocks may still be two-handed: every paradigm with two
-            // tasks now uses task-tied disjoint keys (07-31 l.49), so the hint has to
-            // follow the block's own rso rather than assume one hand.
-            const isDisjointKeys = blocks.some(b => b.blockConfig.rso === 'disjoint');
-            // Under the fourcue scheme every canonical block carries vertical W/S+I/K
-            // keyMaps; read the hint straight off the (scheme-stamped) block so it
-            // cannot disagree with what the trial actually listens on.
-            const isFourcue = blocks.some(b => b.blockConfig.cueMode === 'hue+position');
-            const infoDiv = document.querySelector('.info');
-            if (isFourcue) {
-                infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Movement: W = up, S = down (left hand)<br>Orientation: I = up, K = down (right hand)';
-            } else if (isOrthogonal) {
-                infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Left canvas: A = up, D = down<br>Right canvas: J = up, L = down';
-            } else if (isDualCanvas) {
-                infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Left task controls: A = left, D = right<br>Right task controls: J = left, L = right';
-            } else if (isDisjointKeys) {
-                infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Movement: A = left, D = right (left hand)<br>Orientation: J = left, L = right (right hand)';
-            } else {
-                infoDiv.innerHTML = 'Click the canvas area to give it focus before starting.<br>Keys: A = left, D = right.';
-            }
-
-            // Inject t1Side from URL param into all block configs
-            const t1Side = new URLSearchParams(window.location.search).get('t1Side') || 'left';
-            if (t1Side === 'right') {
-                blocks = blocks.map(b => {
-                    let text = b.instructions;
-                    if (text) {
-                        // Swap spatial and motor references for right-first layout.
-                        // Each side word is swapped together with its key labels so
-                        // hand-follows-side associations stay correct (left canvas = a/d,
-                        // right canvas = j/l) — only which side is mentioned first changes.
-                        text = text.replace(/LEFT/g, '_TMP_R_').replace(/RIGHT/g, 'LEFT').replace(/_TMP_R_/g, 'RIGHT')
-                                   .replace(/Left/g, '_TMP_R2_').replace(/Right/g, 'Left').replace(/_TMP_R2_/g, 'Right')
-                                   .replace(/left/g, '_TMP_R3_').replace(/right/g, 'left').replace(/_TMP_R3_/g, 'right')
-                                   // Parallel design: horizontal key pairs.
-                                   .replace(/A\/D/g, '_TMP_K_').replace(/J\/L/g, 'A/D').replace(/_TMP_K_/g, 'J/L')
-                                   // Orthogonal design: up/down key labels (a/d <-> j/l).
-                                   .replace(/A = up/g, '_TMP_KU_').replace(/J = up/g, 'A = up').replace(/_TMP_KU_/g, 'J = up')
-                                   .replace(/D = down/g, '_TMP_KD_').replace(/L = down/g, 'D = down').replace(/_TMP_KD_/g, 'L = down')
-                                   .replace(/A \(/g, '_TMP_KP1_').replace(/J \(/g, 'A (').replace(/_TMP_KP1_/g, 'J (')
-                                   .replace(/D \(/g, '_TMP_KP2_').replace(/L \(/g, 'D (').replace(/_TMP_KP2_/g, 'L (');
-                    }
-                    return { ...b, instructions: text, blockConfig: { ...b.blockConfig, t1Side } };
-                });
-            } else {
-                blocks = blocks.map(b => ({ ...b, blockConfig: { ...b.blockConfig, t1Side } }));
-            }
-
-            if (abridgedCb.checked) {
-                // Criterion training stages carry no numTrials — runBlock caps
-                // them at TRAINING_CAP and stops on the advancement criterion —
-                // so leave those alone. Scaling undefined produced NaN, which
-                // then showed up in the trial counter.
-                blocks = blocks.map(b => (Number.isFinite(b.numTrials)
-                    ? { ...b, numTrials: Math.max(1, Math.round(b.numTrials / 10)) }
-                    : b));
-            }
-
-            return blocks;
-        }
-
-        startBtn.addEventListener('click', async () => {
-            // Response-set scheme: ?scheme=disjoint (default, the committed Phase 1
-            // build), ?scheme=fourcue (vertical W/S+I/K, positional cue), or
-            // ?scheme=fourcue_cse (fourcue plus n−1 congruency in cp_stroop/cp_prp). Resolved
-            // once here and threaded into both the session build (keys/geometry/copy)
-            // and runSession (cue rendering). An unknown value falls back to disjoint.
-            const schemeName = new URLSearchParams(window.location.search).get('scheme') || 'disjoint';
-            const scheme = cpResolveScheme(schemeName);
-            const sessionDef = getSessionDef(
-                selectEl.value, participantMode ? participantMode.condition : 'A', scheme);
-            if (!sessionDef) return;
-
-            startBtn.style.display = 'none';
-            selectEl.disabled = true;
-            stopBtn.style.display = '';
-            exportBtn.disabled = true;
-            container.focus();
-
-            try {
-                // Stimulus type: bird sprites by default; ?stimulus=fish for fish; ?stimulus=abstract for circles/triangles.
-                const stimulus = new URLSearchParams(window.location.search).get('stimulus') || 'bird';
-                await Session.runSession(sessionDef, container, { stimulus, abridged: abridgedCb.checked, scheme });
-            } catch (e) {
-                console.error('Session error:', e);
-                document.getElementById('session-status').textContent = `Error: ${e.message}`;
-            }
-
-            stopBtn.style.display = 'none';
-            startBtn.style.display = '';
-            selectEl.disabled = false;
-        });
-
-        stopBtn.addEventListener('click', () => {
-            Session.stopSession();
-        });
-
-        exportBtn.addEventListener('click', () => {
-            Session.exportCSV();
-        });
+      exportBtn.addEventListener("click", () => {
+        Session.exportCSV();
+      });
     </script>
-</body>
+  </body>
 </html>
