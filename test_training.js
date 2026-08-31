@@ -131,7 +131,7 @@ const RESPOND_INCORRECT = () => ({
 // than only the browser.
 const sources = [
     './engine.js', './training_stages.js', './instruction_demo.js',
-    './canonical_paradigms.js', './session_helpers.js', './session.js',
+    './canonical_paradigms.js', './consent_content.js', './session_helpers.js', './session.js',
 ].map(f => fs.readFileSync(f, 'utf8')).join('\n;\n');
 
 eval(sources + `
