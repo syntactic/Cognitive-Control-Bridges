@@ -30,19 +30,25 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const MIME = {
-    '.html': 'text/html', '.js': 'text/javascript',
-    '.css': 'text/css', '.csv': 'text/csv',
+    '.html': 'text/html',
+    '.js': 'text/javascript',
+    '.css': 'text/css',
+    '.csv': 'text/csv',
 };
 
 function serve() {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
         const server = http.createServer((req, res) => {
             const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '');
             const file = path.join(ROOT, rel);
             if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-                res.writeHead(404); res.end('not found'); return;
+                res.writeHead(404);
+                res.end('not found');
+                return;
             }
-            res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+            res.writeHead(200, {
+                'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
+            });
             fs.createReadStream(file).pipe(res);
         });
         server.listen(0, '127.0.0.1', () => resolve(server));
@@ -66,10 +72,15 @@ function loadPlaywright() {
     ].filter(fs.existsSync);
 
     const roots = [path.join(ROOT, 'node_modules')];
-    try { roots.push(require('child_process').execSync('npm root -g', { encoding: 'utf8' }).trim()); } catch (e) { /* npm absent */ }
+    try {
+        roots.push(require('child_process').execSync('npm root -g', { encoding: 'utf8' }).trim());
+    } catch (e) {
+        /* npm absent */
+    }
     const npxCache = path.join(home, '.npm', '_npx');
     if (fs.existsSync(npxCache)) {
-        for (const dir of fs.readdirSync(npxCache)) roots.push(path.join(npxCache, dir, 'node_modules'));
+        for (const dir of fs.readdirSync(npxCache))
+            roots.push(path.join(npxCache, dir, 'node_modules'));
     }
 
     // A package being present is NOT enough: each Playwright release pins one
@@ -86,16 +97,26 @@ function loadPlaywright() {
         let revision = null;
         try {
             const browsers = require(path.join(root, 'playwright-core', 'browsers.json'));
-            revision = (browsers.browsers.find(b => b.name === 'chromium') || {}).revision;
-        } catch (e) { /* unknown pin; treat as last resort */ }
-        const installed = revision != null && browserCaches.some(cache =>
-            fs.existsSync(path.join(cache, `chromium-${revision}`)) ||
-            fs.existsSync(path.join(cache, `chromium_headless_shell-${revision}`)));
+            revision = (browsers.browsers.find((b) => b.name === 'chromium') || {}).revision;
+        } catch (e) {
+            /* unknown pin; treat as last resort */
+        }
+        const installed =
+            revision != null &&
+            browserCaches.some(
+                (cache) =>
+                    fs.existsSync(path.join(cache, `chromium-${revision}`)) ||
+                    fs.existsSync(path.join(cache, `chromium_headless_shell-${revision}`)),
+            );
         candidates.push({ pkgDir, revision, installed });
     }
     candidates.sort((a, b) => Number(b.installed) - Number(a.installed));
     for (const c of candidates) {
-        try { return require(c.pkgDir); } catch (e) { /* keep looking */ }
+        try {
+            return require(c.pkgDir);
+        } catch (e) {
+            /* keep looking */
+        }
     }
     return null;
 }
@@ -105,9 +126,9 @@ async function main() {
     if (!playwright) {
         console.error(
             'Could not resolve playwright from this repo, the global npm root, or the npx cache.\n' +
-            'It is not a dependency here on purpose — this audit is run by hand, not in CI.\n' +
-            'Populate the npx cache once with:  npx playwright --version\n' +
-            'or open analysis/measure_instructions.html directly under `npx serve .`.'
+                'It is not a dependency here on purpose — this audit is run by hand, not in CI.\n' +
+                'Populate the npx cache once with:  npx playwright --version\n' +
+                'or open analysis/measure_instructions.html directly under `npx serve .`.',
         );
         process.exit(2);
     }
@@ -119,7 +140,7 @@ async function main() {
     try {
         const page = await browser.newPage();
         const errors = [];
-        page.on('pageerror', e => errors.push(e.message));
+        page.on('pageerror', (e) => errors.push(e.message));
         await page.goto(`http://127.0.0.1:${port}/analysis/measure_instructions.html`);
         await page.waitForFunction(() => window.__AUDIT__ !== undefined, { timeout: 15000 });
         const audit = await page.evaluate(() => window.__AUDIT__);
@@ -136,4 +157,7 @@ async function main() {
     }
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+});

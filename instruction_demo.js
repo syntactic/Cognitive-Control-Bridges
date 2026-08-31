@@ -42,13 +42,13 @@ const INSTRUCTION_DEMO_PX = 150;
 const INSTRUCTION_DEMO_BACKING = 320;
 
 const DEMO_BIRD_COUNT = 8;
-const DEMO_BIRD_SIZE = 46;      // backing-store px
-const DEMO_SPEED = 55;          // backing-store px per second
-const DEMO_FRAME_MS = 150;      // matches FRAME_DURATION in the fork's src/oob.js
-const DEMO_SEGMENT_MS = 2400;   // how long one cartoon "trial" runs
-const DEMO_KEY_AT_MS = 900;     // when the keycap depresses — a plausible RT
+const DEMO_BIRD_SIZE = 46; // backing-store px
+const DEMO_SPEED = 55; // backing-store px per second
+const DEMO_FRAME_MS = 150; // matches FRAME_DURATION in the fork's src/oob.js
+const DEMO_SEGMENT_MS = 2400; // how long one cartoon "trial" runs
+const DEMO_KEY_AT_MS = 900; // when the keycap depresses — a plausible RT
 const DEMO_KEY_HOLD_MS = 400;
-const DEMO_SOA_MS = 700;        // default gap before a `then` event (PRP)
+const DEMO_SOA_MS = 700; // default gap before a `then` event (PRP)
 
 // The cue colours SE actually paints (fork src/defaultConfig.js movCueColor /
 // orCueColor). Duplicated here rather than read from a config this demo never
@@ -87,8 +87,8 @@ function demoKeycap(key) {
     if (!cap) {
         throw new Error(
             `instruction_demo: no keycap graphic for key '${key}'. The pixel-art ` +
-            `sets cover ${Object.keys(DEMO_KEYCAPS).join('/')} only — add frames ` +
-            'before pointing a paradigm at a different key map.'
+                `sets cover ${Object.keys(DEMO_KEYCAPS).join('/')} only — add frames ` +
+                'before pointing a paradigm at a different key map.',
         );
     }
     return cap;
@@ -127,10 +127,10 @@ class DemoBird {
     setState(movement, orientation) {
         const jitter = () => Math.random() * 360;
         if (movement !== undefined) {
-            this.mov = movement === null ? null : (this.isSignal ? movement : jitter());
+            this.mov = movement === null ? null : this.isSignal ? movement : jitter();
         }
         if (orientation !== undefined) {
-            this.or = orientation === null ? null : (this.isSignal ? orientation : jitter());
+            this.or = orientation === null ? null : this.isSignal ? orientation : jitter();
         }
     }
 
@@ -143,9 +143,9 @@ class DemoBird {
         // The dt < 64 guard mirrors the fork's Oob.update: a backgrounded tab
         // returns a huge delta that would teleport every birds off screen at once.
         if (this.mov !== null && dt < 64) {
-            const rad = this.mov * Math.PI / 180;
-            this.x += Math.cos(rad) * DEMO_SPEED * dt / 1000;
-            this.y += -Math.sin(rad) * DEMO_SPEED * dt / 1000;
+            const rad = (this.mov * Math.PI) / 180;
+            this.x += (Math.cos(rad) * DEMO_SPEED * dt) / 1000;
+            this.y += (-Math.sin(rad) * DEMO_SPEED * dt) / 1000;
         }
         // Elliptical fade near the aperture edge, respawn past it — the same
         // shape as the fork's handleOutOfBounds, which is what gives the real
@@ -231,10 +231,12 @@ function createInstructionDemo(spec, sprites) {
     // static per-cluster label; under FOURCUE the hand follows the cue, so the
     // label is left blank here and set to the CUED task per segment in runSegment.
     const keySets = [];
-    const setStaticTask = {};   // set -> 'mov' | 'or' (disjoint only)
+    const setStaticTask = {}; // set -> 'mov' | 'or' (disjoint only)
     for (const seg of spec.segments) {
-        for (const [key, task] of [[seg.key, seg.keyTask],
-                                   [seg.then && seg.then.key, seg.then && seg.then.keyTask]]) {
+        for (const [key, task] of [
+            [seg.key, seg.keyTask],
+            [seg.then && seg.then.key, seg.then && seg.then.keyTask],
+        ]) {
             if (!key) continue;
             const { set } = demoKeycap(key);
             if (!keySets.includes(set)) keySets.push(set);
@@ -246,7 +248,8 @@ function createInstructionDemo(spec, sprites) {
     for (const set of keySets) {
         const wrap = document.createElement('div');
         wrap.className = 'demo-key-wrap';
-        wrap.style.cssText = 'display:flex; flex-direction:column; align-items:center; gap:4px; flex:none;';
+        wrap.style.cssText =
+            'display:flex; flex-direction:column; align-items:center; gap:4px; flex:none;';
         const img = document.createElement('img');
         img.className = 'demo-key';
         img.alt = '';
@@ -254,7 +257,7 @@ function createInstructionDemo(spec, sprites) {
         const label = document.createElement('div');
         label.className = 'demo-key-label';
         label.style.cssText = 'font-size:0.72em; color:#c0c0c0; line-height:1; min-height:1em;';
-        label.textContent = positional ? '' : (taskWords[setStaticTask[set]] || '');
+        label.textContent = positional ? '' : taskWords[setStaticTask[set]] || '';
         wrap.appendChild(img);
         wrap.appendChild(label);
         row.appendChild(wrap);
@@ -280,7 +283,10 @@ function createInstructionDemo(spec, sprites) {
     let segmentIndex = 0;
     const timers = [];
 
-    const clearTimers = () => { timers.forEach(clearTimeout); timers.length = 0; };
+    const clearTimers = () => {
+        timers.forEach(clearTimeout);
+        timers.length = 0;
+    };
     const idleAll = () => {
         for (const set of keySets) keyImgs[set].src = idleSrc(set);
     };
@@ -289,8 +295,16 @@ function createInstructionDemo(spec, sprites) {
     const flashKey = (key, at) => {
         const { set, src } = demoKeycap(key);
         const img = keyImgs[set];
-        timers.push(setTimeout(() => { img.src = src; }, at));
-        timers.push(setTimeout(() => { img.src = idleSrc(set); }, at + DEMO_KEY_HOLD_MS));
+        timers.push(
+            setTimeout(() => {
+                img.src = src;
+            }, at),
+        );
+        timers.push(
+            setTimeout(() => {
+                img.src = idleSrc(set);
+            }, at + DEMO_KEY_HOLD_MS),
+        );
     };
 
     // Per-cue sides declared by a segment (or a `then` event): explicit `cueSides`
@@ -338,15 +352,17 @@ function createInstructionDemo(spec, sprites) {
         if (seg.then) {
             const t = seg.then;
             const at = t.at === undefined ? DEMO_SOA_MS : t.at;
-            timers.push(setTimeout(() => {
-                if (stopped) return;
-                for (const f of birds) f.setState(t.movement, t.orientation);
-                if (t.border !== undefined) border = t.border;
-                // Merge the `then` event's sides so a PRP second cue lands on its
-                // own hand without clearing the first cue's side.
-                activeCueSides = { ...activeCueSides, ...cueSidesOf(t) };
-                if (t.key) flashKey(t.key, DEMO_KEY_AT_MS);
-            }, at));
+            timers.push(
+                setTimeout(() => {
+                    if (stopped) return;
+                    for (const f of birds) f.setState(t.movement, t.orientation);
+                    if (t.border !== undefined) border = t.border;
+                    // Merge the `then` event's sides so a PRP second cue lands on its
+                    // own hand without clearing the first cue's side.
+                    activeCueSides = { ...activeCueSides, ...cueSidesOf(t) };
+                    if (t.key) flashKey(t.key, DEMO_KEY_AT_MS);
+                }, at),
+            );
         }
 
         timers.push(setTimeout(runSegment, seg.duration || DEMO_SEGMENT_MS));
@@ -364,18 +380,27 @@ function createInstructionDemo(spec, sprites) {
             if (f.or === null) {
                 ctx.arc(f.x, f.y, s / 4, 0, Math.PI * 2);
             } else {
-                const rad = f.or * Math.PI / 180;
+                const rad = (f.or * Math.PI) / 180;
                 const nx = Math.cos(rad);
                 const ny = -Math.sin(rad);
-                ctx.moveTo(f.x + nx * s / 2, f.y + ny * s / 2);
-                ctx.lineTo(f.x - nx * s / 2 - ny * s / 4, f.y - ny * s / 2 + nx * s / 4);
-                ctx.lineTo(f.x - nx * s / 2 + ny * s / 4, f.y - ny * s / 2 - nx * s / 4);
+                ctx.moveTo(f.x + (nx * s) / 2, f.y + (ny * s) / 2);
+                ctx.lineTo(f.x - (nx * s) / 2 - (ny * s) / 4, f.y - (ny * s) / 2 + (nx * s) / 4);
+                ctx.lineTo(f.x - (nx * s) / 2 + (ny * s) / 4, f.y - (ny * s) / 2 - (nx * s) / 4);
             }
             ctx.fill();
         } else if (f.or === null) {
-            const t = (sprites.imgDist.naturalWidth || sprites.imgDist.width) / 4;   // bird_neutral.png tile
-            ctx.drawImage(sprites.imgDist, f.frame * t, f.variant * t, t, t,
-                          f.x - s / 2, f.y - s / 2, s, s);
+            const t = (sprites.imgDist.naturalWidth || sprites.imgDist.width) / 4; // bird_neutral.png tile
+            ctx.drawImage(
+                sprites.imgDist,
+                f.frame * t,
+                f.variant * t,
+                t,
+                t,
+                f.x - s / 2,
+                f.y - s / 2,
+                s,
+                s,
+            );
         } else if (f.or === 90 || f.or === 270) {
             // VERTICAL facing (fourcue). SE's OobImg.drawOrientated has no baked
             // up/down rows; it ROTATES the right-facing frame instead (fork
@@ -384,19 +409,27 @@ function createInstructionDemo(spec, sprites) {
             // stimulus does. Horizontal facing (0/180) keeps its baked-row path
             // below, unchanged, so the disjoint cartoon is untouched.
             const t = (sprites.img.naturalWidth || sprites.img.width) / 4;
-            const rowIdx = f.variant * 2;   // right-facing row, then rotate
+            const rowIdx = f.variant * 2; // right-facing row, then rotate
             ctx.save();
             ctx.translate(f.x, f.y);
             ctx.rotate((-Math.PI * f.or) / 180);
-            ctx.drawImage(sprites.img, f.frame * t, rowIdx * t, t, t,
-                          -s / 2, -s / 2, s, s);
+            ctx.drawImage(sprites.img, f.frame * t, rowIdx * t, t, t, -s / 2, -s / 2, s, s);
             ctx.restore();
         } else {
-            const t = (sprites.img.naturalWidth || sprites.img.width) / 4;   // bird_oriented.png tile
+            const t = (sprites.img.naturalWidth || sprites.img.width) / 4; // bird_oriented.png tile
             const facingLeft = f.or > 90 && f.or < 270;
             const rowIdx = f.variant * 2 + (facingLeft ? 1 : 0);
-            ctx.drawImage(sprites.img, f.frame * t, rowIdx * t, t, t,
-                          f.x - s / 2, f.y - s / 2, s, s);
+            ctx.drawImage(
+                sprites.img,
+                f.frame * t,
+                rowIdx * t,
+                t,
+                t,
+                f.x - s / 2,
+                f.y - s / 2,
+                s,
+                s,
+            );
         }
         ctx.globalAlpha = 1;
     }
@@ -406,7 +439,10 @@ function createInstructionDemo(spec, sprites) {
         const dt = last === null ? 16 : ts - last;
         last = ts;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        for (const f of birds) { f.update(dt); drawBird(f); }
+        for (const f of birds) {
+            f.update(dt);
+            drawBird(f);
+        }
         if (border) {
             // Proportional to SE's 30 px border on its 600 px canvas. A PRP trial
             // has TWO cues on screen at once (SE distinguishes them by dashes vs
@@ -439,8 +475,12 @@ function createInstructionDemo(spec, sprites) {
                     ctx.lineTo(halfW, canvas.height - inset);
                     ctx.stroke();
                 } else {
-                    ctx.strokeRect(inset, inset,
-                                   canvas.width - 2 * inset, canvas.height - 2 * inset);
+                    ctx.strokeRect(
+                        inset,
+                        inset,
+                        canvas.width - 2 * inset,
+                        canvas.height - 2 * inset,
+                    );
                 }
             });
         }
@@ -494,10 +534,12 @@ const INSTRUCTION_DEMO_ANCHOR_RE = /\n*\[\[demo\]\]\n*/;
  */
 function instructionHtml(text, hasDemo) {
     const resolved = hasDemo
-        ? text.replace(INSTRUCTION_DEMO_ANCHOR_RE,
-            `\n<span class="${INSTRUCTION_DEMO_ANCHOR_CLASS}"></span>`)
-        // No cartoon: the marker leaves a plain paragraph break behind.
-        : text.replace(INSTRUCTION_DEMO_ANCHOR_RE, '\n\n');
+        ? text.replace(
+              INSTRUCTION_DEMO_ANCHOR_RE,
+              `\n<span class="${INSTRUCTION_DEMO_ANCHOR_CLASS}"></span>`,
+          )
+        : // No cartoon: the marker leaves a plain paragraph break behind.
+          text.replace(INSTRUCTION_DEMO_ANCHOR_RE, '\n\n');
     return resolved.replace(/\n/g, '<br>');
 }
 
@@ -535,8 +577,14 @@ function placeInstructionDemo(content, demo, sprites) {
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
-        INSTRUCTION_DEMO_PX, INSTRUCTION_DEMO_BACKING,
-        DEMO_KEYCAPS, DEMO_KEY_IDLE, demoKeycap, createInstructionDemo,
-        INSTRUCTION_DEMO_ANCHOR, instructionHtml, placeInstructionDemo,
+        INSTRUCTION_DEMO_PX,
+        INSTRUCTION_DEMO_BACKING,
+        DEMO_KEYCAPS,
+        DEMO_KEY_IDLE,
+        demoKeycap,
+        createInstructionDemo,
+        INSTRUCTION_DEMO_ANCHOR,
+        instructionHtml,
+        placeInstructionDemo,
     };
 }

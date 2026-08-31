@@ -23,12 +23,12 @@
 
 const SF_HORIZONTAL_KEY_MAPS = {
     mov: { 180: 'a', 0: 'd' },
-    or:  { 180: 'j', 0: 'l' },
+    or: { 180: 'j', 0: 'l' },
 };
 
 const SF_ORTHOGONAL_KEY_MAPS = {
     mov: { 180: 'a', 0: 'd' },
-    or:  { 90: 'i', 270: 'k' },
+    or: { 90: 'i', 270: 'k' },
 };
 
 // ============================================================
@@ -280,60 +280,66 @@ const sfBivalentMixed100 = {
 // ============================================================
 
 const SF_UNIVALENT_INSTRUCTIONS = {
-    pureMov: 'Pure block: MOVEMENT task only.\n\n'
-        + 'Left hand: A = leftward, D = rightward.\n\n'
-        + 'Press any key to begin.',
-    pureOr: 'Pure block: ORIENTATION task only.\n\n'
-        + 'Right hand: I = upward, K = downward.\n\n'
-        + 'Press any key to begin.',
+    pureMov:
+        'Pure block: MOVEMENT task only.\n\n' +
+        'Left hand: A = leftward, D = rightward.\n\n' +
+        'Press any key to begin.',
+    pureOr:
+        'Pure block: ORIENTATION task only.\n\n' +
+        'Right hand: I = upward, K = downward.\n\n' +
+        'Press any key to begin.',
     mixed: (rate) =>
-        `Mixed block: The task switches on ~${rate}% of trials.\n\n`
-        + 'The border style tells you which task to do:\n'
-        + '  Dotted = MOVEMENT (left hand: A/D)\n'
-        + '  Dashed = ORIENTATION (right hand: I = up, K = down)\n\n'
-        + 'Press any key to begin.',
+        `Mixed block: The task switches on ~${rate}% of trials.\n\n` +
+        'The border style tells you which task to do:\n' +
+        '  Dotted = MOVEMENT (left hand: A/D)\n' +
+        '  Dashed = ORIENTATION (right hand: I = up, K = down)\n\n' +
+        'Press any key to begin.',
 };
 
 const SF_NEUTRAL_INSTRUCTIONS = {
-    pureMov: 'Pure block: MOVEMENT task only.\n\n'
-        + 'You will see both moving dots and oriented triangles.\n'
-        + 'Ignore the triangles \u2014 respond only to dot movement.\n\n'
-        + 'Left hand: A = leftward, D = rightward.\n\n'
-        + 'Press any key to begin.',
-    pureOr: 'Pure block: ORIENTATION task only.\n\n'
-        + 'You will see both moving dots and oriented triangles.\n'
-        + 'Ignore the dots \u2014 respond only to triangle orientation.\n\n'
-        + 'Right hand: I = upward, K = downward.\n\n'
-        + 'Press any key to begin.',
+    pureMov:
+        'Pure block: MOVEMENT task only.\n\n' +
+        'You will see both moving dots and oriented triangles.\n' +
+        'Ignore the triangles \u2014 respond only to dot movement.\n\n' +
+        'Left hand: A = leftward, D = rightward.\n\n' +
+        'Press any key to begin.',
+    pureOr:
+        'Pure block: ORIENTATION task only.\n\n' +
+        'You will see both moving dots and oriented triangles.\n' +
+        'Ignore the dots \u2014 respond only to triangle orientation.\n\n' +
+        'Right hand: I = upward, K = downward.\n\n' +
+        'Press any key to begin.',
     mixed: (rate) =>
-        `Mixed block: The task switches on ~${rate}% of trials.\n\n`
-        + 'Both moving dots and oriented triangles are visible.\n'
-        + 'The border style tells you which task to do:\n'
-        + '  Dotted = MOVEMENT (left hand: A = left, D = right)\n'
-        + '  Dashed = ORIENTATION (right hand: I = up, K = down)\n\n'
-        + 'Ignore the irrelevant stimulus \u2014 respond only to the cued task.\n\n'
-        + 'Press any key to begin.',
+        `Mixed block: The task switches on ~${rate}% of trials.\n\n` +
+        'Both moving dots and oriented triangles are visible.\n' +
+        'The border style tells you which task to do:\n' +
+        '  Dotted = MOVEMENT (left hand: A = left, D = right)\n' +
+        '  Dashed = ORIENTATION (right hand: I = up, K = down)\n\n' +
+        'Ignore the irrelevant stimulus \u2014 respond only to the cued task.\n\n' +
+        'Press any key to begin.',
 };
 
 const SF_BIVALENT_INSTRUCTIONS = {
-    pureMov: 'Pure block: MOVEMENT task only.\n\n'
-        + 'You will see both moving dots and oriented triangles.\n'
-        + 'Ignore the triangles \u2014 respond only to dot movement.\n\n'
-        + 'Left hand: A = leftward, D = rightward.\n\n'
-        + 'Press any key to begin.',
-    pureOr: 'Pure block: ORIENTATION task only.\n\n'
-        + 'You will see both moving dots and oriented triangles.\n'
-        + 'Ignore the dots \u2014 respond only to triangle orientation.\n\n'
-        + 'Right hand: J = leftward, L = rightward.\n\n'
-        + 'Press any key to begin.',
+    pureMov:
+        'Pure block: MOVEMENT task only.\n\n' +
+        'You will see both moving dots and oriented triangles.\n' +
+        'Ignore the triangles \u2014 respond only to dot movement.\n\n' +
+        'Left hand: A = leftward, D = rightward.\n\n' +
+        'Press any key to begin.',
+    pureOr:
+        'Pure block: ORIENTATION task only.\n\n' +
+        'You will see both moving dots and oriented triangles.\n' +
+        'Ignore the dots \u2014 respond only to triangle orientation.\n\n' +
+        'Right hand: J = leftward, L = rightward.\n\n' +
+        'Press any key to begin.',
     mixed: (rate) =>
-        `Mixed block: The task switches on ~${rate}% of trials.\n\n`
-        + 'Both moving dots and oriented triangles are visible.\n'
-        + 'The border style tells you which task to do:\n'
-        + '  Dotted = MOVEMENT (left hand: A/D)\n'
-        + '  Dashed = ORIENTATION (right hand: J/L)\n\n'
-        + 'Ignore the irrelevant stimulus \u2014 respond only to the cued task.\n\n'
-        + 'Press any key to begin.',
+        `Mixed block: The task switches on ~${rate}% of trials.\n\n` +
+        'Both moving dots and oriented triangles are visible.\n' +
+        'The border style tells you which task to do:\n' +
+        '  Dotted = MOVEMENT (left hand: A/D)\n' +
+        '  Dashed = ORIENTATION (right hand: J/L)\n\n' +
+        'Ignore the irrelevant stimulus \u2014 respond only to the cued task.\n\n' +
+        'Press any key to begin.',
 };
 
 // ============================================================

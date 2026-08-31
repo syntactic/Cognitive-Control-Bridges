@@ -170,49 +170,160 @@ const hirschDualCanvasPRPOrtho = {
 const HIRSCH_FAITHFUL_SESSION = [
     // --- Part 1: Task Switching ---
     // Practice + pure baselines
-    { blockConfig: hirschAlternatingPureMov, numTrials: 20, isPractice: true, runQuest: { priorMean: 0.4, priorSD: 0.2 },
-      instructions: 'Practice pure block: MOVEMENT only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingPureMov, numTrials: 41, useQuest: true,
-      instructions: 'Pure block: MOVEMENT only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingPureOr, numTrials: 20, isPractice: true, runQuest: { priorMean: 0.6, priorSD: 0.2 },
-      instructions: 'Practice pure block: ORIENTATION only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingPureOr, numTrials: 41, useQuest: true,
-      instructions: 'Pure block: ORIENTATION only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
+    {
+        blockConfig: hirschAlternatingPureMov,
+        numTrials: 20,
+        isPractice: true,
+        runQuest: { priorMean: 0.4, priorSD: 0.2 },
+        instructions:
+            'Practice pure block: MOVEMENT only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingPureMov,
+        numTrials: 41,
+        useQuest: true,
+        instructions:
+            'Pure block: MOVEMENT only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingPureOr,
+        numTrials: 20,
+        isPractice: true,
+        runQuest: { priorMean: 0.6, priorSD: 0.2 },
+        instructions:
+            'Practice pure block: ORIENTATION only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingPureOr,
+        numTrials: 41,
+        useQuest: true,
+        instructions:
+            'Pure block: ORIENTATION only.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.',
+    },
     // Practice + experimental mixed blocks (4 x 81 trials)
-    { blockConfig: hirschAlternatingMixed, numTrials: 12, isPractice: true, useQuest: true,
-      instructions: 'Practice mixed block: Respond with the matching hand.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingMixed, numTrials: 81, useQuest: true,
-      instructions: 'Mixed block 1 of 4:\n\nRespond with the matching hand.\nA/D for left, J/L for right.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingMixed, numTrials: 81, useQuest: true, instructions: 'Mixed block 2 of 4.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingMixed, numTrials: 81, useQuest: true, instructions: 'Mixed block 3 of 4.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingMixed, numTrials: 81, useQuest: true, instructions: 'Mixed block 4 of 4.\n\nPress any key.' },
+    {
+        blockConfig: hirschAlternatingMixed,
+        numTrials: 12,
+        isPractice: true,
+        useQuest: true,
+        instructions:
+            'Practice mixed block: Respond with the matching hand.\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingMixed,
+        numTrials: 81,
+        useQuest: true,
+        instructions:
+            'Mixed block 1 of 4:\n\nRespond with the matching hand.\nA/D for left, J/L for right.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingMixed,
+        numTrials: 81,
+        useQuest: true,
+        instructions: 'Mixed block 2 of 4.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingMixed,
+        numTrials: 81,
+        useQuest: true,
+        instructions: 'Mixed block 3 of 4.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingMixed,
+        numTrials: 81,
+        useQuest: true,
+        instructions: 'Mixed block 4 of 4.\n\nPress any key.',
+    },
     // Post-experimental pure blocks
-    { blockConfig: hirschAlternatingPureMov, numTrials: 41, useQuest: true, instructions: 'Pure block: MOVEMENT only.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingPureOr, numTrials: 41, useQuest: true, instructions: 'Pure block: ORIENTATION only.\n\nPress any key.' },
+    {
+        blockConfig: hirschAlternatingPureMov,
+        numTrials: 41,
+        useQuest: true,
+        instructions: 'Pure block: MOVEMENT only.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingPureOr,
+        numTrials: 41,
+        useQuest: true,
+        instructions: 'Pure block: ORIENTATION only.\n\nPress any key.',
+    },
 
     // --- Part 2: Dual-Task PRP ---
     // Practice + pure baselines (asterisk on left, respond right only)
-    { blockConfig: hirschDualCanvasPRPPureMov, numTrials: 6, isPractice: true, useQuest: true,
-      instructions: 'Practice PRP pure block: MOVEMENT only.\nRight hand: J/L.\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRPPureMov, numTrials: 41, useQuest: true,
-      instructions: 'PRP pure block: MOVEMENT only.\nRight hand: J/L.\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRPPureOr, numTrials: 6, isPractice: true, useQuest: true,
-      instructions: 'Practice PRP pure block: ORIENTATION only.\nRight hand: J/L.\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRPPureOr, numTrials: 41, useQuest: true,
-      instructions: 'PRP pure block: ORIENTATION only.\nRight hand: J/L.\n\nPress any key.' },
+    {
+        blockConfig: hirschDualCanvasPRPPureMov,
+        numTrials: 6,
+        isPractice: true,
+        useQuest: true,
+        instructions: 'Practice PRP pure block: MOVEMENT only.\nRight hand: J/L.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRPPureMov,
+        numTrials: 41,
+        useQuest: true,
+        instructions: 'PRP pure block: MOVEMENT only.\nRight hand: J/L.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRPPureOr,
+        numTrials: 6,
+        isPractice: true,
+        useQuest: true,
+        instructions:
+            'Practice PRP pure block: ORIENTATION only.\nRight hand: J/L.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRPPureOr,
+        numTrials: 41,
+        useQuest: true,
+        instructions: 'PRP pure block: ORIENTATION only.\nRight hand: J/L.\n\nPress any key.',
+    },
     // Practice + experimental PRP blocks (4 x 81 trials)
-    { blockConfig: hirschDualCanvasPRP, numTrials: 12, isPractice: true, useQuest: true,
-      instructions: 'Practice PRP block: Respond LEFT first (A/D), then RIGHT (J/L).\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRP, numTrials: 81, useQuest: true,
-      instructions: 'PRP block 1 of 4: Respond LEFT first (A/D), then RIGHT (J/L).\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRP, numTrials: 81, useQuest: true, instructions: 'PRP block 2 of 4.\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRP, numTrials: 81, useQuest: true, instructions: 'PRP block 3 of 4.\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRP, numTrials: 81, useQuest: true, instructions: 'PRP block 4 of 4.\n\nPress any key.' },
+    {
+        blockConfig: hirschDualCanvasPRP,
+        numTrials: 12,
+        isPractice: true,
+        useQuest: true,
+        instructions:
+            'Practice PRP block: Respond LEFT first (A/D), then RIGHT (J/L).\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRP,
+        numTrials: 81,
+        useQuest: true,
+        instructions:
+            'PRP block 1 of 4: Respond LEFT first (A/D), then RIGHT (J/L).\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRP,
+        numTrials: 81,
+        useQuest: true,
+        instructions: 'PRP block 2 of 4.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRP,
+        numTrials: 81,
+        useQuest: true,
+        instructions: 'PRP block 3 of 4.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRP,
+        numTrials: 81,
+        useQuest: true,
+        instructions: 'PRP block 4 of 4.\n\nPress any key.',
+    },
     // Post-experimental pure blocks
-    { blockConfig: hirschDualCanvasPRPPureMov, numTrials: 41, useQuest: true,
-      instructions: 'PRP pure block: MOVEMENT only.\nRight hand: J/L.\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRPPureOr, numTrials: 41, useQuest: true,
-      instructions: 'PRP pure block: ORIENTATION only.\nRight hand: J/L.\n\nPress any key.' },
+    {
+        blockConfig: hirschDualCanvasPRPPureMov,
+        numTrials: 41,
+        useQuest: true,
+        instructions: 'PRP pure block: MOVEMENT only.\nRight hand: J/L.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRPPureOr,
+        numTrials: 41,
+        useQuest: true,
+        instructions: 'PRP pure block: ORIENTATION only.\nRight hand: J/L.\n\nPress any key.',
+    },
 ];
 
 // =========================================================================
@@ -227,49 +338,167 @@ const HIRSCH_FAITHFUL_SESSION = [
 const HIRSCH_FAITHFUL_ORTHOGONAL_SESSION = [
     // --- Part 1: Task Switching ---
     // Practice + pure baselines
-    { blockConfig: hirschAlternatingPureMovOrtho, numTrials: 30, isPractice: true, runQuest: { priorMean: 0.5, priorSD: 0.2 },
-      instructions: 'Practice pure block: MOVEMENT only.\nJudge whether the objects move UP or DOWN.\nLeft canvas: A = up, D = down.\nRight canvas: J = up, L = down.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingPureMovOrtho, numTrials: 41, useQuest: true,
-      instructions: 'Pure block: MOVEMENT only.\nJudge whether the objects move UP or DOWN.\nLeft canvas: A = up, D = down.\nRight canvas: J = up, L = down.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingPureOrOrtho, numTrials: 30, isPractice: true, runQuest: { priorMean: 0.7, priorSD: 0.2 },
-      instructions: 'Practice pure block: ORIENTATION only.\nJudge whether the triangles point UP or DOWN.\nLeft canvas: A = up, D = down.\nRight canvas: J = up, L = down.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingPureOrOrtho, numTrials: 41, useQuest: true,
-      instructions: 'Pure block: ORIENTATION only.\nJudge whether the triangles point UP or DOWN.\nLeft canvas: A = up, D = down.\nRight canvas: J = up, L = down.\n\nPress any key.' },
+    {
+        blockConfig: hirschAlternatingPureMovOrtho,
+        numTrials: 30,
+        isPractice: true,
+        runQuest: { priorMean: 0.5, priorSD: 0.2 },
+        instructions:
+            'Practice pure block: MOVEMENT only.\nJudge whether the objects move UP or DOWN.\nLeft canvas: A = up, D = down.\nRight canvas: J = up, L = down.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingPureMovOrtho,
+        numTrials: 41,
+        useQuest: true,
+        instructions:
+            'Pure block: MOVEMENT only.\nJudge whether the objects move UP or DOWN.\nLeft canvas: A = up, D = down.\nRight canvas: J = up, L = down.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingPureOrOrtho,
+        numTrials: 30,
+        isPractice: true,
+        runQuest: { priorMean: 0.7, priorSD: 0.2 },
+        instructions:
+            'Practice pure block: ORIENTATION only.\nJudge whether the triangles point UP or DOWN.\nLeft canvas: A = up, D = down.\nRight canvas: J = up, L = down.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingPureOrOrtho,
+        numTrials: 41,
+        useQuest: true,
+        instructions:
+            'Pure block: ORIENTATION only.\nJudge whether the triangles point UP or DOWN.\nLeft canvas: A = up, D = down.\nRight canvas: J = up, L = down.\n\nPress any key.',
+    },
     // Practice + experimental mixed blocks (4 x 81 trials)
-    { blockConfig: hirschAlternatingMixedOrtho, numTrials: 12, isPractice: true, useQuest: true,
-      instructions: 'Practice mixed block: Respond with the matching hand.\nUP = A (left) / J (right). DOWN = D (left) / L (right).\n\nPress any key.' },
-    { blockConfig: hirschAlternatingMixedOrtho, numTrials: 81, useQuest: true,
-      instructions: 'Mixed block 1 of 4:\n\nRespond with the matching hand.\nUP = A (left) / J (right). DOWN = D (left) / L (right).\n\nPress any key.' },
-    { blockConfig: hirschAlternatingMixedOrtho, numTrials: 81, useQuest: true, instructions: 'Mixed block 2 of 4.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingMixedOrtho, numTrials: 81, useQuest: true, instructions: 'Mixed block 3 of 4.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingMixedOrtho, numTrials: 81, useQuest: true, instructions: 'Mixed block 4 of 4.\n\nPress any key.' },
+    {
+        blockConfig: hirschAlternatingMixedOrtho,
+        numTrials: 12,
+        isPractice: true,
+        useQuest: true,
+        instructions:
+            'Practice mixed block: Respond with the matching hand.\nUP = A (left) / J (right). DOWN = D (left) / L (right).\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingMixedOrtho,
+        numTrials: 81,
+        useQuest: true,
+        instructions:
+            'Mixed block 1 of 4:\n\nRespond with the matching hand.\nUP = A (left) / J (right). DOWN = D (left) / L (right).\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingMixedOrtho,
+        numTrials: 81,
+        useQuest: true,
+        instructions: 'Mixed block 2 of 4.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingMixedOrtho,
+        numTrials: 81,
+        useQuest: true,
+        instructions: 'Mixed block 3 of 4.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingMixedOrtho,
+        numTrials: 81,
+        useQuest: true,
+        instructions: 'Mixed block 4 of 4.\n\nPress any key.',
+    },
     // Post-experimental pure blocks
-    { blockConfig: hirschAlternatingPureMovOrtho, numTrials: 41, useQuest: true, instructions: 'Pure block: MOVEMENT only.\nUP = A (left) / J (right). DOWN = D (left) / L (right).\n\nPress any key.' },
-    { blockConfig: hirschAlternatingPureOrOrtho, numTrials: 41, useQuest: true, instructions: 'Pure block: ORIENTATION only.\nUP = A (left) / J (right). DOWN = D (left) / L (right).\n\nPress any key.' },
+    {
+        blockConfig: hirschAlternatingPureMovOrtho,
+        numTrials: 41,
+        useQuest: true,
+        instructions:
+            'Pure block: MOVEMENT only.\nUP = A (left) / J (right). DOWN = D (left) / L (right).\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingPureOrOrtho,
+        numTrials: 41,
+        useQuest: true,
+        instructions:
+            'Pure block: ORIENTATION only.\nUP = A (left) / J (right). DOWN = D (left) / L (right).\n\nPress any key.',
+    },
 
     // --- Part 2: Dual-Task PRP ---
     // Practice + pure baselines (asterisk on left, respond right only)
-    { blockConfig: hirschDualCanvasPRPPureMovOrtho, numTrials: 6, isPractice: true, useQuest: true,
-      instructions: 'Practice PRP pure block: MOVEMENT only.\nJudge whether the objects move UP or DOWN.\nRight canvas: J = up, L = down.\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRPPureMovOrtho, numTrials: 41, useQuest: true,
-      instructions: 'PRP pure block: MOVEMENT only.\nJudge whether the objects move UP or DOWN.\nRight canvas: J = up, L = down.\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRPPureOrOrtho, numTrials: 6, isPractice: true, useQuest: true,
-      instructions: 'Practice PRP pure block: ORIENTATION only.\nJudge whether the triangles point UP or DOWN.\nRight canvas: J = up, L = down.\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRPPureOrOrtho, numTrials: 41, useQuest: true,
-      instructions: 'PRP pure block: ORIENTATION only.\nJudge whether the triangles point UP or DOWN.\nRight canvas: J = up, L = down.\n\nPress any key.' },
+    {
+        blockConfig: hirschDualCanvasPRPPureMovOrtho,
+        numTrials: 6,
+        isPractice: true,
+        useQuest: true,
+        instructions:
+            'Practice PRP pure block: MOVEMENT only.\nJudge whether the objects move UP or DOWN.\nRight canvas: J = up, L = down.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRPPureMovOrtho,
+        numTrials: 41,
+        useQuest: true,
+        instructions:
+            'PRP pure block: MOVEMENT only.\nJudge whether the objects move UP or DOWN.\nRight canvas: J = up, L = down.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRPPureOrOrtho,
+        numTrials: 6,
+        isPractice: true,
+        useQuest: true,
+        instructions:
+            'Practice PRP pure block: ORIENTATION only.\nJudge whether the triangles point UP or DOWN.\nRight canvas: J = up, L = down.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRPPureOrOrtho,
+        numTrials: 41,
+        useQuest: true,
+        instructions:
+            'PRP pure block: ORIENTATION only.\nJudge whether the triangles point UP or DOWN.\nRight canvas: J = up, L = down.\n\nPress any key.',
+    },
     // Practice + experimental PRP blocks (4 x 81 trials)
-    { blockConfig: hirschDualCanvasPRPOrtho, numTrials: 12, isPractice: true, useQuest: true,
-      instructions: 'Practice PRP block: Respond LEFT canvas first (A = up, D = down), then RIGHT canvas (J = up, L = down).\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRPOrtho, numTrials: 81, useQuest: true,
-      instructions: 'PRP block 1 of 4: Respond LEFT canvas first (A = up, D = down), then RIGHT canvas (J = up, L = down).\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRPOrtho, numTrials: 81, useQuest: true, instructions: 'PRP block 2 of 4.\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRPOrtho, numTrials: 81, useQuest: true, instructions: 'PRP block 3 of 4.\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRPOrtho, numTrials: 81, useQuest: true, instructions: 'PRP block 4 of 4.\n\nPress any key.' },
+    {
+        blockConfig: hirschDualCanvasPRPOrtho,
+        numTrials: 12,
+        isPractice: true,
+        useQuest: true,
+        instructions:
+            'Practice PRP block: Respond LEFT canvas first (A = up, D = down), then RIGHT canvas (J = up, L = down).\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRPOrtho,
+        numTrials: 81,
+        useQuest: true,
+        instructions:
+            'PRP block 1 of 4: Respond LEFT canvas first (A = up, D = down), then RIGHT canvas (J = up, L = down).\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRPOrtho,
+        numTrials: 81,
+        useQuest: true,
+        instructions: 'PRP block 2 of 4.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRPOrtho,
+        numTrials: 81,
+        useQuest: true,
+        instructions: 'PRP block 3 of 4.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRPOrtho,
+        numTrials: 81,
+        useQuest: true,
+        instructions: 'PRP block 4 of 4.\n\nPress any key.',
+    },
     // Post-experimental pure blocks
-    { blockConfig: hirschDualCanvasPRPPureMovOrtho, numTrials: 41, useQuest: true,
-      instructions: 'PRP pure block: MOVEMENT only.\nRight canvas: J = up, L = down.\n\nPress any key.' },
-    { blockConfig: hirschDualCanvasPRPPureOrOrtho, numTrials: 41, useQuest: true,
-      instructions: 'PRP pure block: ORIENTATION only.\nRight canvas: J = up, L = down.\n\nPress any key.' },
+    {
+        blockConfig: hirschDualCanvasPRPPureMovOrtho,
+        numTrials: 41,
+        useQuest: true,
+        instructions:
+            'PRP pure block: MOVEMENT only.\nRight canvas: J = up, L = down.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRPPureOrOrtho,
+        numTrials: 41,
+        useQuest: true,
+        instructions:
+            'PRP pure block: ORIENTATION only.\nRight canvas: J = up, L = down.\n\nPress any key.',
+    },
 ];
 
 // =========================================================================
@@ -278,59 +507,117 @@ const HIRSCH_FAITHFUL_ORTHOGONAL_SESSION = [
 
 // Part 1 only: pure → mixed → pure
 const HIRSCH_TASK_SWITCHING_SESSION = [
-    { blockConfig: hirschAlternatingPureMov, numTrials: 40,
-      instructions: 'Pure block: MOVEMENT only, two canvases.\n\nPress any key to begin.' },
-    { blockConfig: hirschAlternatingPureOr, numTrials: 40,
-      instructions: 'Pure block: ORIENTATION only, two canvases.\n\nPress any key to begin.' },
-    { blockConfig: hirschAlternatingMixed, numTrials: 120,
-      instructions: 'Mixed task switching block: Two canvases, one task each.\n\n'
-          + 'The tasks might be different types (movement vs orientation) or they might be the same.\n\n'
-          + 'Press any key to begin.' },
-    { blockConfig: hirschAlternatingPureMov, numTrials: 40,
-      instructions: 'Pure block: MOVEMENT only, two canvases.\n\nPress any key to begin.' },
-    { blockConfig: hirschAlternatingPureOr, numTrials: 40,
-      instructions: 'Pure block: ORIENTATION only, two canvases.\n\nPress any key to begin.' },
+    {
+        blockConfig: hirschAlternatingPureMov,
+        numTrials: 40,
+        instructions: 'Pure block: MOVEMENT only, two canvases.\n\nPress any key to begin.',
+    },
+    {
+        blockConfig: hirschAlternatingPureOr,
+        numTrials: 40,
+        instructions: 'Pure block: ORIENTATION only, two canvases.\n\nPress any key to begin.',
+    },
+    {
+        blockConfig: hirschAlternatingMixed,
+        numTrials: 120,
+        instructions:
+            'Mixed task switching block: Two canvases, one task each.\n\n' +
+            'The tasks might be different types (movement vs orientation) or they might be the same.\n\n' +
+            'Press any key to begin.',
+    },
+    {
+        blockConfig: hirschAlternatingPureMov,
+        numTrials: 40,
+        instructions: 'Pure block: MOVEMENT only, two canvases.\n\nPress any key to begin.',
+    },
+    {
+        blockConfig: hirschAlternatingPureOr,
+        numTrials: 40,
+        instructions: 'Pure block: ORIENTATION only, two canvases.\n\nPress any key to begin.',
+    },
 ];
 
 // Part 2 only: prp-baseline pure → dual-canvas PRP → prp-baseline pure
 const HIRSCH_DUAL_CANVAS_SESSION = [
-    { blockConfig: hirschDualCanvasPRPPureMov, numTrials: 40,
-      instructions: 'Pure block: MOVEMENT only on right side.\n\nRight hand: J = left, L = right.\n\nPress any key to begin.' },
-    { blockConfig: hirschDualCanvasPRPPureOr, numTrials: 40,
-      instructions: 'Pure block: ORIENTATION only on right side.\n\nRight hand: J = left, L = right.\n\nPress any key to begin.' },
-    { blockConfig: hirschDualCanvasPRP, numTrials: 120,
-      instructions: 'Dual-task (PRP) block: Two canvases, one task each.\n\n'
-          + 'Respond to the LEFT canvas first (A/D), then the RIGHT canvas (J/L).\n'
-          + 'The tasks might be different types (movement vs orientation) or they might be the same.\n\n'
-          + 'Press any key to begin.' },
+    {
+        blockConfig: hirschDualCanvasPRPPureMov,
+        numTrials: 40,
+        instructions:
+            'Pure block: MOVEMENT only on right side.\n\nRight hand: J = left, L = right.\n\nPress any key to begin.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRPPureOr,
+        numTrials: 40,
+        instructions:
+            'Pure block: ORIENTATION only on right side.\n\nRight hand: J = left, L = right.\n\nPress any key to begin.',
+    },
+    {
+        blockConfig: hirschDualCanvasPRP,
+        numTrials: 120,
+        instructions:
+            'Dual-task (PRP) block: Two canvases, one task each.\n\n' +
+            'Respond to the LEFT canvas first (A/D), then the RIGHT canvas (J/L).\n' +
+            'The tasks might be different types (movement vs orientation) or they might be the same.\n\n' +
+            'Press any key to begin.',
+    },
 ];
 
 // Quick single-block tests for individual paradigms
 const HIRSCH_ALT_PURE_DEMO = [
-    { blockConfig: hirschAlternatingPureMov, numTrials: 20,
-      instructions: 'Quick test: Alternating pure block (MOVEMENT only).\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.' },
+    {
+        blockConfig: hirschAlternatingPureMov,
+        numTrials: 20,
+        instructions:
+            'Quick test: Alternating pure block (MOVEMENT only).\nLeft hand: A/D. Right hand: J/L.\n\nPress any key.',
+    },
 ];
 
 const HIRSCH_ALT_MIXED_DEMO = [
-    { blockConfig: hirschAlternatingMixed, numTrials: 40,
-      instructions: 'Quick test: Alternating mixed block.\nTasks switch randomly. Respond with the matching hand.\nA/D for left, J/L for right.\n\nPress any key.' },
+    {
+        blockConfig: hirschAlternatingMixed,
+        numTrials: 40,
+        instructions:
+            'Quick test: Alternating mixed block.\nTasks switch randomly. Respond with the matching hand.\nA/D for left, J/L for right.\n\nPress any key.',
+    },
 ];
 
 const HIRSCH_PRP_BASELINE_DEMO = [
-    { blockConfig: hirschDualCanvasPRPPureMov, numTrials: 20,
-      instructions: 'Quick test: PRP baseline (asterisk on left, respond right only).\nRight hand: J/L.\n\nPress any key.' },
+    {
+        blockConfig: hirschDualCanvasPRPPureMov,
+        numTrials: 20,
+        instructions:
+            'Quick test: PRP baseline (asterisk on left, respond right only).\nRight hand: J/L.\n\nPress any key.',
+    },
 ];
 
 const HIRSCH_PRP_DEMO = [
-    { blockConfig: hirschDualCanvasPRP, numTrials: 40,
-      instructions: 'Quick test: Dual-canvas PRP.\nRespond LEFT first (A/D), then RIGHT (J/L).\n\nPress any key.' },
+    {
+        blockConfig: hirschDualCanvasPRP,
+        numTrials: 40,
+        instructions:
+            'Quick test: Dual-canvas PRP.\nRespond LEFT first (A/D), then RIGHT (J/L).\n\nPress any key.',
+    },
 ];
 
 const HIRSCH_QUEST_DEMO = [
-    { blockConfig: hirschAlternatingPureMov, numTrials: 20, isPractice: true, runQuest: { priorMean: 0.35, priorSD: 0.2 },
-      instructions: 'QUEST demo: MOVEMENT.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingPureOr, numTrials: 20, isPractice: true, runQuest: { priorMean: 0.6, priorSD: 0.25 }, 
-      instructions: 'QUEST demo: ORIENTATION.\n\nPress any key.' },
-    { blockConfig: hirschAlternatingMixed, numTrials: 10, useQuest: true,
-      instructions: 'Mixed block with QUEST thresholds.\n\nPress any key.' },
+    {
+        blockConfig: hirschAlternatingPureMov,
+        numTrials: 20,
+        isPractice: true,
+        runQuest: { priorMean: 0.35, priorSD: 0.2 },
+        instructions: 'QUEST demo: MOVEMENT.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingPureOr,
+        numTrials: 20,
+        isPractice: true,
+        runQuest: { priorMean: 0.6, priorSD: 0.25 },
+        instructions: 'QUEST demo: ORIENTATION.\n\nPress any key.',
+    },
+    {
+        blockConfig: hirschAlternatingMixed,
+        numTrials: 10,
+        useQuest: true,
+        instructions: 'Mixed block with QUEST thresholds.\n\nPress any key.',
+    },
 ];

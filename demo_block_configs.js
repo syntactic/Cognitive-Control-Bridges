@@ -9,13 +9,13 @@
 // Stimuli are univalent throughout (no congruency manipulation).
 
 const DEMO_DEFAULTS = {
-    csi: 200,                // ms, cue-stimulus interval
-    stimulusDuration: 2500,  // ms, matches responseWindow so stimuli stay visible until response
-    responseWindow: 2500,    // ms, go signal duration
+    csi: 200, // ms, cue-stimulus interval
+    stimulusDuration: 2500, // ms, matches responseWindow so stimuli stay visible until response
+    responseWindow: 2500, // ms, go signal duration
     rso: 'disjoint',
     coherence: {
         ch1_task: 0.8,
-        ch1_distractor: 0,   // univalent: distractor pathway silenced
+        ch1_distractor: 0, // univalent: distractor pathway silenced
         ch2_task: 0.6,
         ch2_distractor: 0,
     },
@@ -117,22 +117,26 @@ const DEMO_SESSION = [
     {
         blockConfig: demoPureMov,
         numTrials: 40,
-        instructions: 'Pure block: MOVEMENT task only.\n\nLeft hand: A = leftward, D = rightward.\n\nPress any key to begin.',
+        instructions:
+            'Pure block: MOVEMENT task only.\n\nLeft hand: A = leftward, D = rightward.\n\nPress any key to begin.',
     },
     {
         blockConfig: demoPureOr,
         numTrials: 40,
-        instructions: 'Pure block: ORIENTATION task only.\n\nRight hand: J = leftward, L = rightward.\n\nPress any key to begin.',
+        instructions:
+            'Pure block: ORIENTATION task only.\n\nRight hand: J = leftward, L = rightward.\n\nPress any key to begin.',
     },
     {
         blockConfig: demoMixed,
         numTrials: 80,
-        instructions: 'Mixed block: The task switches randomly between trials.\n\nThe border color tells you which task to do:\n  Orange = MOVEMENT (left hand: A/D)\n  Blue = ORIENTATION (right hand: J/L)\n\nPress any key to begin.',
+        instructions:
+            'Mixed block: The task switches randomly between trials.\n\nThe border color tells you which task to do:\n  Orange = MOVEMENT (left hand: A/D)\n  Blue = ORIENTATION (right hand: J/L)\n\nPress any key to begin.',
     },
     {
         blockConfig: demoPRP,
         numTrials: 120,
-        instructions: 'Dual-task (PRP) block: Two tasks per trial.\n\nRespond to the FIRST task, then the SECOND task.\nMOVEMENT (left hand): A = left, D = right.\nORIENTATION (right hand): J = left, L = right.\n\nThe delay between tasks will vary.\n\nPress any key to begin.',
+        instructions:
+            'Dual-task (PRP) block: Two tasks per trial.\n\nRespond to the FIRST task, then the SECOND task.\nMOVEMENT (left hand): A = left, D = right.\nORIENTATION (right hand): J = left, L = right.\n\nThe delay between tasks will vary.\n\nPress any key to begin.',
     },
 ];
 
@@ -140,9 +144,10 @@ const DEMO_DUAL_CANVAS_SAME_SESSION = [
     {
         blockConfig: demoDualCanvasSame,
         numTrials: 120,
-        instructions: 'Dual-task (PRP) block: Two canvases, SAME task type.\n\n'
-            + 'Respond to the LEFT canvas first (A/D), then the RIGHT canvas (J/L).\n'
-            + 'Both canvases will show the same task type on each trial.\n\n'
-            + 'Press any key to begin.',
+        instructions:
+            'Dual-task (PRP) block: Two canvases, SAME task type.\n\n' +
+            'Respond to the LEFT canvas first (A/D), then the RIGHT canvas (J/L).\n' +
+            'Both canvases will show the same task type on each trial.\n\n' +
+            'Press any key to begin.',
     },
 ];

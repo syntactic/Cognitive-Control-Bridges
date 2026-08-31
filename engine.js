@@ -22,7 +22,9 @@ function sampleFromDistribution(config) {
     }
     if (config.type === 'uniform') {
         if (!config.params || config.params.length < 2) {
-            console.warn('sampleFromDistribution: uniform requires params [min, max], falling back to value');
+            console.warn(
+                'sampleFromDistribution: uniform requires params [min, max], falling back to value',
+            );
             return config.value;
         }
         const min = Math.min(config.params[0], config.params[1]);
@@ -31,7 +33,9 @@ function sampleFromDistribution(config) {
     }
     if (config.type === 'choice') {
         if (!config.params || config.params.length === 0) {
-            console.warn('sampleFromDistribution: choice requires non-empty params, falling back to value');
+            console.warn(
+                'sampleFromDistribution: choice requires non-empty params, falling back to value',
+            );
             return config.value;
         }
         return config.params[Math.floor(Math.random() * config.params.length)];
@@ -67,7 +71,7 @@ function generateTaskSequence(numTrials, sequenceType, switchRate, startTask = n
         // (i.e., the Hirsch et al. 2018 design where stimulus category is random).
         for (let i = 1; i < numTrials; i++) {
             const prev = sequence[i - 1];
-            sequence.push(Math.random() < (switchRate / 100) ? switchTask(prev) : prev);
+            sequence.push(Math.random() < switchRate / 100 ? switchTask(prev) : prev);
         }
     } else if (sequenceType === 'AABB') {
         // Alternating runs of 2: mov, mov, or, or, mov, mov, ...
@@ -114,9 +118,10 @@ function generateCongruencySequence(numTrials, conditions, proportions) {
     let assigned = 0;
 
     for (let i = 0; i < conditions.length; i++) {
-        const count = (i === conditions.length - 1)
-            ? numTrials - assigned
-            : Math.round(numTrials * proportions[i]);
+        const count =
+            i === conditions.length - 1
+                ? numTrials - assigned
+                : Math.round(numTrials * proportions[i]);
         for (let j = 0; j < count; j++) {
             sequence.push(conditions[i]);
         }
@@ -150,14 +155,14 @@ function generateFactorialSequence(numTrials, factors) {
 
     const cartesianProduct = keys.reduce((acc, key) => {
         const values = factors[key];
-        if (acc.length === 0) return values.map(v => ({ [key]: v }));
-        return acc.flatMap(obj => values.map(v => ({ ...obj, [key]: v })));
+        if (acc.length === 0) return values.map((v) => ({ [key]: v }));
+        return acc.flatMap((obj) => values.map((v) => ({ ...obj, [key]: v })));
     }, []);
 
     const pool = [];
     const reps = Math.floor(numTrials / cartesianProduct.length);
     for (let i = 0; i < reps; i++) {
-        pool.push(...cartesianProduct.map(c => ({ ...c })));
+        pool.push(...cartesianProduct.map((c) => ({ ...c })));
     }
 
     const remainder = numTrials - pool.length;
@@ -205,9 +210,10 @@ function deriveTasksFromTransitions(transitionSequence, startTask) {
  * @returns {{ task1: (string|null)[], task2: (string|null)[] }}
  */
 function deriveTask2Vector(task1, n, blockConfig, errorPrefix) {
-    const isDualTaskParadigm = blockConfig.paradigm === 'dual-task' || blockConfig.paradigm === 'dual-canvas';
-    const effectiveT2Rule = blockConfig.t2Rule
-        ?? (blockConfig.paradigm === 'dual-canvas' ? 'independent' : 'switch');
+    const isDualTaskParadigm =
+        blockConfig.paradigm === 'dual-task' || blockConfig.paradigm === 'dual-canvas';
+    const effectiveT2Rule =
+        blockConfig.t2Rule ?? (blockConfig.paradigm === 'dual-canvas' ? 'independent' : 'switch');
 
     let resolvedTask1 = task1;
     let task2;
@@ -253,17 +259,22 @@ function generateSequenceVectors(blockConfig, numTrials) {
     const sequenceData = { task1: [], task2: [], transition: [], soa: [], iti: [], congruency: [] };
 
     // Default congruency for paradigms that don't specify it (alternating, prp-baseline)
-    const congruencyConfig = blockConfig.congruency || { conditions: ['univalent'], proportions: [1.0] };
+    const congruencyConfig = blockConfig.congruency || {
+        conditions: ['univalent'],
+        proportions: [1.0],
+    };
 
     // Coherence-level factors (e.g. { target: ['easy','hard'], distractor: ['low','mid','high'] }).
     // Emitted as targetLevel[]/distractorLevel[] vectors; resolveCoherence maps them to values.
     const levelFactors = blockConfig.levelFactors || {};
     const hasTargetLevels = Array.isArray(levelFactors.target) && levelFactors.target.length > 0;
-    const hasDistractorLevels = Array.isArray(levelFactors.distractor) && levelFactors.distractor.length > 0;
+    const hasDistractorLevels =
+        Array.isArray(levelFactors.distractor) && levelFactors.distractor.length > 0;
 
     // Resolve effective start task: dual-task paradigms use task1 field,
     // others use startTask (which can be null for random coin flip)
-    const isDualTaskParadigm = blockConfig.paradigm === 'dual-task' || blockConfig.paradigm === 'dual-canvas';
+    const isDualTaskParadigm =
+        blockConfig.paradigm === 'dual-task' || blockConfig.paradigm === 'dual-canvas';
     const effectiveStartTask = isDualTaskParadigm
         ? (blockConfig.task1 ?? blockConfig.startTask)
         : blockConfig.startTask;
@@ -271,7 +282,7 @@ function generateSequenceVectors(blockConfig, numTrials) {
     if (blockConfig.sequenceType === 'Factorial') {
         if (blockConfig.switchRate !== 50 && blockConfig.switchRate !== 0) {
             throw new Error(
-                `Factorial sequence requires switchRate 50 (balanced Switch/Repeat) or 0 (pure). Got: ${blockConfig.switchRate}`
+                `Factorial sequence requires switchRate 50 (balanced Switch/Repeat) or 0 (pure). Got: ${blockConfig.switchRate}`,
             );
         }
 
@@ -279,13 +290,14 @@ function generateSequenceVectors(blockConfig, numTrials) {
         if (blockConfig.switchRate === 50) factors.transition = ['Repeat', 'Switch'];
         if (blockConfig.soa?.type === 'choice') factors.soa = blockConfig.soa.params;
         if (blockConfig.iti?.type === 'choice') factors.iti = blockConfig.iti.params;
-        if (congruencyConfig.conditions.length > 1) factors.congruency = congruencyConfig.conditions;
+        if (congruencyConfig.conditions.length > 1)
+            factors.congruency = congruencyConfig.conditions;
         if (hasTargetLevels) factors.targetLevel = levelFactors.target;
         if (hasDistractorLevels) factors.distractorLevel = levelFactors.distractor;
 
         const crossed = generateFactorialSequence(numTrials, factors);
 
-        sequenceData.transition = crossed.map(c => c.transition || 'Repeat');
+        sequenceData.transition = crossed.map((c) => c.transition || 'Repeat');
         if (sequenceData.transition.length > 0) {
             sequenceData.transition[0] = 'First';
         }
@@ -293,50 +305,71 @@ function generateSequenceVectors(blockConfig, numTrials) {
         const initialTask = effectiveStartTask ?? (Math.random() < 0.5 ? 'mov' : 'or');
         sequenceData.task1 = deriveTasksFromTransitions(sequenceData.transition, initialTask);
 
-        sequenceData.soa = crossed.map(c =>
-            c.soa !== undefined ? c.soa : (blockConfig.soa ? sampleFromDistribution(blockConfig.soa) : null)
+        sequenceData.soa = crossed.map((c) =>
+            c.soa !== undefined
+                ? c.soa
+                : blockConfig.soa
+                  ? sampleFromDistribution(blockConfig.soa)
+                  : null,
         );
-        sequenceData.iti = crossed.map(c =>
-            c.iti !== undefined ? c.iti : sampleFromDistribution(blockConfig.iti)
+        sequenceData.iti = crossed.map((c) =>
+            c.iti !== undefined ? c.iti : sampleFromDistribution(blockConfig.iti),
         );
-        sequenceData.congruency = crossed.map(c =>
-            c.congruency || congruencyConfig.conditions[0] || 'univalent'
+        sequenceData.congruency = crossed.map(
+            (c) => c.congruency || congruencyConfig.conditions[0] || 'univalent',
         );
         if (hasTargetLevels) {
-            sequenceData.targetLevel = crossed.map(c => c.targetLevel ?? levelFactors.target[0]);
+            sequenceData.targetLevel = crossed.map((c) => c.targetLevel ?? levelFactors.target[0]);
         }
         if (hasDistractorLevels) {
-            sequenceData.distractorLevel = crossed.map(c => c.distractorLevel ?? levelFactors.distractor[0]);
+            sequenceData.distractorLevel = crossed.map(
+                (c) => c.distractorLevel ?? levelFactors.distractor[0],
+            );
         }
-
     } else {
         // Stochastic generation (Random, AABB)
         sequenceData.task1 = generateTaskSequence(
-            numTrials, blockConfig.sequenceType, blockConfig.switchRate, effectiveStartTask
+            numTrials,
+            blockConfig.sequenceType,
+            blockConfig.switchRate,
+            effectiveStartTask,
         );
         sequenceData.transition = classifyTransitions(sequenceData.task1);
         sequenceData.soa = Array.from({ length: numTrials }, () =>
-            blockConfig.soa ? sampleFromDistribution(blockConfig.soa) : null
+            blockConfig.soa ? sampleFromDistribution(blockConfig.soa) : null,
         );
         sequenceData.iti = Array.from({ length: numTrials }, () =>
-            sampleFromDistribution(blockConfig.iti)
+            sampleFromDistribution(blockConfig.iti),
         );
         sequenceData.congruency = generateCongruencySequence(
-            numTrials, congruencyConfig.conditions, congruencyConfig.proportions
+            numTrials,
+            congruencyConfig.conditions,
+            congruencyConfig.proportions,
         );
         // Balanced (equal-proportion) sampling of coherence levels.
         if (hasTargetLevels) {
             const p = levelFactors.target.map(() => 1 / levelFactors.target.length);
-            sequenceData.targetLevel = generateCongruencySequence(numTrials, levelFactors.target, p);
+            sequenceData.targetLevel = generateCongruencySequence(
+                numTrials,
+                levelFactors.target,
+                p,
+            );
         }
         if (hasDistractorLevels) {
             const p = levelFactors.distractor.map(() => 1 / levelFactors.distractor.length);
-            sequenceData.distractorLevel = generateCongruencySequence(numTrials, levelFactors.distractor, p);
+            sequenceData.distractorLevel = generateCongruencySequence(
+                numTrials,
+                levelFactors.distractor,
+                p,
+            );
         }
     }
 
-    const { task1: derivedTask1, task2: derivedTask2 } =
-        deriveTask2Vector(sequenceData.task1, numTrials, blockConfig);
+    const { task1: derivedTask1, task2: derivedTask2 } = deriveTask2Vector(
+        sequenceData.task1,
+        numTrials,
+        blockConfig,
+    );
     sequenceData.task1 = derivedTask1;
     sequenceData.task2 = derivedTask2;
 
@@ -345,7 +378,8 @@ function generateSequenceVectors(blockConfig, numTrials) {
     // transition values when t2Rule is 'independent'.
     if (blockConfig.paradigm === 'dual-canvas') {
         sequenceData.transition = classifyDualCanvasTransitions(
-            sequenceData.task1, sequenceData.task2
+            sequenceData.task1,
+            sequenceData.task2,
         );
     }
 
@@ -355,8 +389,7 @@ function generateSequenceVectors(blockConfig, numTrials) {
     // path we sample it balanced (50/50). Dual-task PRP does NOT get a per-trial
     // hand — its hands are task-tied by condition (T1 one hand, T2 the other), so
     // the block-level key maps already place them.
-    if (blockConfig.varyHand
-        && !isDualTaskParadigm && blockConfig.paradigm !== 'prp-baseline') {
+    if (blockConfig.varyHand && !isDualTaskParadigm && blockConfig.paradigm !== 'prp-baseline') {
         sequenceData.hand = generateCongruencySequence(numTrials, ['left', 'right'], [0.5, 0.5]);
     }
 
@@ -373,15 +406,20 @@ function generateSequenceVectors(blockConfig, numTrials) {
  * is needed (our columns are plain tokens), but empty cells are preserved as ''.
  */
 function parseSequenceCSV(csvText) {
-    const lines = csvText.replace(/\r\n/g, '\n').split('\n').filter(l => l.trim().length > 0);
+    const lines = csvText
+        .replace(/\r\n/g, '\n')
+        .split('\n')
+        .filter((l) => l.trim().length > 0);
     if (lines.length < 2) {
         throw new Error('loadSequenceVectors: CSV has no data rows');
     }
-    const header = lines[0].split(',').map(s => s.trim());
-    return lines.slice(1).map(line => {
-        const cells = line.split(',').map(s => s.trim());
+    const header = lines[0].split(',').map((s) => s.trim());
+    return lines.slice(1).map((line) => {
+        const cells = line.split(',').map((s) => s.trim());
         const row = {};
-        header.forEach((h, i) => { row[h] = cells[i] !== undefined ? cells[i] : ''; });
+        header.forEach((h, i) => {
+            row[h] = cells[i] !== undefined ? cells[i] : '';
+        });
         return row;
     });
 }
@@ -397,7 +435,9 @@ function parseSequenceCSV(csvText) {
  */
 function targetLabelToDegrees(label, levelToDeg = { left: 180, right: 0 }) {
     if (label in levelToDeg) return levelToDeg[label];
-    throw new Error(`loadSequenceVectors: unknown target_dir '${label}' (expected ${Object.keys(levelToDeg).join('|')})`);
+    throw new Error(
+        `loadSequenceVectors: unknown target_dir '${label}' (expected ${Object.keys(levelToDeg).join('|')})`,
+    );
 }
 
 /**
@@ -425,8 +465,10 @@ function loadSequenceVectors(csvText, blockConfig) {
     const cols = new Set(Object.keys(rows[0]));
     const hasTaskCol = cols.has('task');
     if (!hasTaskCol) throw new Error("loadSequenceVectors: missing required 'task' column");
-    if (!cols.has('congruency')) throw new Error("loadSequenceVectors: missing required 'congruency' column");
-    if (!cols.has('target_dir')) throw new Error("loadSequenceVectors: missing required 'target_dir' column");
+    if (!cols.has('congruency'))
+        throw new Error("loadSequenceVectors: missing required 'congruency' column");
+    if (!cols.has('target_dir'))
+        throw new Error("loadSequenceVectors: missing required 'target_dir' column");
 
     const hasTaskTransition = cols.has('task_transition');
     const hasSoa = cols.has('soa_level');
@@ -443,8 +485,13 @@ function loadSequenceVectors(csvText, blockConfig) {
     const validHand = new Set(['left', 'right']);
 
     const vectors = {
-        task1: [], task2: [], transition: [], soa: [], iti: [],
-        congruency: [], targetDir: [],
+        task1: [],
+        task2: [],
+        transition: [],
+        soa: [],
+        iti: [],
+        congruency: [],
+        targetDir: [],
     };
     if (hasTargetLevel) vectors.targetLevel = [];
     if (hasDistractorLevel) vectors.distractorLevel = [];
@@ -464,8 +511,12 @@ function loadSequenceVectors(csvText, blockConfig) {
         }
         vectors.congruency.push(r.congruency);
 
-        vectors.targetDir.push(targetLabelToDegrees(
-            r.target_dir, blockConfig.geometry && blockConfig.geometry.levelToDeg));
+        vectors.targetDir.push(
+            targetLabelToDegrees(
+                r.target_dir,
+                blockConfig.geometry && blockConfig.geometry.levelToDeg,
+            ),
+        );
 
         if (hasTaskTransition) {
             const t = i === 0 ? 'First' : r.task_transition;
@@ -484,7 +535,9 @@ function loadSequenceVectors(csvText, blockConfig) {
 
         if (hasHand) {
             if (!validHand.has(r.hand)) {
-                throw new Error(`loadSequenceVectors: row ${i} unknown hand '${r.hand}' (expected left|right)`);
+                throw new Error(
+                    `loadSequenceVectors: row ${i} unknown hand '${r.hand}' (expected left|right)`,
+                );
             }
             vectors.hand.push(r.hand);
         }
@@ -495,8 +548,12 @@ function loadSequenceVectors(csvText, blockConfig) {
         vectors.transition = classifyTransitions(vectors.task1);
     }
 
-    const { task1: derivedTask1, task2: derivedTask2 } =
-        deriveTask2Vector(vectors.task1, n, blockConfig, 'loadSequenceVectors: ');
+    const { task1: derivedTask1, task2: derivedTask2 } = deriveTask2Vector(
+        vectors.task1,
+        n,
+        blockConfig,
+        'loadSequenceVectors: ',
+    );
     vectors.task1 = derivedTask1;
     vectors.task2 = derivedTask2;
 
@@ -528,7 +585,15 @@ function loadSequenceVectors(csvText, blockConfig) {
  *   direction is drawn at random as before — behavior is unchanged.
  * @returns {{ ch1_task: number, ch1_distractor: number, ch2_task: number, ch2_distractor: number }}
  */
-function assignDirections(task, congruency, paradigm, rso, keyMaps, mapping = 'parallel', injectedTargetDir = null) {
+function assignDirections(
+    task,
+    congruency,
+    paradigm,
+    rso,
+    keyMaps,
+    mapping = 'parallel',
+    injectedTargetDir = null,
+) {
     // 'orthogonal' mapping uses vertical stimulus directions (90=up, 270=down);
     // the default ('parallel') uses horizontal directions (0=right, 180=left).
     const defaultDirs = mapping === 'orthogonal' ? [90, 270] : [0, 180];
@@ -538,7 +603,8 @@ function assignDirections(task, congruency, paradigm, rso, keyMaps, mapping = 'p
         return pool[Math.floor(Math.random() * pool.length)];
     }
     // SweetPea owns target direction when injected; otherwise randomize.
-    const pickTarget = () => injectedTargetDir != null ? injectedTargetDir : randomFrom(taskDirPool);
+    const pickTarget = () =>
+        injectedTargetDir != null ? injectedTargetDir : randomFrom(taskDirPool);
 
     if (paradigm === 'dual-task') {
         const otherDirPool = keyMaps
@@ -560,7 +626,7 @@ function assignDirections(task, congruency, paradigm, rso, keyMaps, mapping = 'p
         }
         return {
             ch1_task: ch1Dir,
-            ch1_distractor: 0,  // no within-channel distractors in dual-task
+            ch1_distractor: 0, // no within-channel distractors in dual-task
             ch2_task: ch2Dir,
             ch2_distractor: 0,
         };
@@ -579,7 +645,9 @@ function assignDirections(task, congruency, paradigm, rso, keyMaps, mapping = 'p
         // Without keyMaps: default to [90, 270] for backward compat.
         const neutralPool = keyMaps
             ? Object.keys(keyMaps[switchTask(task)]).map(Number)
-            : (mapping === 'orthogonal' ? [0, 180] : [90, 270]);
+            : mapping === 'orthogonal'
+              ? [0, 180]
+              : [90, 270];
         distractorDir = randomFrom(neutralPool);
     }
     // 'univalent': distractorDir stays 0, coherence silences the pathway
@@ -656,7 +724,8 @@ function buildTimingParams(spec) {
     // differ: cue lasts through the stimulus, go window is responseWindow ms
     // from stimulus onset. Matches convert.py's effective_start_go1 = cue1.
     timingParams.start_1 = 0;
-    timingParams.dur_1 = (spec.cueDuration !== undefined) ? spec.cueDuration : (spec.csi + spec.dur_ch1);
+    timingParams.dur_1 =
+        spec.cueDuration !== undefined ? spec.cueDuration : spec.csi + spec.dur_ch1;
     timingParams.start_go_1 = 0;
     timingParams.dur_go_1 = spec.csi + spec.responseWindow;
 
@@ -673,7 +742,8 @@ function buildTimingParams(spec) {
         // full CSI of its own — cue2 used to open at csi+soa (with S2), giving
         // T2 no prep interval at all.
         timingParams.start_2 = spec.soa;
-        timingParams.dur_2 = (spec.cueDuration !== undefined) ? spec.cueDuration : (spec.csi + spec.dur_ch2);
+        timingParams.dur_2 =
+            spec.cueDuration !== undefined ? spec.cueDuration : spec.csi + spec.dur_ch2;
         timingParams.start_go_2 = spec.soa;
         timingParams.dur_go_2 = spec.csi + spec.responseWindow;
 
@@ -686,7 +756,6 @@ function buildTimingParams(spec) {
         timingParams.dur_mov_2 = spec.dur_ch2;
         timingParams.start_or_2 = ch2RelativeOffset;
         timingParams.dur_or_2 = spec.dur_ch2;
-
     } else {
         // Single-task: channel 2 completely inactive
         timingParams.start_2 = 0;
@@ -718,10 +787,22 @@ function buildTrialParams(spec) {
     // Zero out duration for pathways with coh=0.
     // The SE package renders coh=0 as visible random noise, not invisible.
     // Zeroing duration is the only way to truly silence a pathway.
-    if (params.coh_mov_1 === 0) { params.start_mov_1 = 0; params.dur_mov_1 = 0; }
-    if (params.coh_or_1 === 0) { params.start_or_1 = 0; params.dur_or_1 = 0; }
-    if (params.coh_mov_2 === 0) { params.start_mov_2 = 0; params.dur_mov_2 = 0; }
-    if (params.coh_or_2 === 0) { params.start_or_2 = 0; params.dur_or_2 = 0; }
+    if (params.coh_mov_1 === 0) {
+        params.start_mov_1 = 0;
+        params.dur_mov_1 = 0;
+    }
+    if (params.coh_or_1 === 0) {
+        params.start_or_1 = 0;
+        params.dur_or_1 = 0;
+    }
+    if (params.coh_mov_2 === 0) {
+        params.start_mov_2 = 0;
+        params.dur_mov_2 = 0;
+    }
+    if (params.coh_or_2 === 0) {
+        params.start_or_2 = 0;
+        params.dur_or_2 = 0;
+    }
 
     // Recompute ch2 relative offsets AFTER zeroing.
     //
@@ -787,8 +868,8 @@ function assertLegacyCoherenceFormat(coherence, fnName) {
     if (coherence && (coherence.target !== undefined || coherence.distractor !== undefined)) {
         throw new Error(
             `${fnName}: coherence uses { target, distractor } format, which this function ` +
-            `does not support (only generateBlockTrials resolves it via resolveCoherence). ` +
-            `Use legacy task-indexed ({ mov, or }) or channel-indexed ({ ch1_task, ... }) format.`
+                `does not support (only generateBlockTrials resolves it via resolveCoherence). ` +
+                `Use legacy task-indexed ({ mov, or }) or channel-indexed ({ ch1_task, ... }) format.`,
         );
     }
 }
@@ -811,12 +892,14 @@ function resolveCoherence(coherenceConfig, task1, task2, isDualTask, targetLevel
     if (coherenceConfig.target !== undefined) {
         return {
             ch1_task: pickCoherenceValue(coherenceConfig.target, task1, targetLevel),
-            ch1_distractor: coherenceConfig.distractor !== undefined
-                ? pickCoherenceValue(coherenceConfig.distractor, null, distractorLevel)
-                : 0,
-            ch2_task: (isDualTask && task2)
-                ? pickCoherenceValue(coherenceConfig.target, task2, targetLevel)
-                : 0,
+            ch1_distractor:
+                coherenceConfig.distractor !== undefined
+                    ? pickCoherenceValue(coherenceConfig.distractor, null, distractorLevel)
+                    : 0,
+            ch2_task:
+                isDualTask && task2
+                    ? pickCoherenceValue(coherenceConfig.target, task2, targetLevel)
+                    : 0,
             ch2_distractor: 0,
         };
     }
@@ -824,7 +907,7 @@ function resolveCoherence(coherenceConfig, task1, task2, isDualTask, targetLevel
     return {
         ch1_task: coherenceConfig[task1],
         ch1_distractor: 0,
-        ch2_task: (isDualTask && task2) ? coherenceConfig[task2] : 0,
+        ch2_task: isDualTask && task2 ? coherenceConfig[task2] : 0,
         ch2_distractor: 0,
     };
 }
@@ -863,8 +946,13 @@ function generateBlockTrials(blockConfig, numTrials, preloadedVectors = null) {
         // SweetPea-owned target direction when a CSV was loaded; null otherwise.
         const injectedTargetDir = vectors.targetDir ? vectors.targetDir[i] : null;
         const dir = assignDirections(
-            task1, congruency, blockConfig.paradigm, blockConfig.rso, blockConfig.keyMaps,
-            blockConfig.mapping, injectedTargetDir
+            task1,
+            congruency,
+            blockConfig.paradigm,
+            blockConfig.rso,
+            blockConfig.keyMaps,
+            blockConfig.mapping,
+            injectedTargetDir,
         );
 
         // Resolve coherence (see resolveCoherence for supported formats).
@@ -873,7 +961,12 @@ function generateBlockTrials(blockConfig, numTrials, preloadedVectors = null) {
         const targetLevel = vectors.targetLevel ? vectors.targetLevel[i] : null;
         const distractorLevel = vectors.distractorLevel ? vectors.distractorLevel[i] : null;
         const resolvedCoherence = resolveCoherence(
-            blockConfig.coherence, task1, task2, isDualTask, targetLevel, distractorLevel
+            blockConfig.coherence,
+            task1,
+            task2,
+            isDualTask,
+            targetLevel,
+            distractorLevel,
         );
 
         const spec = {
@@ -927,9 +1020,16 @@ function generateBlockTrials(blockConfig, numTrials, preloadedVectors = null) {
     return trials;
 }
 
-function buildSingleCanvasSpec(task, csi, stimulusDuration, responseWindow,
-                               coherence, direction,
-                               distractorCoherence, distractorDirection) {
+function buildSingleCanvasSpec(
+    task,
+    csi,
+    stimulusDuration,
+    responseWindow,
+    coherence,
+    direction,
+    distractorCoherence,
+    distractorDirection,
+) {
     const spec = {
         task1: task,
         task2: null,
@@ -938,13 +1038,22 @@ function buildSingleCanvasSpec(task, csi, stimulusDuration, responseWindow,
         dur_ch2: 0,
         soa: 0,
         responseWindow: responseWindow,
-        coherence: {ch1_task: coherence, ch1_distractor: distractorCoherence ?? 0, ch2_task: 0, ch2_distractor: 0},
-        dir: {ch1_task: direction, ch1_distractor: distractorDirection ?? 0, ch2_task: 0, ch2_distractor: 0}
+        coherence: {
+            ch1_task: coherence,
+            ch1_distractor: distractorCoherence ?? 0,
+            ch2_task: 0,
+            ch2_distractor: 0,
+        },
+        dir: {
+            ch1_task: direction,
+            ch1_distractor: distractorDirection ?? 0,
+            ch2_task: 0,
+            ch2_distractor: 0,
+        },
     };
 
     return spec;
 }
-
 
 /**
  * Delay an entire single-canvas trial by `offset` ms, preserving its internal
@@ -975,7 +1084,6 @@ function applySOAOffset(params, offset) {
 
     return shifted;
 }
-
 
 // TODO: dual-canvas trials are always univalent (one task per canvas, no
 // distractors) — within-canvas congruency isn't wired up. Would need a
@@ -1012,20 +1120,46 @@ function generateDualCanvasBlockTrials(blockConfig, numTrials) {
         // Note: keyMaps here are block-level, not canvas-aware. Correct for
         // univalent trials but would need per-canvas keyMaps if within-canvas
         // congruency is added later (see TODO above).
-        const dir1 = assignDirections(t1, congruency, 'single-task', blockConfig.rso, blockConfig.keyMaps, blockConfig.mapping);
-        const dir2 = assignDirections(t2, congruency, 'single-task', blockConfig.rso, blockConfig.keyMaps, blockConfig.mapping);
+        const dir1 = assignDirections(
+            t1,
+            congruency,
+            'single-task',
+            blockConfig.rso,
+            blockConfig.keyMaps,
+            blockConfig.mapping,
+        );
+        const dir2 = assignDirections(
+            t2,
+            congruency,
+            'single-task',
+            blockConfig.rso,
+            blockConfig.keyMaps,
+            blockConfig.mapping,
+        );
 
         const t1Coh = blockConfig.coherence[t1] ?? blockConfig.coherence.ch1_task;
         const t2Coh = blockConfig.coherence[t2] ?? blockConfig.coherence.ch1_task;
         const distractorCoh = blockConfig.coherence.ch1_distractor ?? 0;
 
         const t1Spec = buildSingleCanvasSpec(
-            t1, blockConfig.csi, blockConfig.stimulusDuration, blockConfig.responseWindow,
-            t1Coh, dir1.ch1_task, distractorCoh, dir1.ch1_distractor
+            t1,
+            blockConfig.csi,
+            blockConfig.stimulusDuration,
+            blockConfig.responseWindow,
+            t1Coh,
+            dir1.ch1_task,
+            distractorCoh,
+            dir1.ch1_distractor,
         );
         const t2Spec = buildSingleCanvasSpec(
-            t2, blockConfig.csi, blockConfig.stimulusDuration, blockConfig.responseWindow,
-            t2Coh, dir2.ch1_task, distractorCoh, dir2.ch1_distractor
+            t2,
+            blockConfig.csi,
+            blockConfig.stimulusDuration,
+            blockConfig.responseWindow,
+            t2Coh,
+            dir2.ch1_task,
+            distractorCoh,
+            dir2.ch1_distractor,
         );
 
         const t1Params = buildTrialParams(t1Spec);
@@ -1100,8 +1234,12 @@ function generateSidedTrials(blockConfig, numTrials) {
         const dirPool = blockConfig.mapping === 'orthogonal' ? [90, 270] : [0, 180];
         const direction = dirPool[Math.floor(Math.random() * dirPool.length)];
         const spec = buildSingleCanvasSpec(
-            displayTask, blockConfig.csi, blockConfig.stimulusDuration,
-            blockConfig.responseWindow, coherence, direction
+            displayTask,
+            blockConfig.csi,
+            blockConfig.stimulusDuration,
+            blockConfig.responseWindow,
+            coherence,
+            direction,
         );
         // Baseline: task canvas delay is applied inside the SE timeline (like
         // dual-canvas T2), not via a session.js setTimeout — that used to make
@@ -1114,7 +1252,7 @@ function generateSidedTrials(blockConfig, numTrials) {
             trialNumber: i + 1,
             // Baseline: task on opposite side of asterisk (asterisk = T1 side)
             // Alternating: starting side = t1Side, then alternates
-            side: isBaseline ? oppositeSide : ((i % 2 === 0) ? t1Side : oppositeSide),
+            side: isBaseline ? oppositeSide : i % 2 === 0 ? t1Side : oppositeSide,
             t1Side: t1Side,
             blockId: blockConfig.blockId,
             blockType: blockConfig.blockType,

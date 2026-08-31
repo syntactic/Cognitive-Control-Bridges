@@ -1,13 +1,13 @@
 {
-  "hosting": {
-    "public": ".",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "node_modules/**/!(*bundle.js)",
-      "sweetpea/**",
-      "*.py",
-      "__pycache__/**"
-    ]
-  }
+    "hosting": {
+        "public": ".",
+        "ignore": [
+            "firebase.json",
+            "**/.*",
+            "node_modules/**/!(*bundle.js)",
+            "sweetpea/**",
+            "*.py",
+            "__pycache__/**"
+        ]
+    }
 }

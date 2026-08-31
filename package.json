@@ -1,8 +1,8 @@
 {
-  "dependencies": {
-    "super-experiment": "git+ssh://git@github.com:syntactic/super-experiment-tim.git#thesis-changes-2"
-  },
-  "devDependencies": {
-    "firebase-admin": "^14.3.0"
-  }
+    "dependencies": {
+        "super-experiment": "git+ssh://git@github.com:syntactic/super-experiment-tim.git#thesis-changes-2"
+    },
+    "devDependencies": {
+        "firebase-admin": "^14.3.0"
+    }
 }

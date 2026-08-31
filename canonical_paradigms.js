@@ -40,9 +40,12 @@
 // Coherence values (0-1). Higher = easier. Placeholders — tune with advisor.
 const CP_EASY = 0.8;
 const CP_HARD = 0.3;
-const CP_DISTRACTOR = 0.5;               // bivalent distractor strength (Stroop/switching)
-const CP_STROOP_LEVELS = {               // crossed-coherence Stroop levels
-    low: 0.25, mid: 0.45, high: 0.70,
+const CP_DISTRACTOR = 0.5; // bivalent distractor strength (Stroop/switching)
+const CP_STROOP_LEVELS = {
+    // crossed-coherence Stroop levels
+    low: 0.25,
+    mid: 0.45,
+    high: 0.7,
 };
 
 // PRP SOA levels (ms). 3-4 short SOAs; tunable.
@@ -51,8 +54,8 @@ const CP_PRP_SOA_LEVELS = [100, 300, 600];
 const CP_SWITCH_RATE = 50;
 
 // Participant-counterbalanced choices:
-const CP_EASY_TASK = 'mov';    // asymmetric switching: which task is the EASY one
-const CP_TARGET_TASK = 'mov';  // Stroop: which dimension is the TARGET (other = distractor)
+const CP_EASY_TASK = 'mov'; // asymmetric switching: which task is the EASY one
+const CP_TARGET_TASK = 'mov'; // Stroop: which dimension is the TARGET (other = distractor)
 
 // Key maps (block-config level; config files load before session_helpers.js).
 // Identical mapping: both dimensions answered with the SAME two keys (left hand
@@ -61,13 +64,13 @@ const CP_TARGET_TASK = 'mov';  // Stroop: which dimension is the TARGET (other =
 // shared-response Stroop design; see the response-key note at the top of this file.
 const CP_IDENTICAL_KEY_MAPS = {
     mov: { 180: 'a', 0: 'd' },
-    or:  { 180: 'a', 0: 'd' },
+    or: { 180: 'a', 0: 'd' },
 };
 // Disjoint mapping for the two-task paradigms (PRP, switching):
 // mov = left hand A/D, or = right hand J/L.
 const CP_DISJOINT_KEY_MAPS = {
     mov: { 180: 'a', 0: 'd' },
-    or:  { 180: 'j', 0: 'l' },
+    or: { 180: 'j', 0: 'l' },
 };
 
 // Direction vocabulary for generated key lines. These live UP HERE, not down in
@@ -94,9 +97,9 @@ const CP_RIGHT_HAND_LETTERS = 'yuiophjklnm';
 // ============================================================
 
 const CP_DEFAULTS = {
-    csi: 200,                 // ms cue-stimulus interval
-    stimulusDuration: 2000,   // ms
-    responseWindow: 2000,     // ms
+    csi: 200, // ms cue-stimulus interval
+    stimulusDuration: 2000, // ms
+    responseWindow: 2000, // ms
     iti: { type: 'uniform', value: 500, params: [400, 600] },
     congruency: { conditions: ['congruent', 'incongruent'], proportions: [0.5, 0.5] },
 
@@ -137,7 +140,7 @@ const cpPRP = {
     rso: 'disjoint',
     keyMaps: CP_DISJOINT_KEY_MAPS,
     task1: 'mov',
-    t2Rule: 'switch',         // T2 is always the OTHER task (mov->or / or->mov)
+    t2Rule: 'switch', // T2 is always the OTHER task (mov->or / or->mov)
     sequenceType: 'Factorial',
     switchRate: 0,
     startTask: null,
@@ -171,7 +174,7 @@ const cpTaskSwitch = {
     coherence: {
         target: {
             mov: { easy: CP_EASY, hard: CP_HARD },
-            or:  { easy: CP_EASY, hard: CP_HARD },
+            or: { easy: CP_EASY, hard: CP_HARD },
         },
         distractor: CP_DISTRACTOR,
     },
@@ -197,7 +200,7 @@ const cpTaskSwitchAsym = {
     coherence: {
         target: {
             mov: CP_EASY_TASK === 'mov' ? CP_EASY : CP_HARD,
-            or:  CP_EASY_TASK === 'or'  ? CP_EASY : CP_HARD,
+            or: CP_EASY_TASK === 'or' ? CP_EASY : CP_HARD,
         },
         distractor: CP_DISTRACTOR,
     },
@@ -217,7 +220,7 @@ const cpStroop = {
     rso: 'identical',
     keyMaps: CP_DISJOINT_KEY_MAPS,
     sequenceType: 'Factorial',
-    switchRate: 0,            // pure single task
+    switchRate: 0, // pure single task
     startTask: CP_TARGET_TASK,
     task1: CP_TARGET_TASK,
     coherence: { target: CP_EASY, distractor: CP_DISTRACTOR },
@@ -326,25 +329,25 @@ function cpApplySweetPea(sessionArray, condition, sequenceIds, scheme) {
     if (!Array.isArray(sequenceIds)) {
         throw new Error('cpApplySweetPea: sequenceIds must be an array of drawn sequence ids');
     }
-    const testBlockCount = sessionArray.filter(b => b.phase !== 'training').length;
+    const testBlockCount = sessionArray.filter((b) => b.phase !== 'training').length;
     if (sequenceIds.length !== testBlockCount) {
         throw new Error(
             `cpApplySweetPea: got ${sequenceIds.length} sequence ids for ${testBlockCount} ` +
-            'test blocks. Every test block needs its own pool CSV; a mismatch would ' +
-            'leave a block on the JS generator or replay another block\'s trials.'
+                'test blocks. Every test block needs its own pool CSV; a mismatch would ' +
+                "leave a block on the JS generator or replay another block's trials.",
         );
     }
     if (new Set(sequenceIds).size !== sequenceIds.length) {
         throw new Error(
             `cpApplySweetPea: drawn sequence ids are not distinct (${sequenceIds.join(', ')}). ` +
-            'Running one pool block twice doubles every cell of its design for that participant.'
+                'Running one pool block twice doubles every cell of its design for that participant.',
         );
     }
     // If the session includes training stages, rebuild them for this condition so
     // that condition-dependent content (S8 t1Task, Stroop rehearsal task, ramp targets)
     // matches the assigned between-subjects condition.
     let baseSession = sessionArray;
-    const trainingStage = sessionArray.find(b => b.phase === 'training');
+    const trainingStage = sessionArray.find((b) => b.phase === 'training');
     if (trainingStage && condition) {
         const prefix = trainingStage.blockConfig && trainingStage.blockConfig.blockId;
         let paradigm = null;
@@ -355,13 +358,13 @@ function cpApplySweetPea(sessionArray, condition, sequenceIds, scheme) {
         else if (prefix && prefix.startsWith('stroop_train')) paradigm = 'cp_stroop';
         if (paradigm) {
             const rebuiltTraining = cpTrainingSessionFor(paradigm, condition, scheme);
-            const rebuiltTrainingStages = rebuiltTraining.filter(b => b.phase === 'training');
-            const testBlocksOnly = sessionArray.filter(b => b.phase !== 'training');
+            const rebuiltTrainingStages = rebuiltTraining.filter((b) => b.phase === 'training');
+            const testBlocksOnly = sessionArray.filter((b) => b.phase !== 'training');
             baseSession = [...rebuiltTrainingStages, ...testBlocksOnly];
         }
     }
     let testBlockIndex = 0;
-    return baseSession.map(blockDef => {
+    return baseSession.map((blockDef) => {
         // Training stages are generated live and have no CSV.
         if (blockDef.phase === 'training') return blockDef;
         const blockId = blockDef.blockConfig.blockId;
@@ -383,21 +386,26 @@ function cpApplySweetPea(sessionArray, condition, sequenceIds, scheme) {
         // instead. Overriding null here would put a full instruction screen
         // immediately after every break.
         const condTask = condition === 'B' ? 'or' : 'mov';
-        const km = scheme ? scheme.keyMaps : undefined;   // undefined => generator default (disjoint)
-        const swapped = blockId === 'cp_prp'
-            ? CP_PRP_INSTRUCTIONS(condTask, km, scheme)
-            : (blockId === 'cp_stroop' || blockId === 'cp_stroop_crossed')
-                ? CP_STROOP_INSTRUCTIONS(condTask, km)
-                : null;
+        const km = scheme ? scheme.keyMaps : undefined; // undefined => generator default (disjoint)
+        const swapped =
+            blockId === 'cp_prp'
+                ? CP_PRP_INSTRUCTIONS(condTask, km, scheme)
+                : blockId === 'cp_stroop' || blockId === 'cp_stroop_crossed'
+                  ? CP_STROOP_INSTRUCTIONS(condTask, km)
+                  : null;
         // In a training session the first test block's copy is the preamble plus
         // the block's own screen. Swapping the screen for the condition's version
         // used to drop the preamble with it, so a participant on the CSV path was
         // never told that practice was over or that feedback had stopped.
-        const keepsPreamble = typeof blockDef.instructions === 'string'
-            && blockDef.instructions.startsWith(CP_TEST_BLOCK_PREAMBLE);
-        const instructions = (!blockDef.instructions || !swapped)
-            ? blockDef.instructions
-            : (keepsPreamble ? CP_TEST_BLOCK_PREAMBLE + swapped : swapped);
+        const keepsPreamble =
+            typeof blockDef.instructions === 'string' &&
+            blockDef.instructions.startsWith(CP_TEST_BLOCK_PREAMBLE);
+        const instructions =
+            !blockDef.instructions || !swapped
+                ? blockDef.instructions
+                : keepsPreamble
+                  ? CP_TEST_BLOCK_PREAMBLE + swapped
+                  : swapped;
         return { ...blockDef, blockConfig, instructions };
     });
 }
@@ -416,12 +424,14 @@ function cpApplySweetPea(sessionArray, condition, sequenceIds, scheme) {
 // missing/undefined scheme resolves to the disjoint defaults inline (left/right,
 // hue) rather than by looking the descriptor up.
 function cpSchemeVocab(scheme) {
-    const levelToDeg = (scheme && scheme.geometry && scheme.geometry.levelToDeg)
-        || { left: 180, right: 0 };
+    const levelToDeg = (scheme && scheme.geometry && scheme.geometry.levelToDeg) || {
+        left: 180,
+        right: 0,
+    };
     const cueMode = (scheme && scheme.cueMode) || 'hue';
-    const words = CP_DIRECTION_ORDER
-        .filter(d => Object.values(levelToDeg).includes(d))
-        .map(d => CP_DIRECTION_WORDS[d]);   // ['left','right'] | ['up','down']
+    const words = CP_DIRECTION_ORDER.filter((d) => Object.values(levelToDeg).includes(d)).map(
+        (d) => CP_DIRECTION_WORDS[d],
+    ); // ['left','right'] | ['up','down']
     return {
         dirA: words[0],
         dirB: words[1],
@@ -445,12 +455,16 @@ function cpSchemeVocab(scheme) {
 // from the task's key hand, which is only correct while hand is task-tied).
 function cpBorderLegend(keyMaps, scheme) {
     if (!cpSchemeVocab(scheme).positional) {
-        return '  ORANGE border  ->  answer the FLYING question.\n'
-            + '  BLUE border    ->  answer the FACING question.';
+        return (
+            '  ORANGE border  ->  answer the FLYING question.\n' +
+            '  BLUE border    ->  answer the FACING question.'
+        );
     }
-    return '  COLOR is the QUESTION:  ORANGE = FLYING,  BLUE = FACING.\n'
-        + '  SIDE is the HAND:\n'
-        + cpFourcueHandLines(keyMaps);
+    return (
+        '  COLOR is the QUESTION:  ORANGE = FLYING,  BLUE = FACING.\n' +
+        '  SIDE is the HAND:\n' +
+        cpFourcueHandLines(keyMaps)
+    );
 }
 
 /** The two hand rules for the fourcue positional cue, as two lines. The left- and
@@ -459,8 +473,10 @@ function cpBorderLegend(keyMaps, scheme) {
 function cpFourcueHandLines(keyMaps) {
     const leftMap = cpHandFor(keyMaps.mov) === 'left' ? keyMaps.mov : keyMaps.or;
     const rightMap = cpHandFor(keyMaps.mov) === 'right' ? keyMaps.mov : keyMaps.or;
-    return `    LEFT border  -> left hand:  ${cpKeyPhrase(leftMap)}.\n`
-        + `    RIGHT border -> right hand: ${cpKeyPhrase(rightMap)}.`;
+    return (
+        `    LEFT border  -> left hand:  ${cpKeyPhrase(leftMap)}.\n` +
+        `    RIGHT border -> right hand: ${cpKeyPhrase(rightMap)}.`
+    );
 }
 
 // PRP task order is fixed per session and assigned between subjects by the
@@ -478,10 +494,12 @@ function cpFourcueHandLines(keyMaps) {
 const CP_PRP_INSTRUCTIONS = (t1Task, keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
     const movFirst = t1Task === 'mov';
     const vocab = cpSchemeVocab(scheme);
-    const movItem = 'MOVEMENT — which way are the birds FLYING?\n'
-        + `   ${cpHandLabel(keyMaps.mov)}${cpKeyPhrase(keyMaps.mov)}.`;
-    const orItem = 'ORIENTATION — which way are the birds FACING?\n'
-        + `   ${cpHandLabel(keyMaps.or)}${cpKeyPhrase(keyMaps.or)}.`;
+    const movItem =
+        'MOVEMENT — which way are the birds FLYING?\n' +
+        `   ${cpHandLabel(keyMaps.mov)}${cpKeyPhrase(keyMaps.mov)}.`;
+    const orItem =
+        'ORIENTATION — which way are the birds FACING?\n' +
+        `   ${cpHandLabel(keyMaps.or)}${cpKeyPhrase(keyMaps.or)}.`;
     // Which dimension is static at trial onset depends on which task is T1.
     const stimulusStory = movFirst
         ? `The birds fly first, then turn to face ${vocab.eitherOr}.`
@@ -490,15 +508,19 @@ const CP_PRP_INSTRUCTIONS = (t1Task, keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => 
     // cpTestDemo). Nothing the screen says was cut to pay for it — the numbering
     // separates the two items as well as a blank line did, and this is the
     // tallest screen in the session, so it is the one with no slack to spare.
-    return 'Two tasks on every trial, always in this order:\n'
-        + `1) ${movFirst ? movItem : orItem}\n`
-        + `2) ${movFirst ? orItem : movItem}\n\n`
-        + INSTRUCTION_DEMO_ANCHOR + '\n\n'
-        + stimulusStory + '\n'
-        + 'The gap between the two varies, and can be very short.\n'
-        + 'Answer them in that order, even if you work out\n'
-        + 'the second one early. Be fast but accurate.\n\n'
-        + 'Press any key to begin.';
+    return (
+        'Two tasks on every trial, always in this order:\n' +
+        `1) ${movFirst ? movItem : orItem}\n` +
+        `2) ${movFirst ? orItem : movItem}\n\n` +
+        INSTRUCTION_DEMO_ANCHOR +
+        '\n\n' +
+        stimulusStory +
+        '\n' +
+        'The gap between the two varies, and can be very short.\n' +
+        'Answer them in that order, even if you work out\n' +
+        'the second one early. Be fast but accurate.\n\n' +
+        'Press any key to begin.'
+    );
 };
 
 // Each task has its OWN keys and its own hand (07-31 l.49), so the mapping is
@@ -514,23 +536,30 @@ const cpTaskSwitchInstructions = (keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
     // border legend teaches both rules; the key lines are hand-based (per side),
     // not task-based, because either task can appear on either hand.
     if (cpSchemeVocab(scheme).positional) {
-        return 'ONE task per trial. It may switch from trial to trial.\n'
-            + 'The border tells you TWO things — its COLOR and its SIDE:\n\n'
-            + cpBorderLegend(keyMaps, scheme) + '\n\n'
-            + INSTRUCTION_DEMO_ANCHOR + '\n\n'
-            + 'So the color says WHICH question, and the side says WHICH hand.\n'
-            + 'Answer that question with that hand; ignore the other dimension.\n\n'
-            + 'Press any key to begin.';
+        return (
+            'ONE task per trial. It may switch from trial to trial.\n' +
+            'The border tells you TWO things — its COLOR and its SIDE:\n\n' +
+            cpBorderLegend(keyMaps, scheme) +
+            '\n\n' +
+            INSTRUCTION_DEMO_ANCHOR +
+            '\n\n' +
+            'So the color says WHICH question, and the side says WHICH hand.\n' +
+            'Answer that question with that hand; ignore the other dimension.\n\n' +
+            'Press any key to begin.'
+        );
     }
-    return 'ONE task per trial. It may switch from trial to trial.\n\n'
-        + 'The border color tells you which task:\n\n'
-        + `  ORANGE = MOVEMENT (which way are the birds FLYING?)\n`
-        + `     ${cpHandLabel(keyMaps.mov)}${cpKeyPhrase(keyMaps.mov)}.\n`
-        + `  BLUE = ORIENTATION (which way are they FACING?)\n`
-        + `     ${cpHandLabel(keyMaps.or)}${cpKeyPhrase(keyMaps.or)}.\n\n`
-        + INSTRUCTION_DEMO_ANCHOR + '\n\n'
-        + 'Ignore the other dimension.\n\n'
-        + 'Press any key to begin.';
+    return (
+        'ONE task per trial. It may switch from trial to trial.\n\n' +
+        'The border color tells you which task:\n\n' +
+        `  ORANGE = MOVEMENT (which way are the birds FLYING?)\n` +
+        `     ${cpHandLabel(keyMaps.mov)}${cpKeyPhrase(keyMaps.mov)}.\n` +
+        `  BLUE = ORIENTATION (which way are they FACING?)\n` +
+        `     ${cpHandLabel(keyMaps.or)}${cpKeyPhrase(keyMaps.or)}.\n\n` +
+        INSTRUCTION_DEMO_ANCHOR +
+        '\n\n' +
+        'Ignore the other dimension.\n\n' +
+        'Press any key to begin.'
+    );
 };
 
 // NOTE: cp_taskswitch_asym deliberately gets NO extra copy. Its screen used to
@@ -567,12 +596,15 @@ const cpTaskSwitchInstructions = (keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
 const CP_STROOP_INSTRUCTIONS = (task, keyMaps = CP_DISJOINT_KEY_MAPS) => {
     const target = task === 'mov' ? 'FLYING' : 'FACING';
     const other = task === 'mov' ? 'FACING' : 'FLYING';
-    return `Interference block: the ${target} question only.\n\n`
-        + `Respond to which way the birds are ${target}; ignore which way\n`
-        + `they are ${other}.\n`
-        + `  ${cpKeyLine(keyMaps[task], cpKeysAreShared(keyMaps))}\n\n`
-        + INSTRUCTION_DEMO_ANCHOR + '\n\n'
-        + 'Press any key to begin.';
+    return (
+        `Interference block: the ${target} question only.\n\n` +
+        `Respond to which way the birds are ${target}; ignore which way\n` +
+        `they are ${other}.\n` +
+        `  ${cpKeyLine(keyMaps[task], cpKeysAreShared(keyMaps))}\n\n` +
+        INSTRUCTION_DEMO_ANCHOR +
+        '\n\n' +
+        'Press any key to begin.'
+    );
 };
 
 // ============================================================
@@ -660,24 +692,43 @@ const CP_TEST_FINAL_STAGE = {
     cp_stroop_crossed: (task) => ({ kind: 'stroop', task }),
 };
 
-const CP_PRP_SESSION = cpTestBlocks(cpPRP, 96, CP_PRP_INSTRUCTIONS('mov'),
-    cpTestDemo(CP_DISJOINT_KEY_MAPS, CP_TEST_FINAL_STAGE.cp_prp('mov')));
+const CP_PRP_SESSION = cpTestBlocks(
+    cpPRP,
+    96,
+    CP_PRP_INSTRUCTIONS('mov'),
+    cpTestDemo(CP_DISJOINT_KEY_MAPS, CP_TEST_FINAL_STAGE.cp_prp('mov')),
+);
 
-const CP_TASKSWITCH_SESSION = cpTestBlocks(cpTaskSwitch, 96, cpTaskSwitchInstructions(),
-    cpTestDemo(CP_DISJOINT_KEY_MAPS, CP_TEST_FINAL_STAGE.cp_taskswitch()));
+const CP_TASKSWITCH_SESSION = cpTestBlocks(
+    cpTaskSwitch,
+    96,
+    cpTaskSwitchInstructions(),
+    cpTestDemo(CP_DISJOINT_KEY_MAPS, CP_TEST_FINAL_STAGE.cp_taskswitch()),
+);
 
 // Same screen as cp_taskswitch, verbatim — see the note by
 // CP_TASKSWITCH_INSTRUCTIONS on why the "one task is harder" line was dropped.
-const CP_TASKSWITCH_ASYM_SESSION = cpTestBlocks(cpTaskSwitchAsym, 96, cpTaskSwitchInstructions(),
-    cpTestDemo(CP_DISJOINT_KEY_MAPS, CP_TEST_FINAL_STAGE.cp_taskswitch_asym()));
+const CP_TASKSWITCH_ASYM_SESSION = cpTestBlocks(
+    cpTaskSwitchAsym,
+    96,
+    cpTaskSwitchInstructions(),
+    cpTestDemo(CP_DISJOINT_KEY_MAPS, CP_TEST_FINAL_STAGE.cp_taskswitch_asym()),
+);
 
-const CP_STROOP_SESSION = cpTestBlocks(cpStroop, 96, CP_STROOP_INSTRUCTIONS(CP_TARGET_TASK),
-    cpTestDemo(CP_DISJOINT_KEY_MAPS, CP_TEST_FINAL_STAGE.cp_stroop(CP_TARGET_TASK)));
+const CP_STROOP_SESSION = cpTestBlocks(
+    cpStroop,
+    96,
+    CP_STROOP_INSTRUCTIONS(CP_TARGET_TASK),
+    cpTestDemo(CP_DISJOINT_KEY_MAPS, CP_TEST_FINAL_STAGE.cp_stroop(CP_TARGET_TASK)),
+);
 
 // 108, not 96: the crossed design's 36-cell crossing does not divide 96.
-const CP_STROOP_CROSSED_SESSION = cpTestBlocks(cpStroopCrossed, 108,
+const CP_STROOP_CROSSED_SESSION = cpTestBlocks(
+    cpStroopCrossed,
+    108,
     CP_STROOP_INSTRUCTIONS(CP_TARGET_TASK),
-    cpTestDemo(CP_DISJOINT_KEY_MAPS, CP_TEST_FINAL_STAGE.cp_stroop_crossed(CP_TARGET_TASK)));
+    cpTestDemo(CP_DISJOINT_KEY_MAPS, CP_TEST_FINAL_STAGE.cp_stroop_crossed(CP_TARGET_TASK)),
+);
 
 // ============================================================
 // Training / shaping sessions
@@ -709,9 +760,8 @@ const CP_STROOP_CROSSED_SESSION = cpTestBlocks(cpStroopCrossed, 108,
 
 /** "A = left, D = right" for one direction->key map. */
 function cpKeyPhrase(keyMap) {
-    return CP_DIRECTION_ORDER
-        .filter(dir => keyMap[dir] !== undefined)
-        .map(dir => `${String(keyMap[dir]).toUpperCase()} = ${CP_DIRECTION_WORDS[dir]}`)
+    return CP_DIRECTION_ORDER.filter((dir) => keyMap[dir] !== undefined)
+        .map((dir) => `${String(keyMap[dir]).toUpperCase()} = ${CP_DIRECTION_WORDS[dir]}`)
         .join(', ');
 }
 
@@ -721,10 +771,10 @@ function cpKeyPhrase(keyMap) {
  * for a map someone later changes to A/D.
  */
 function cpHandFor(keyMap) {
-    const keys = Object.values(keyMap).map(k => String(k).toLowerCase());
+    const keys = Object.values(keyMap).map((k) => String(k).toLowerCase());
     if (keys.length === 0) return null;
-    if (keys.every(k => CP_LEFT_HAND_LETTERS.includes(k))) return 'left';
-    if (keys.every(k => CP_RIGHT_HAND_LETTERS.includes(k))) return 'right';
+    if (keys.every((k) => CP_LEFT_HAND_LETTERS.includes(k))) return 'left';
+    if (keys.every((k) => CP_RIGHT_HAND_LETTERS.includes(k))) return 'right';
     return null;
 }
 
@@ -732,7 +782,7 @@ function cpHandFor(keyMap) {
 function cpKeysAreShared(keyMaps) {
     const movKeys = Object.values(keyMaps.mov);
     const orKeys = Object.values(keyMaps.or);
-    return movKeys.some(k => orKeys.includes(k));
+    return movKeys.some((k) => orKeys.includes(k));
 }
 
 /** "Left hand:  A = left, D = right" (or just the keys when there is one hand). */
@@ -774,16 +824,15 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     // already gives the keys per hand, so this collapses to a one-line reminder.
     const bothLines = vocab.positional
         ? '  (Up-key = up, down-key = down, on the hand the border points to.)'
-        : `  Flying:  ${cpKeyPhrase(keyMaps.mov)}.\n`
-          + `  Facing:    ${cpKeyPhrase(keyMaps.or)}.`;
+        : `  Flying:  ${cpKeyPhrase(keyMaps.mov)}.\n` + `  Facing:    ${cpKeyPhrase(keyMaps.or)}.`;
     // The single most confusable thing about the key policy, said out loud at
     // the moment the second map is introduced (S3).
     const secondMapNote = shared
-        ? 'These are the SAME two keys you have just been using. That is on\n'
-          + 'purpose: both questions are answered with the same fingers.'
-        : 'These are DIFFERENT keys from the flying task, and you answer\n'
-          + 'them with your other hand. Each question has its own two keys and\n'
-          + 'they never swap.';
+        ? 'These are the SAME two keys you have just been using. That is on\n' +
+          'purpose: both questions are answered with the same fingers.'
+        : 'These are DIFFERENT keys from the flying task, and you answer\n' +
+          'them with your other hand. Each question has its own two keys and\n' +
+          'they never swap.';
 
     // 2026-08-25 REORDER & 2026-08-27 CUE TIMING:
     // Cues are suppressed in S2/S3 (single-task pathway) and S3a/S3b (Stroop) so
@@ -794,81 +843,91 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     // (~148 px of a 598 px budget). Copy the cartoon SHOWS was cut; copy it cannot
     // show was kept. Re-run `node analysis/measure_instructions.js` after any edit.
     const S2 =
-        'STEP 1 of 8 — the flying task.\n\n'
-        + 'Your job: say which way the group of birds is FLYING.\n\n'
-        + `  ${movLine}\n\n`
-        + 'Answer as FAST as you can while still getting it right. The birds\n'
-        + 'start out very easy to read and gradually get harder.\n\n'
-        + 'This step continues until you are answering reliably, then moves on\n'
-        + 'by itself. Press any key to begin.';
+        'STEP 1 of 8 — the flying task.\n\n' +
+        'Your job: say which way the group of birds is FLYING.\n\n' +
+        `  ${movLine}\n\n` +
+        'Answer as FAST as you can while still getting it right. The birds\n' +
+        'start out very easy to read and gradually get harder.\n\n' +
+        'This step continues until you are answering reliably, then moves on\n' +
+        'by itself. Press any key to begin.';
 
     const S3 =
-        'STEP 2 of 8 — a second question: which way are the birds FACING?\n\n'
-        + 'This time the birds do not fly at all. They stay in place, FACING\n'
-        + `either ${vocab.eitherOr}.\n\n`
-        + `  ${orLine}\n\n`
-        + secondMapNote + '\n\n'
-        + 'Again: as fast as you can while staying accurate. Press any key to begin.';
+        'STEP 2 of 8 — a second question: which way are the birds FACING?\n\n' +
+        'This time the birds do not fly at all. They stay in place, FACING\n' +
+        `either ${vocab.eitherOr}.\n\n` +
+        `  ${orLine}\n\n` +
+        secondMapNote +
+        '\n\n' +
+        'Again: as fast as you can while staying accurate. Press any key to begin.';
 
     // S3a/S3b: the Stroop stages. Conflict is FIRST introduced here, in the
     // simplest possible setting — one sustained task with a distractor that can
     // disagree. The cartoon shows a conflicting stimulus, so the copy only needs to
     // name the rule ("answer this question, ignore that one").
     const S3a =
-        'STEP 3 of 8 — the flying task, now with a distraction.\n\n'
-        + 'Still just ONE question: which way are the birds FLYING?\n\n'
-        + `  ${movLine}\n\n`
-        + `The birds now ALSO face ${vocab.eitherOr}, which can point the OTHER\n`
-        + 'way from how they fly. Ignore which way they face — answer the\n'
-        + 'FLYING question only, even when the two disagree.\n\n'
-        + 'Press any key to begin.';
+        'STEP 3 of 8 — the flying task, now with a distraction.\n\n' +
+        'Still just ONE question: which way are the birds FLYING?\n\n' +
+        `  ${movLine}\n\n` +
+        `The birds now ALSO face ${vocab.eitherOr}, which can point the OTHER\n` +
+        'way from how they fly. Ignore which way they face — answer the\n' +
+        'FLYING question only, even when the two disagree.\n\n' +
+        'Press any key to begin.';
 
     const S3b =
-        'STEP 4 of 8 — the facing task, now with a distraction.\n\n'
-        + 'Now just the FACING question: which way are the birds FACING?\n\n'
-        + `  ${orLine}\n\n`
-        + 'The birds are also FLYING, which can disagree with the way they\n'
-        + 'face. Ignore the flying — answer the FACING question only.\n\n'
-        + 'Press any key to begin.';
+        'STEP 4 of 8 — the facing task, now with a distraction.\n\n' +
+        'Now just the FACING question: which way are the birds FACING?\n\n' +
+        `  ${orLine}\n\n` +
+        'The birds are also FLYING, which can disagree with the way they\n' +
+        'face. Ignore the flying — answer the FACING question only.\n\n' +
+        'Press any key to begin.';
 
     // S4: the border is introduced as a new component to tell the participant
     // which question to answer, appearing just before the birds (predictive CSI).
     const S4 =
-        'STEP 5 of 8 — a colored border now tells you what to do.\n\n'
-        + 'From now on the two questions are mixed, and can change every trial.\n\n'
-        + 'A colored border now appears just BEFORE the birds to tell you which\n'
-        + 'question to answer, so you can get ready:\n\n'
-        + legend + '\n\n'
-        + bothLines + '\n\n'
-        + 'Press any key to begin.';
+        'STEP 5 of 8 — a colored border now tells you what to do.\n\n' +
+        'From now on the two questions are mixed, and can change every trial.\n\n' +
+        'A colored border now appears just BEFORE the birds to tell you which\n' +
+        'question to answer, so you can get ready:\n\n' +
+        legend +
+        '\n\n' +
+        bothLines +
+        '\n\n' +
+        'Press any key to begin.';
 
     // S6: bivalence + conflict, now WHILE switching. Conflict is not new (S3a/S3b),
     // so this screen frames the COMBINATION, not a first encounter with conflict.
     const S6 =
-        'STEP 6 of 8 — both at once, while the border switches.\n\n'
-        + 'This combines the two things you just practiced: the birds are BOTH\n'
-        + 'flying AND facing (and may disagree, as in the distraction rounds),\n'
-        + 'while the border keeps switching which question to answer.\n\n'
-        + 'Answer ONLY the question the border asks for, and ignore the other,\n'
-        + 'even when they point in opposite directions.\n\n'
-        + bothLines + '\n\n'
-        + 'Press any key to begin.';
+        'STEP 6 of 8 — both at once, while the border switches.\n\n' +
+        'This combines the two things you just practiced: the birds are BOTH\n' +
+        'flying AND facing (and may disagree, as in the distraction rounds),\n' +
+        'while the border keeps switching which question to answer.\n\n' +
+        'Answer ONLY the question the border asks for, and ignore the other,\n' +
+        'even when they point in opposite directions.\n\n' +
+        bothLines +
+        '\n\n' +
+        'Press any key to begin.';
 
     // S7: the shared PRP stage — two answers per trial, in a fixed order. Always
     // movement-first (the stage is identical for everyone), so the copy names the
     // order outright, unlike the paradigm-agnostic S8.
     const S7 =
-        'STEP 7 of 8 — TWO answers on every trial.\n\n'
-        + 'Every trial now asks BOTH questions, one shortly after the other,\n'
-        + 'and you give two answers, in this order:\n\n'
-        + `  1) FLYING first.   ${cpKeyPhrase(keyMaps.mov)}.\n`
-        + `  2) FACING second.    ${cpKeyPhrase(keyMaps.or)}.\n\n`
-        + 'Answer in that order, even if you work the second one out early.\n'
-        + 'The gap between the two starts long and gets shorter as you go.\n\n'
-        + 'Press any key to begin.';
+        'STEP 7 of 8 — TWO answers on every trial.\n\n' +
+        'Every trial now asks BOTH questions, one shortly after the other,\n' +
+        'and you give two answers, in this order:\n\n' +
+        `  1) FLYING first.   ${cpKeyPhrase(keyMaps.mov)}.\n` +
+        `  2) FACING second.    ${cpKeyPhrase(keyMaps.or)}.\n\n` +
+        'Answer in that order, even if you work the second one out early.\n' +
+        'The gap between the two starts long and gets shorter as you go.\n\n' +
+        'Press any key to begin.';
 
     return {
-        S2, S3, S3a, S3b, S4, S6, S7,
+        S2,
+        S3,
+        S3a,
+        S3b,
+        S4,
+        S6,
+        S7,
         S8: cpFinalStageInstructions(keyMaps, finalStage, scheme),
     };
 }
@@ -921,7 +980,7 @@ function cpCueMeta(keyMaps, scheme) {
 /** The two direction angles a key map covers, in reading order: [180,0] (disjoint
  *  horizontal) or [90,270] (fourcue vertical). */
 function cpDirsOf(keyMap) {
-    return CP_DIRECTION_ORDER.filter(d => d in keyMap);
+    return CP_DIRECTION_ORDER.filter((d) => d in keyMap);
 }
 
 function cpTrainingDemos(keyMaps, finalStage, scheme) {
@@ -932,7 +991,7 @@ function cpTrainingDemos(keyMaps, finalStage, scheme) {
     // pixel art rather than depicting the wrong finger. dirsOf gives the two
     // directions in reading order; movA/orA is the FIRST, movB/orB the second.
     const [movA, movB] = cpDirsOf(keyMaps.mov);
-    const [orA, orB]   = cpDirsOf(keyMaps.or);
+    const [orA, orB] = cpDirsOf(keyMaps.or);
 
     const positional = cpSchemeVocab(scheme).positional;
     const withCue = (demo) => ({ ...demo, ...cpCueMeta(keyMaps, scheme) });
@@ -949,19 +1008,75 @@ function cpTrainingDemos(keyMaps, finalStage, scheme) {
     // depressed keycap (W/S left, I/K right). `movA`/`orA` = up (90), `movB`/`orB`
     // = down (270) under the vertical geometry.
     const s4Fourcue = [
-        { movement: movA, orientation: null, border: 'mov', side: 'left',  key: keyFor('left', movA),  keyTask: 'mov' },
-        { movement: null, orientation: orB,  border: 'or',  side: 'right', key: keyFor('right', orB),  keyTask: 'or' },
-        { movement: movB, orientation: null, border: 'mov', side: 'right', key: keyFor('right', movB), keyTask: 'mov' },
-        { movement: null, orientation: orA,  border: 'or',  side: 'left',  key: keyFor('left', orA),   keyTask: 'or' },
+        {
+            movement: movA,
+            orientation: null,
+            border: 'mov',
+            side: 'left',
+            key: keyFor('left', movA),
+            keyTask: 'mov',
+        },
+        {
+            movement: null,
+            orientation: orB,
+            border: 'or',
+            side: 'right',
+            key: keyFor('right', orB),
+            keyTask: 'or',
+        },
+        {
+            movement: movB,
+            orientation: null,
+            border: 'mov',
+            side: 'right',
+            key: keyFor('right', movB),
+            keyTask: 'mov',
+        },
+        {
+            movement: null,
+            orientation: orA,
+            border: 'or',
+            side: 'left',
+            key: keyFor('left', orA),
+            keyTask: 'or',
+        },
     ];
     // (The old S5 congruent-only fourcue cartoon was removed with S5, 2026-08-25.)
     // S6 incongruent: movement and facing disagree; the depressed key follows the
     // CUED task, so the same stimulus yields a different answer on each border.
     const s6Fourcue = [
-        { movement: movA, orientation: orB, border: 'mov', side: 'left',  key: keyFor('left', movA),  keyTask: 'mov' },
-        { movement: movA, orientation: orB, border: 'or',  side: 'right', key: keyFor('right', orB),  keyTask: 'or' },
-        { movement: movB, orientation: orA, border: 'mov', side: 'right', key: keyFor('right', movB), keyTask: 'mov' },
-        { movement: movB, orientation: orA, border: 'or',  side: 'left',  key: keyFor('left', orA),   keyTask: 'or' },
+        {
+            movement: movA,
+            orientation: orB,
+            border: 'mov',
+            side: 'left',
+            key: keyFor('left', movA),
+            keyTask: 'mov',
+        },
+        {
+            movement: movA,
+            orientation: orB,
+            border: 'or',
+            side: 'right',
+            key: keyFor('right', orB),
+            keyTask: 'or',
+        },
+        {
+            movement: movB,
+            orientation: orA,
+            border: 'mov',
+            side: 'right',
+            key: keyFor('right', movB),
+            keyTask: 'mov',
+        },
+        {
+            movement: movB,
+            orientation: orA,
+            border: 'or',
+            side: 'left',
+            key: keyFor('left', orA),
+            keyTask: 'or',
+        },
     ];
 
     // S2: fly one way, then the other. `orientation: null` is what makes SE's
@@ -1004,20 +1119,48 @@ function cpTrainingDemos(keyMaps, finalStage, scheme) {
         // per task (colour + task-tied hand change together); fourcue shows all
         // four colour x side cues.
         S4: withCue({
-            segments: positional ? s4Fourcue : [
-                { movement: movA, orientation: null, border: 'mov', key: keyMaps.mov[movA], keyTask: 'mov' },
-                { movement: null, orientation: orB, border: 'or', key: keyMaps.or[orB], keyTask: 'or' },
-            ],
+            segments: positional
+                ? s4Fourcue
+                : [
+                      {
+                          movement: movA,
+                          orientation: null,
+                          border: 'mov',
+                          key: keyMaps.mov[movA],
+                          keyTask: 'mov',
+                      },
+                      {
+                          movement: null,
+                          orientation: orB,
+                          border: 'or',
+                          key: keyMaps.or[orB],
+                          keyTask: 'or',
+                      },
+                  ],
         }),
         // S6: bivalent, INCONGRUENT — changing only the border (and, under fourcue,
         // its side) flips the correct key. That contrast is the whole lesson of the
         // stage, and is why the legend could come out of the copy. (Old S5, the
         // congruent-only cartoon, was dropped in the 2026-08-25 reorder.)
         S6: withCue({
-            segments: positional ? s6Fourcue : [
-                { movement: movA, orientation: orB, border: 'mov', key: keyMaps.mov[movA], keyTask: 'mov' },
-                { movement: movA, orientation: orB, border: 'or', key: keyMaps.or[orB], keyTask: 'or' },
-            ],
+            segments: positional
+                ? s6Fourcue
+                : [
+                      {
+                          movement: movA,
+                          orientation: orB,
+                          border: 'mov',
+                          key: keyMaps.mov[movA],
+                          keyTask: 'mov',
+                      },
+                      {
+                          movement: movA,
+                          orientation: orB,
+                          border: 'or',
+                          key: keyMaps.or[orB],
+                          keyTask: 'or',
+                      },
+                  ],
         }),
         // S7: the shared PRP cartoon — always movement-first, regardless of the host
         // paradigm, matching the fixed-order S7 copy and stage.
@@ -1031,7 +1174,7 @@ function cpFinalStageDemo(keyMaps, finalStage, scheme) {
     // Same angle-from-keys convention as cpTrainingDemos, so disjoint is
     // unchanged and fourcue draws vertically.
     const [movA, movB] = cpDirsOf(keyMaps.mov);
-    const [orA, orB]   = cpDirsOf(keyMaps.or);
+    const [orA, orB] = cpDirsOf(keyMaps.or);
     const positional = cpSchemeVocab(scheme).positional;
     const leftMap = cpHandFor(keyMaps.mov) === 'left' ? keyMaps.mov : keyMaps.or;
     const rightMap = cpHandFor(keyMaps.mov) === 'right' ? keyMaps.mov : keyMaps.or;
@@ -1045,18 +1188,64 @@ function cpFinalStageDemo(keyMaps, finalStage, scheme) {
         if (positional) {
             return {
                 segments: [
-                    { movement: movA, orientation: orB, border: 'mov', side: 'left',  key: keyFor('left', movA),  keyTask: 'mov' },
-                    { movement: movB, orientation: orA, border: 'mov', side: 'right', key: keyFor('right', movB), keyTask: 'mov' },
-                    { movement: movB, orientation: orA, border: 'or',  side: 'left',  key: keyFor('left', orA),   keyTask: 'or' },
-                    { movement: movA, orientation: orB, border: 'or',  side: 'right', key: keyFor('right', orB),  keyTask: 'or' },
+                    {
+                        movement: movA,
+                        orientation: orB,
+                        border: 'mov',
+                        side: 'left',
+                        key: keyFor('left', movA),
+                        keyTask: 'mov',
+                    },
+                    {
+                        movement: movB,
+                        orientation: orA,
+                        border: 'mov',
+                        side: 'right',
+                        key: keyFor('right', movB),
+                        keyTask: 'mov',
+                    },
+                    {
+                        movement: movB,
+                        orientation: orA,
+                        border: 'or',
+                        side: 'left',
+                        key: keyFor('left', orA),
+                        keyTask: 'or',
+                    },
+                    {
+                        movement: movA,
+                        orientation: orB,
+                        border: 'or',
+                        side: 'right',
+                        key: keyFor('right', orB),
+                        keyTask: 'or',
+                    },
                 ],
             };
         }
         return {
             segments: [
-                { movement: movA, orientation: orB, border: 'mov', key: keyMaps.mov[movA], keyTask: 'mov' },
-                { movement: movB, orientation: orA, border: 'mov', key: keyMaps.mov[movB], keyTask: 'mov' },
-                { movement: movB, orientation: orA, border: 'or', key: keyMaps.or[orA], keyTask: 'or' },
+                {
+                    movement: movA,
+                    orientation: orB,
+                    border: 'mov',
+                    key: keyMaps.mov[movA],
+                    keyTask: 'mov',
+                },
+                {
+                    movement: movB,
+                    orientation: orA,
+                    border: 'mov',
+                    key: keyMaps.mov[movB],
+                    keyTask: 'mov',
+                },
+                {
+                    movement: movB,
+                    orientation: orA,
+                    border: 'or',
+                    key: keyMaps.or[orA],
+                    keyTask: 'or',
+                },
             ],
         };
     }
@@ -1073,9 +1262,12 @@ function cpFinalStageDemo(keyMaps, finalStage, scheme) {
             // Conflicting stimulus (target dir vs the other direction) on each
             // hand; the depressed key answers the TARGET task on that hand's keys.
             const conflict = (targetDir, hand) => ({
-                movement: task === 'mov' ? targetDir : (targetDir === dA ? dB : dA),
-                orientation: task === 'or' ? targetDir : (targetDir === dA ? dB : dA),
-                border: task, side: hand, key: keyFor(hand, targetDir), keyTask: task,
+                movement: task === 'mov' ? targetDir : targetDir === dA ? dB : dA,
+                orientation: task === 'or' ? targetDir : targetDir === dA ? dB : dA,
+                border: task,
+                side: hand,
+                key: keyFor(hand, targetDir),
+                keyTask: task,
             });
             return { segments: [conflict(dA, 'left'), conflict(dB, 'right')] };
         }
@@ -1094,17 +1286,38 @@ function cpFinalStageDemo(keyMaps, finalStage, scheme) {
         // descending schedule the stage actually runs (soaSchedule in
         // buildParadigmFinalStage), and the thing its copy promises.
         const movFirst = finalStage.t1Task !== 'or';
-        const seg = (at) => (movFirst
-            ? {
-                movement: movA, orientation: null, border: 'mov', key: keyMaps.mov[movA], keyTask: 'mov',
-                then: { at, orientation: orB, border: ['mov', 'or'], key: keyMaps.or[orB], keyTask: 'or' },
-                duration: at + 2100,
-            }
-            : {
-                movement: null, orientation: orA, border: 'or', key: keyMaps.or[orA], keyTask: 'or',
-                then: { at, movement: movB, border: ['or', 'mov'], key: keyMaps.mov[movB], keyTask: 'mov' },
-                duration: at + 2100,
-            });
+        const seg = (at) =>
+            movFirst
+                ? {
+                      movement: movA,
+                      orientation: null,
+                      border: 'mov',
+                      key: keyMaps.mov[movA],
+                      keyTask: 'mov',
+                      then: {
+                          at,
+                          orientation: orB,
+                          border: ['mov', 'or'],
+                          key: keyMaps.or[orB],
+                          keyTask: 'or',
+                      },
+                      duration: at + 2100,
+                  }
+                : {
+                      movement: null,
+                      orientation: orA,
+                      border: 'or',
+                      key: keyMaps.or[orA],
+                      keyTask: 'or',
+                      then: {
+                          at,
+                          movement: movB,
+                          border: ['or', 'mov'],
+                          key: keyMaps.mov[movB],
+                          keyTask: 'mov',
+                      },
+                      duration: at + 2100,
+                  };
         return { segments: [seg(1000), seg(400)] };
     }
 
@@ -1133,13 +1346,16 @@ function cpFinalStageInstructions(keyMaps, finalStage, scheme) {
     // "ignore the distractor") the participant learned in S2-S6 and sees again in
     // this stage's own cartoon — it is not restated in words.
     void finalStage;
-    return 'STEP 6 of 6 — putting it all together.\n\n'
-        + 'Now you put everything together. You may meet some of the situations\n'
-        + 'you trained on, and some you have not — but the rule never changes:\n\n'
-        + cpBorderLegend(keyMaps, scheme) + '\n\n'
-        + 'Whenever a border appears, answer the question it asks for, as fast\n'
-        + 'as you can.\n\n'
-        + 'Press any key to begin.';
+    return (
+        'STEP 6 of 6 — putting it all together.\n\n' +
+        'Now you put everything together. You may meet some of the situations\n' +
+        'you trained on, and some you have not — but the rule never changes:\n\n' +
+        cpBorderLegend(keyMaps, scheme) +
+        '\n\n' +
+        'Whenever a border appears, answer the question it asks for, as fast\n' +
+        'as you can.\n\n' +
+        'Press any key to begin.'
+    );
 }
 
 /** Prefix that turns a test block's own instructions into "practice is over". */
@@ -1149,8 +1365,8 @@ function cpFinalStageInstructions(keyMaps, finalStage, scheme) {
 // rule that used to separate this from the block's own copy is gone
 // (2026-08-23): the cartoon now separates them better and freed 52px/screen.
 const CP_TEST_BLOCK_PREAMBLE =
-    'Practice is over — the real task starts now.\n'
-    + 'You will no longer be told whether each answer was right.\n\n';
+    'Practice is over — the real task starts now.\n' +
+    'You will no longer be told whether each answer was right.\n\n';
 
 // ------------------------------------------------------------
 // Per-paradigm training specs
@@ -1202,7 +1418,7 @@ function cpStampScheme(blockConfig, scheme) {
  */
 function cpTestSessionFor(paradigm, condition = 'A', scheme) {
     const condTask = condition === 'B' ? 'or' : 'mov';
-    const km = scheme ? scheme.keyMaps : undefined;   // undefined => generator default (disjoint)
+    const km = scheme ? scheme.keyMaps : undefined; // undefined => generator default (disjoint)
     const stamp = (bc) => cpStampScheme(bc, scheme);
     // The cartoon's angles and keycaps come from the key maps, so it has to be
     // built from the SAME `km` the copy is — a demo left on the disjoint default
@@ -1211,21 +1427,42 @@ function cpTestSessionFor(paradigm, condition = 'A', scheme) {
     const demo = (finalStage) => cpTestDemo(demoKeyMaps, finalStage, scheme);
     switch (paradigm) {
         case 'cp_prp':
-            return cpTestBlocks(stamp(cpPRP), 96, CP_PRP_INSTRUCTIONS(condTask, km, scheme),
-                demo(CP_TEST_FINAL_STAGE.cp_prp(condTask)));
+            return cpTestBlocks(
+                stamp(cpPRP),
+                96,
+                CP_PRP_INSTRUCTIONS(condTask, km, scheme),
+                demo(CP_TEST_FINAL_STAGE.cp_prp(condTask)),
+            );
         case 'cp_taskswitch':
-            return cpTestBlocks(stamp(cpTaskSwitch), 96, cpTaskSwitchInstructions(km, scheme),
-                demo(CP_TEST_FINAL_STAGE.cp_taskswitch()));
+            return cpTestBlocks(
+                stamp(cpTaskSwitch),
+                96,
+                cpTaskSwitchInstructions(km, scheme),
+                demo(CP_TEST_FINAL_STAGE.cp_taskswitch()),
+            );
         case 'cp_taskswitch_asym':
-            return cpTestBlocks(stamp(cpTaskSwitchAsym), 96, cpTaskSwitchInstructions(km, scheme),
-                demo(CP_TEST_FINAL_STAGE.cp_taskswitch_asym()));
+            return cpTestBlocks(
+                stamp(cpTaskSwitchAsym),
+                96,
+                cpTaskSwitchInstructions(km, scheme),
+                demo(CP_TEST_FINAL_STAGE.cp_taskswitch_asym()),
+            );
         case 'cp_stroop':
-            return cpTestBlocks(stamp(cpStroop), 96, CP_STROOP_INSTRUCTIONS(condTask, km),
-                demo(CP_TEST_FINAL_STAGE.cp_stroop(condTask)));
+            return cpTestBlocks(
+                stamp(cpStroop),
+                96,
+                CP_STROOP_INSTRUCTIONS(condTask, km),
+                demo(CP_TEST_FINAL_STAGE.cp_stroop(condTask)),
+            );
         case 'cp_stroop_crossed':
-            return cpTestBlocks(stamp(cpStroopCrossed), 108, CP_STROOP_INSTRUCTIONS(condTask, km),
-                demo(CP_TEST_FINAL_STAGE.cp_stroop_crossed(condTask)));
-        default: throw new Error(`cpTestSessionFor: unknown paradigm '${paradigm}'`);
+            return cpTestBlocks(
+                stamp(cpStroopCrossed),
+                108,
+                CP_STROOP_INSTRUCTIONS(condTask, km),
+                demo(CP_TEST_FINAL_STAGE.cp_stroop_crossed(condTask)),
+            );
+        default:
+            throw new Error(`cpTestSessionFor: unknown paradigm '${paradigm}'`);
     }
 }
 
@@ -1307,9 +1544,11 @@ function cpBuildTrainingSession(spec) {
         }
         return { ...blockDef, blockConfig: stamped };
     };
-    const testBlocks = spec.testSession.map((blockDef, i) => (i === 0
-        ? { ...blockDef, instructions: CP_TEST_BLOCK_PREAMBLE + blockDef.instructions }
-        : blockDef));
+    const testBlocks = spec.testSession.map((blockDef, i) =>
+        i === 0
+            ? { ...blockDef, instructions: CP_TEST_BLOCK_PREAMBLE + blockDef.instructions }
+            : blockDef,
+    );
     return [...shared.map(stampStage), stampStage(s7), stampStage(s8), ...testBlocks];
 }
 
@@ -1329,7 +1568,7 @@ function cpBuildPrpTrainingSession(condition = 'A', scheme) {
         testSession: cpTestSessionFor('cp_prp', condition, scheme),
         finalStage: {
             kind: 'prp',
-            csi: cpPRP.csi,                  // 0 — S8 matches the test block exactly
+            csi: cpPRP.csi, // 0 — S8 matches the test block exactly
             coherence: cpPRP.coherence,
             t1Task,
             // PLACEHOLDER: CP_PRP_SOA_LEVELS is Tim's stand-in
@@ -1367,14 +1606,15 @@ function cpBuildTaskSwitchAsymTrainingSession(condition = 'A', scheme) {
     const easyTask = condition === 'B' ? 'or' : 'mov';
     const targetCoherence = {
         mov: easyTask === 'mov' ? CP_EASY : CP_HARD,
-        or:  easyTask === 'or'  ? CP_EASY : CP_HARD,
+        or: easyTask === 'or' ? CP_EASY : CP_HARD,
     };
-    const coherence = condition === 'A'
-        ? cpTaskSwitchAsym.coherence
-        : {
-            target: targetCoherence,
-            distractor: CP_DISTRACTOR,
-        };
+    const coherence =
+        condition === 'A'
+            ? cpTaskSwitchAsym.coherence
+            : {
+                  target: targetCoherence,
+                  distractor: CP_DISTRACTOR,
+              };
     return cpBuildTrainingSession({
         blockIdPrefix: 'tsa_train',
         keyMaps: scheme ? scheme.keyMaps : CP_DISJOINT_KEY_MAPS,
@@ -1406,7 +1646,7 @@ function cpBuildStroopTrainingSession(condition = 'A', scheme) {
         // response pathway produces no response-level conflict.
         rampTarget: {
             mov: targetTask === 'mov' ? CP_EASY : CP_DISTRACTOR,
-            or:  targetTask === 'or'  ? CP_EASY : CP_DISTRACTOR,
+            or: targetTask === 'or' ? CP_EASY : CP_DISTRACTOR,
         },
         trainingDistractor: CP_DISTRACTOR,
         testCoherence: cpStroop.coherence,
@@ -1452,12 +1692,18 @@ function cpBuildStroopCrossedTrainingSession(condition = 'A', scheme) {
 
 function cpTrainingSessionFor(paradigm, condition = 'A', scheme) {
     switch (paradigm) {
-        case 'cp_prp': return cpBuildPrpTrainingSession(condition, scheme);
-        case 'cp_taskswitch': return cpBuildTaskSwitchTrainingSession(condition, scheme);
-        case 'cp_taskswitch_asym': return cpBuildTaskSwitchAsymTrainingSession(condition, scheme);
-        case 'cp_stroop': return cpBuildStroopTrainingSession(condition, scheme);
-        case 'cp_stroop_crossed': return cpBuildStroopCrossedTrainingSession(condition, scheme);
-        default: throw new Error(`cpTrainingSessionFor: unknown paradigm '${paradigm}'`);
+        case 'cp_prp':
+            return cpBuildPrpTrainingSession(condition, scheme);
+        case 'cp_taskswitch':
+            return cpBuildTaskSwitchTrainingSession(condition, scheme);
+        case 'cp_taskswitch_asym':
+            return cpBuildTaskSwitchAsymTrainingSession(condition, scheme);
+        case 'cp_stroop':
+            return cpBuildStroopTrainingSession(condition, scheme);
+        case 'cp_stroop_crossed':
+            return cpBuildStroopCrossedTrainingSession(condition, scheme);
+        default:
+            throw new Error(`cpTrainingSessionFor: unknown paradigm '${paradigm}'`);
     }
 }
 

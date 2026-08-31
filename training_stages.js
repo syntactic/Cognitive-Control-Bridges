@@ -45,7 +45,7 @@ const TRAINING_STAGE_DEFAULTS = {
     // "the border tells you what's coming". Matching the test CSI is S8's job.
     cueCsi: 200,
 
-    rampFrom: 1.0,               // start the ramp at ceiling ("unmistakable")
+    rampFrom: 1.0, // start the ramp at ceiling ("unmistakable")
 
     // Feedback ON throughout training (required for shaping), OFF in test.
     feedback: true,
@@ -78,7 +78,8 @@ const TRAINING_SECOND_TASK = 'or';
 const TRAINING_UNIVALENT_CONGRUENCY = { conditions: ['univalent'], proportions: [1.0] };
 // (TRAINING_CONGRUENT_ONLY was removed with the congruent-only S5 stage, 2026-08-25.)
 const TRAINING_BOTH_CONGRUENCIES = {
-    conditions: ['congruent', 'incongruent'], proportions: [0.5, 0.5],
+    conditions: ['congruent', 'incongruent'],
+    proportions: [0.5, 0.5],
 };
 
 /**
@@ -119,14 +120,18 @@ const TRAINING_BOTH_CONGRUENCIES = {
  */
 function buildSharedTrainingStages(spec) {
     if (!spec || !spec.keyMaps || !spec.keyMaps.mov || !spec.keyMaps.or) {
-        throw new Error('buildSharedTrainingStages: spec.keyMaps must provide both mov and or maps');
+        throw new Error(
+            'buildSharedTrainingStages: spec.keyMaps must provide both mov and or maps',
+        );
     }
     if (!spec.rso) {
         throw new Error('buildSharedTrainingStages: spec.rso is required (matches the test block)');
     }
     const target = spec.testCoherenceTarget;
     if (!target || typeof target.mov !== 'number' || typeof target.or !== 'number') {
-        throw new Error('buildSharedTrainingStages: spec.testCoherenceTarget must be { mov: number, or: number }');
+        throw new Error(
+            'buildSharedTrainingStages: spec.testCoherenceTarget must be { mov: number, or: number }',
+        );
     }
     if (typeof spec.testCoherenceDistractor !== 'number') {
         throw new Error('buildSharedTrainingStages: spec.testCoherenceDistractor must be a number');
@@ -136,7 +141,7 @@ function buildSharedTrainingStages(spec) {
     if (!(cfg.cueCsi > 0)) {
         throw new Error(
             `buildSharedTrainingStages: cueCsi must be positive (got ${cfg.cueCsi}). ` +
-            'S4 exists to make the cue an ADVANCE signal; a zero CSI cannot do that.'
+                'S4 exists to make the cue an ADVANCE signal; a zero CSI cannot do that.',
         );
     }
 
@@ -173,16 +178,17 @@ function buildSharedTrainingStages(spec) {
 
     // Single-task pathway stages (S2, S3): univalent, CSI 0, cue suppressed (cueDuration: 0),
     // coherence ramped from ceiling down to that task's test level.
-    const pathwayStage = (stage, task) => criterionStage(stage, {
-        csi: 0,
-        cueDuration: 0,
-        switchRate: 0,
-        startTask: task,
-        task1: task,
-        congruency: TRAINING_UNIVALENT_CONGRUENCY,
-        coherence: { target: target[task], distractor: 0 },
-        coherenceRamp: { from: cfg.rampFrom, to: target[task], rampLength: cfg.rampLength },
-    });
+    const pathwayStage = (stage, task) =>
+        criterionStage(stage, {
+            csi: 0,
+            cueDuration: 0,
+            switchRate: 0,
+            startTask: task,
+            task1: task,
+            congruency: TRAINING_UNIVALENT_CONGRUENCY,
+            coherence: { target: target[task], distractor: 0 },
+            coherenceRamp: { from: cfg.rampFrom, to: target[task], rampLength: cfg.rampLength },
+        });
 
     // Stroop stages (S3a, S3b): sustained SINGLE task against a congruent/
     // incongruent distractor. switchRate 0 keeps one task on screen throughout
@@ -191,15 +197,16 @@ function buildSharedTrainingStages(spec) {
     // response conflict. No ramp — S2/S3 already brought the target to test level,
     // and the distractor sits at its own test level. Cues are suppressed (cueDuration: 0)
     // because the task is sustained and known in advance.
-    const stroopStage = (stage, task) => criterionStage(stage, {
-        csi: 0,
-        cueDuration: 0,
-        switchRate: 0,
-        startTask: task,
-        task1: task,
-        congruency: TRAINING_BOTH_CONGRUENCIES,
-        coherence: { target: target[task], distractor: cfg.testCoherenceDistractor },
-    });
+    const stroopStage = (stage, task) =>
+        criterionStage(stage, {
+            csi: 0,
+            cueDuration: 0,
+            switchRate: 0,
+            startTask: task,
+            task1: task,
+            congruency: TRAINING_BOTH_CONGRUENCIES,
+            coherence: { target: target[task], distractor: cfg.testCoherenceDistractor },
+        });
 
     const stages = [];
 
@@ -231,14 +238,16 @@ function buildSharedTrainingStages(spec) {
     // precedes the stimulus; startTask null + switchRate 50 mixes the two tasks.
     // The ramp is per-task ({ mov, or }) — runBlock resolves it against the trial's
     // own task.
-    stages.push(criterionStage('S4', {
-        csi: cfg.cueCsi,
-        switchRate: 50,
-        startTask: null,
-        congruency: TRAINING_UNIVALENT_CONGRUENCY,
-        coherence: { target: target, distractor: 0 },
-        coherenceRamp: { from: cfg.rampFrom, to: target, rampLength: cfg.rampLength },
-    }));
+    stages.push(
+        criterionStage('S4', {
+            csi: cfg.cueCsi,
+            switchRate: 50,
+            startTask: null,
+            congruency: TRAINING_UNIVALENT_CONGRUENCY,
+            coherence: { target: target, distractor: 0 },
+            coherenceRamp: { from: cfg.rampFrom, to: target, rampLength: cfg.rampLength },
+        }),
+    );
 
     // --- S6: bivalence + conflict, now while SWITCHING --------------------
     // The old congruent-only S5 was dropped in the 2026-08-25 reorder: conflict is
@@ -248,15 +257,19 @@ function buildSharedTrainingStages(spec) {
     // (S5 is retired, like S1/S7) so the CSV `stage` column and existing block ids
     // are undisturbed. Also the first exposure to every test coherence level, so
     // novelty is not confounded with the coherence factor in the test block.
-    stages.push(criterionStage('S6', {
-        csi: cfg.cueCsi,
-        switchRate: 50,
-        startTask: null,
-        congruency: spec.congruency || TRAINING_BOTH_CONGRUENCIES,
-        coherence: spec.testCoherence
-            || { target: target, distractor: cfg.testCoherenceDistractor },
-        ...(spec.levelFactors ? { levelFactors: spec.levelFactors } : {}),
-    }));
+    stages.push(
+        criterionStage('S6', {
+            csi: cfg.cueCsi,
+            switchRate: 50,
+            startTask: null,
+            congruency: spec.congruency || TRAINING_BOTH_CONGRUENCIES,
+            coherence: spec.testCoherence || {
+                target: target,
+                distractor: cfg.testCoherenceDistractor,
+            },
+            ...(spec.levelFactors ? { levelFactors: spec.levelFactors } : {}),
+        }),
+    );
 
     return stages;
 }
@@ -363,12 +376,14 @@ function buildParadigmFinalStage(spec) {
         throw new Error('buildParadigmFinalStage: spec.rso is required (matches the test block)');
     }
     if (!spec.coherence) {
-        throw new Error('buildParadigmFinalStage: spec.coherence is required (the test block\'s own)');
+        throw new Error(
+            "buildParadigmFinalStage: spec.coherence is required (the test block's own)",
+        );
     }
     // 0 is a legitimate CSI (cp_prp), so this checks for a number, not truthiness.
     if (!(typeof spec.csi === 'number') || spec.csi < 0) {
         throw new Error(
-            `buildParadigmFinalStage: spec.csi must be the paradigm's test CSI in ms (got ${spec.csi})`
+            `buildParadigmFinalStage: spec.csi must be the paradigm's test CSI in ms (got ${spec.csi})`,
         );
     }
 
@@ -407,11 +422,14 @@ function buildParadigmFinalStage(spec) {
         if (typeof cfg.switchRate !== 'number') {
             throw new Error("buildParadigmFinalStage: kind 'switching' requires spec.switchRate");
         }
-        return stageDef({
-            paradigm: 'single-task',
-            switchRate: cfg.switchRate,
-            startTask: null,
-        }, { isTraining: true });
+        return stageDef(
+            {
+                paradigm: 'single-task',
+                switchRate: cfg.switchRate,
+                startTask: null,
+            },
+            { isTraining: true },
+        );
     }
 
     if (cfg.kind === 'stroop') {
@@ -422,15 +440,18 @@ function buildParadigmFinalStage(spec) {
         if (cfg.task !== 'mov' && cfg.task !== 'or') {
             throw new Error(
                 "buildParadigmFinalStage: kind 'stroop' requires spec.task ('mov'|'or'), " +
-                'the paradigm\'s target dimension'
+                    "the paradigm's target dimension",
             );
         }
-        return stageDef({
-            paradigm: 'single-task',
-            switchRate: 0,
-            startTask: cfg.task,
-            task1: cfg.task,
-        }, { isTraining: false, numTrials: cfg.numTrials ?? cfg.stroopTrials });
+        return stageDef(
+            {
+                paradigm: 'single-task',
+                switchRate: 0,
+                startTask: cfg.task,
+                task1: cfg.task,
+            },
+            { isTraining: false, numTrials: cfg.numTrials ?? cfg.stroopTrials },
+        );
     }
 
     if (cfg.kind === 'prp') {
@@ -439,13 +460,13 @@ function buildParadigmFinalStage(spec) {
         if (cfg.t1Task !== 'mov' && cfg.t1Task !== 'or') {
             throw new Error(
                 "buildParadigmFinalStage: kind 'prp' requires spec.t1Task ('mov'|'or'), " +
-                "the condition's first task"
+                    "the condition's first task",
             );
         }
         if (!Array.isArray(cfg.soaLevels) || cfg.soaLevels.length === 0) {
             throw new Error(
                 "buildParadigmFinalStage: kind 'prp' requires spec.soaLevels (the test " +
-                "block's SOA levels)"
+                    "block's SOA levels)",
             );
         }
         if (spec.coherenceRamp) {
@@ -454,43 +475,50 @@ function buildParadigmFinalStage(spec) {
             // block is a T1-difficulty manipulation crossed with SOA.
             throw new Error(
                 "buildParadigmFinalStage: kind 'prp' must not carry a coherenceRamp. " +
-                'S8 shapes RESPONSE ORDER via the descending SOA schedule instead.'
+                    'S8 shapes RESPONSE ORDER via the descending SOA schedule instead.',
             );
         }
         const descending = [...cfg.soaLevels].sort((a, b) => b - a);
-        return stageDef({
-            paradigm: 'dual-task',
-            // T1 is fixed per condition, so T2 is always the other task — the same
-            // rule the cp_prp test block uses.
-            task1: cfg.t1Task,
-            t2Rule: 'switch',
-            switchRate: 0,
-            startTask: null,
-            // The fallback sampler for trials past the schedule; `value` is only
-            // read if params are ever emptied.
-            soa: { type: 'choice', value: descending[descending.length - 1], params: cfg.soaLevels },
-            // Response-order shaping: the stage OPENS at the longest SOA,
-            // where "answer T1 then T2" is self-evident, and descends to the
-            // shortest, where the two responses genuinely overlap. runBlock
-            // imposes this on the SOA vector via scheduledSoa; after the schedule
-            // the stage falls back to mixed SOAs, matching the test block.
-            soaSchedule: {
-                levels: cfg.soaLevels,
-                ...(cfg.soaScheduleLength !== undefined
-                    ? { scheduleLength: cfg.soaScheduleLength }
-                    : {}),
+        return stageDef(
+            {
+                paradigm: 'dual-task',
+                // T1 is fixed per condition, so T2 is always the other task — the same
+                // rule the cp_prp test block uses.
+                task1: cfg.t1Task,
+                t2Rule: 'switch',
+                switchRate: 0,
+                startTask: null,
+                // The fallback sampler for trials past the schedule; `value` is only
+                // read if params are ever emptied.
+                soa: {
+                    type: 'choice',
+                    value: descending[descending.length - 1],
+                    params: cfg.soaLevels,
+                },
+                // Response-order shaping: the stage OPENS at the longest SOA,
+                // where "answer T1 then T2" is self-evident, and descends to the
+                // shortest, where the two responses genuinely overlap. runBlock
+                // imposes this on the SOA vector via scheduledSoa; after the schedule
+                // the stage falls back to mixed SOAs, matching the test block.
+                soaSchedule: {
+                    levels: cfg.soaLevels,
+                    ...(cfg.soaScheduleLength !== undefined
+                        ? { scheduleLength: cfg.soaScheduleLength }
+                        : {}),
+                },
             },
-        }, {
-            isTraining: true,
-            // The ONLY stage that overrides the shared 14/16 default.
-            // runBlock hands this to both the stop-early predicate and the stage
-            // summary, so they cannot disagree.
-            advancementThreshold: cfg.prpAdvancementThreshold,
-        });
+            {
+                isTraining: true,
+                // The ONLY stage that overrides the shared 14/16 default.
+                // runBlock hands this to both the stop-early predicate and the stage
+                // summary, so they cannot disagree.
+                advancementThreshold: cfg.prpAdvancementThreshold,
+            },
+        );
     }
 
     throw new Error(
         `buildParadigmFinalStage: unknown kind '${cfg.kind}' ` +
-        "(expected 'switching' | 'prp' | 'stroop')"
+            "(expected 'switching' | 'prp' | 'stroop')",
     );
 }

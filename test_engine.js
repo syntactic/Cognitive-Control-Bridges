@@ -46,7 +46,11 @@ for (let i = 0; i < 100; i++) {
 
 // unknown type throws
 let threw = false;
-try { sampleFromDistribution({ type: 'gaussian', value: 0 }); } catch (e) { threw = true; }
+try {
+    sampleFromDistribution({ type: 'gaussian', value: 0 });
+} catch (e) {
+    threw = true;
+}
 assert(threw, 'unknown type throws');
 
 // ============================================================
@@ -55,13 +59,19 @@ section('generateTaskSequence');
 // switchRate=0 → all same task
 const allSame = generateTaskSequence(50, 'Random', 0, 'mov');
 assert(allSame.length === 50, 'correct length');
-assert(allSame.every(t => t === 'mov'), 'switchRate=0 → all same');
+assert(
+    allSame.every((t) => t === 'mov'),
+    'switchRate=0 → all same',
+);
 
 // switchRate=100 → alternating
 const alternating = generateTaskSequence(10, 'Random', 100, 'mov');
 assert(alternating.length === 10, 'correct length');
 for (let i = 1; i < 10; i++) {
-    assert(alternating[i] !== alternating[i - 1], `switchRate=100 always switches at position ${i}`);
+    assert(
+        alternating[i] !== alternating[i - 1],
+        `switchRate=100 always switches at position ${i}`,
+    );
 }
 
 // AABB pattern
@@ -87,13 +97,16 @@ section('generateCongruencySequence');
 
 const cong = generateCongruencySequence(120, ['congruent', 'incongruent'], [0.5, 0.5]);
 assert(cong.length === 120, 'correct length');
-const congCount = cong.filter(c => c === 'congruent').length;
-const incongCount = cong.filter(c => c === 'incongruent').length;
+const congCount = cong.filter((c) => c === 'congruent').length;
+const incongCount = cong.filter((c) => c === 'incongruent').length;
 assert(congCount === 60, `exact congruent count: got ${congCount}`);
 assert(incongCount === 60, `exact incongruent count: got ${incongCount}`);
 
 const allUnivalent = generateCongruencySequence(80, ['univalent'], [1.0]);
-assert(allUnivalent.every(c => c === 'univalent'), 'all univalent');
+assert(
+    allUnivalent.every((c) => c === 'univalent'),
+    'all univalent',
+);
 
 // ============================================================
 section('assignDirections');
@@ -115,7 +128,10 @@ for (let i = 0; i < 20; i++) {
 // Single-task neutral: distractor is 90 or 270
 for (let i = 0; i < 20; i++) {
     const d = assignDirections('mov', 'neutral', 'single-task', 'identical');
-    assert([90, 270].includes(d.ch1_distractor), `neutral distractor orthogonal: got ${d.ch1_distractor}`);
+    assert(
+        [90, 270].includes(d.ch1_distractor),
+        `neutral distractor orthogonal: got ${d.ch1_distractor}`,
+    );
 }
 
 // Single-task univalent: distractor is 0
@@ -159,7 +175,10 @@ assert(singleParams.dur_1 === 500, 'cue duration = csi + dur_ch1');
 // transparent unless its go signal is active, so this is what makes the CSI a
 // visible preparation interval instead of csi ms of blank screen.
 assert(singleParams.start_go_1 === 0, 'go signal opens with the cue');
-assert(singleParams.dur_go_1 === 2200, 'go window = csi + responseWindow, so it still closes responseWindow after the stimulus');
+assert(
+    singleParams.dur_go_1 === 2200,
+    'go window = csi + responseWindow, so it still closes responseWindow after the stimulus',
+);
 assert(singleParams.start_mov_1 === 200, 'stimulus at csi');
 assert(singleParams.dur_mov_1 === 300, 'stimulus duration');
 assert(singleParams.coh_mov_1 === 0.8, 'movement coherence routed');
@@ -255,12 +274,17 @@ assert(dualSwappedParams.coh_mov_2 === 0.6, 'swapped: mov2 active');
 assert(dualSwappedParams.coh_or_2 === 0, 'swapped: or2 silenced');
 // mov1 is silenced (end=0). SE: mov2_abs = start_mov_2 + mov1.end = start_mov_2 + 0.
 // Desired absolute start = csi + soa = 200 + 400 = 600.
-assert(dualSwappedParams.start_mov_2 === 600, `swapped: mov2 offset: got ${dualSwappedParams.start_mov_2}`);
+assert(
+    dualSwappedParams.start_mov_2 === 600,
+    `swapped: mov2 offset: got ${dualSwappedParams.start_mov_2}`,
+);
 assert(dualSwappedParams.dur_mov_2 === 300, 'swapped: mov2 dur preserved');
 // Verify SE would produce correct absolute timing
 const mov1EndSwapped = dualSwappedParams.start_mov_1 + dualSwappedParams.dur_mov_1; // 0
-assert(dualSwappedParams.start_mov_2 + mov1EndSwapped === 600,
-    'swapped: SE mov2 absolute start = 600');
+assert(
+    dualSwappedParams.start_mov_2 + mov1EndSwapped === 600,
+    'swapped: SE mov2 absolute start = 600',
+);
 
 // ============================================================
 section('buildTrialParams — dual-task bivalent (ch1 counterpart active)');
@@ -285,10 +309,15 @@ assert(dualBivalentParams.coh_or_1 === 0.8, 'bivalent dual: or1 coh preserved');
 // SE: or2_abs = start_or_2 + or1.end = start_or_2 + 500.
 // Desired absolute start = csi + soa = 300.
 // So start_or_2 = 300 - 500 = -200 (negative is correct here!).
-assert(dualBivalentParams.start_or_2 === -200, `bivalent dual: or2 offset: got ${dualBivalentParams.start_or_2}`);
+assert(
+    dualBivalentParams.start_or_2 === -200,
+    `bivalent dual: or2 offset: got ${dualBivalentParams.start_or_2}`,
+);
 const or1EndBiv = dualBivalentParams.start_or_1 + dualBivalentParams.dur_or_1; // 500
-assert(dualBivalentParams.start_or_2 + or1EndBiv === 300,
-    'bivalent dual: SE or2 absolute start = 300');
+assert(
+    dualBivalentParams.start_or_2 + or1EndBiv === 300,
+    'bivalent dual: SE or2 absolute start = 300',
+);
 
 // ============================================================
 section('generateBlockTrials — Hirsch PRP block');
@@ -318,10 +347,22 @@ assert(prpTrials.length === 24, `24 trials generated: got ${prpTrials.length}`);
 // Check every trial has valid structure
 let allValid = true;
 for (const t of prpTrials) {
-    if (!t.seParams || !t.meta) { allValid = false; break; }
-    if (t.seParams.task_1 === undefined) { allValid = false; break; }
-    if (t.seParams.task_2 === undefined) { allValid = false; break; }
-    if (t.meta.soa === null || t.meta.soa === undefined) { allValid = false; break; }
+    if (!t.seParams || !t.meta) {
+        allValid = false;
+        break;
+    }
+    if (t.seParams.task_1 === undefined) {
+        allValid = false;
+        break;
+    }
+    if (t.seParams.task_2 === undefined) {
+        allValid = false;
+        break;
+    }
+    if (t.meta.soa === null || t.meta.soa === undefined) {
+        allValid = false;
+        break;
+    }
     // Verify SE would place the active ch2 stimulus at the correct absolute time.
     // The ch1 counterpart is silenced (univalent), so ch1_end=0.
     // SE: ch2_abs = start_X_2 + ch1_X.end = start_X_2 + 0 = start_X_2.
@@ -330,24 +371,32 @@ for (const t of prpTrials) {
     const activeKey = t.meta.t2_task === 'mov' ? 'start_mov_2' : 'start_or_2';
     const silencedKey = t.meta.t2_task === 'mov' ? 'start_or_2' : 'start_mov_2';
     // For silenced ch1 counterpart, offset IS the desired absolute start
-    if (t.seParams[activeKey] !== desiredAbsStart) { allValid = false; break; }
+    if (t.seParams[activeKey] !== desiredAbsStart) {
+        allValid = false;
+        break;
+    }
     // Silenced pathway should be zeroed
-    if (t.seParams[silencedKey] !== 0) { allValid = false; break; }
+    if (t.seParams[silencedKey] !== 0) {
+        allValid = false;
+        break;
+    }
 }
 assert(allValid, 'all PRP trials have valid structure and correct ch2 offsets');
 
 // Check that T1-T2 switching occurs (with switchRate=50 over 24 trials)
-const t1Tasks = prpTrials.map(t => t.meta.t1_task);
-const hasSwitch = prpTrials.some(t => t.meta.transitionType === 'Switch');
-const hasRepeat = prpTrials.some(t => t.meta.transitionType === 'Repeat');
+const t1Tasks = prpTrials.map((t) => t.meta.t1_task);
+const hasSwitch = prpTrials.some((t) => t.meta.transitionType === 'Switch');
+const hasRepeat = prpTrials.some((t) => t.meta.transitionType === 'Repeat');
 // With switchRate=50 and 24 trials, probability of zero switches or zero repeats is negligible
 assert(hasSwitch, 'PRP block has T1-T2 switches');
 assert(hasRepeat, 'PRP block has T1-T2 repetitions');
 
 // Check that task2 is always the opposite of task1
 for (const t of prpTrials) {
-    assert(t.meta.t2_task === switchTask(t.meta.t1_task),
-        `task2 is opposite of task1: ${t.meta.t1_task} → ${t.meta.t2_task}`);
+    assert(
+        t.meta.t2_task === switchTask(t.meta.t1_task),
+        `task2 is opposite of task1: ${t.meta.t1_task} → ${t.meta.t2_task}`,
+    );
 }
 
 // Check SOA values are from the choice set
@@ -359,8 +408,10 @@ for (const t of prpTrials) {
 // Check that no fields are NaN or undefined
 for (const t of prpTrials) {
     for (const [k, v] of Object.entries(t.seParams)) {
-        assert(v !== undefined && (typeof v !== 'number' || !isNaN(v)),
-            `seParams.${k} not NaN/undefined`);
+        assert(
+            v !== undefined && (typeof v !== 'number' || !isNaN(v)),
+            `seParams.${k} not NaN/undefined`,
+        );
     }
 }
 
@@ -377,14 +428,18 @@ for (const t of prpTaskCohTrials) {
     // T1 coherence should match its task identity
     const t1CohKey = t.meta.t1_task === 'mov' ? 'coh_mov_1' : 'coh_or_1';
     const expectedT1 = t.meta.t1_task === 'mov' ? 0.3 : 0.7;
-    assert(t.seParams[t1CohKey] === expectedT1,
-        `task-indexed PRP: T1 task=${t.meta.t1_task}, ${t1CohKey}=${t.seParams[t1CohKey]}, expected=${expectedT1}`);
+    assert(
+        t.seParams[t1CohKey] === expectedT1,
+        `task-indexed PRP: T1 task=${t.meta.t1_task}, ${t1CohKey}=${t.seParams[t1CohKey]}, expected=${expectedT1}`,
+    );
 
     // T2 coherence should match its task identity
     const t2CohKey = t.meta.t2_task === 'mov' ? 'coh_mov_2' : 'coh_or_2';
     const expectedT2 = t.meta.t2_task === 'mov' ? 0.3 : 0.7;
-    assert(t.seParams[t2CohKey] === expectedT2,
-        `task-indexed PRP: T2 task=${t.meta.t2_task}, ${t2CohKey}=${t.seParams[t2CohKey]}, expected=${expectedT2}`);
+    assert(
+        t.seParams[t2CohKey] === expectedT2,
+        `task-indexed PRP: T2 task=${t.meta.t2_task}, ${t2CohKey}=${t.seParams[t2CohKey]}, expected=${expectedT2}`,
+    );
 }
 
 // ============================================================
@@ -411,12 +466,27 @@ const pureConfig = {
 
 const pureTrials = generateBlockTrials(pureConfig, 40);
 assert(pureTrials.length === 40, 'pure block: 40 trials');
-assert(pureTrials.every(t => t.meta.t1_task === 'mov'), 'pure block: all mov');
-assert(pureTrials.every(t => t.meta.t2_task === null), 'pure block: no task2');
-assert(pureTrials.every(t => t.seParams.task_2 === null), 'pure block: SE task_2 null');
-assert(pureTrials.every(t => t.meta.soa === null), 'pure block: soa null');
+assert(
+    pureTrials.every((t) => t.meta.t1_task === 'mov'),
+    'pure block: all mov',
+);
+assert(
+    pureTrials.every((t) => t.meta.t2_task === null),
+    'pure block: no task2',
+);
+assert(
+    pureTrials.every((t) => t.seParams.task_2 === null),
+    'pure block: SE task_2 null',
+);
+assert(
+    pureTrials.every((t) => t.meta.soa === null),
+    'pure block: soa null',
+);
 assert(pureTrials[0].meta.transitionType === 'First', 'pure block: first is First');
-assert(pureTrials.slice(1).every(t => t.meta.transitionType === 'Repeat'), 'pure block: rest are Repeat');
+assert(
+    pureTrials.slice(1).every((t) => t.meta.transitionType === 'Repeat'),
+    'pure block: rest are Repeat',
+);
 
 // ============================================================
 section('generateBlockTrials — mixed task-switching block');
@@ -442,11 +512,20 @@ const mixedConfig = {
 
 const mixedTrials = generateBlockTrials(mixedConfig, 80);
 assert(mixedTrials.length === 80, 'mixed block: 80 trials');
-const mixedTasks = new Set(mixedTrials.map(t => t.meta.t1_task));
+const mixedTasks = new Set(mixedTrials.map((t) => t.meta.t1_task));
 assert(mixedTasks.has('mov') && mixedTasks.has('or'), 'mixed block: both tasks present');
-assert(mixedTrials.every(t => t.meta.t2_task === null), 'mixed block: no task2');
-assert(mixedTrials.some(t => t.meta.transitionType === 'Switch'), 'mixed block: has switches');
-assert(mixedTrials.some(t => t.meta.transitionType === 'Repeat'), 'mixed block: has repeats');
+assert(
+    mixedTrials.every((t) => t.meta.t2_task === null),
+    'mixed block: no task2',
+);
+assert(
+    mixedTrials.some((t) => t.meta.transitionType === 'Switch'),
+    'mixed block: has switches',
+);
+assert(
+    mixedTrials.some((t) => t.meta.transitionType === 'Repeat'),
+    'mixed block: has repeats',
+);
 
 // ============================================================
 section('buildSingleCanvasSpec');
@@ -455,14 +534,26 @@ assert(singleCanvasUnivalent.task1 === 'mov', 'univalent: task1 is mov');
 assert(singleCanvasUnivalent.task2 === null, 'univalent: task2 is null');
 assert(singleCanvasUnivalent.soa === 0, 'univalent: soa is 0');
 assert(singleCanvasUnivalent.coherence.ch1_task === 0.8, 'univalent: ch1_task coherence is 0.8');
-assert(singleCanvasUnivalent.coherence.ch1_distractor === 0, 'univalent: ch1_distractor coherence defaults to 0');
+assert(
+    singleCanvasUnivalent.coherence.ch1_distractor === 0,
+    'univalent: ch1_distractor coherence defaults to 0',
+);
 assert(singleCanvasUnivalent.coherence.ch2_task === 0, 'univalent: ch2_task coherence is 0');
-assert(singleCanvasUnivalent.coherence.ch2_distractor === 0, 'univalent: ch2_distractor coherence is 0');
+assert(
+    singleCanvasUnivalent.coherence.ch2_distractor === 0,
+    'univalent: ch2_distractor coherence is 0',
+);
 assert(singleCanvasUnivalent.dir.ch2_distractor === 0, 'univalent: ch2_distractor direction is 0');
 assert(singleCanvasUnivalent.dir.ch2_task === 0, 'univalent: ch2_task direction is 0');
 const singleCanvasBivalent = buildSingleCanvasSpec('mov', 100, 1000, 1000, 0.8, 0, 0.5, 180);
-assert(singleCanvasBivalent.coherence.ch1_distractor === 0.5, 'bivalent: ch1_distractor coherence is 0.5');
-assert(singleCanvasBivalent.dir.ch1_distractor === 180, 'bivalent: ch1_distractor direction is 180');
+assert(
+    singleCanvasBivalent.coherence.ch1_distractor === 0.5,
+    'bivalent: ch1_distractor coherence is 0.5',
+);
+assert(
+    singleCanvasBivalent.dir.ch1_distractor === 180,
+    'bivalent: ch1_distractor direction is 180',
+);
 // 3. Feed it into buildTrialParams: This is the real integration test. Build a spec with your function, pass it to buildTrialParams(), and verify the output has the right SE parameter names and values. This tests that your spec is actually compatible with the downstream pipeline.
 const bivalentTrialParams = buildTrialParams(singleCanvasBivalent);
 assert(bivalentTrialParams.task_1 === 'mov', 'bivalent: task 1 is movement');
@@ -473,8 +564,8 @@ assert(bivalentTrialParams.start_or_1 === 100, 'bivalent: orientation distractor
 assert(bivalentTrialParams.dur_or_1 === 1000, 'bivalent: orientation distractor lasts for 1000ms');
 assert(bivalentTrialParams.coh_or_1 === 0.5, 'bivalent: orientation coherence is 0.5');
 assert(bivalentTrialParams.task_2 === null, 'bivalent: no second task');
-assert(bivalentTrialParams.start_mov_2 === 0, 'bivalent: movement 2 doesn\'t start');
-assert(bivalentTrialParams.dur_mov_2 === 0, 'bivalent: movement 2 doesn\'t last');
+assert(bivalentTrialParams.start_mov_2 === 0, "bivalent: movement 2 doesn't start");
+assert(bivalentTrialParams.dur_mov_2 === 0, "bivalent: movement 2 doesn't last");
 assert(bivalentTrialParams.coh_mov_2 === 0, 'bivalent: movement 2 coherence is 0');
 
 // ===
@@ -494,31 +585,45 @@ assert(shiftedSingleCanvasBivalent.coh_or_1 === 0.5, 'preserved orientation cohe
 assert(shiftedSingleCanvasBivalent.start_go_1 === 150, 'shifted go start');
 assert(shiftedSingleCanvasBivalent.start_1 === 150, 'shifted cue start');
 assert(shiftedSingleCanvasBivalent.dur_1 === 1100, 'cue duration unchanged by the shift');
-assert(shiftedSingleCanvasBivalent.start_mov_1 - shiftedSingleCanvasBivalent.start_1
-       === bivalentTrialParams.start_mov_1 - bivalentTrialParams.start_1,
-       'CSI preserved across the shift');
+assert(
+    shiftedSingleCanvasBivalent.start_mov_1 - shiftedSingleCanvasBivalent.start_1 ===
+        bivalentTrialParams.start_mov_1 - bivalentTrialParams.start_1,
+    'CSI preserved across the shift',
+);
 
 // Silenced pathways should not be shifted
 const univalentTrialParams = buildTrialParams(singleCanvasUnivalent);
 // singleCanvasUnivalent has task='mov', so or1 is silenced (coh=0 → dur_or_1=0)
 assert(univalentTrialParams.dur_or_1 === 0, 'silenced: or1 duration is 0 before shift');
 const shiftedUnivalent = applySOAOffset(univalentTrialParams, 200);
-assert(shiftedUnivalent.start_or_1 === univalentTrialParams.start_or_1,
-    'silenced: or1 start not shifted when dur_or_1 is 0');
-assert(shiftedUnivalent.start_mov_1 === univalentTrialParams.start_mov_1 + 200,
-    'silenced: active mov1 still shifted');
-assert(shiftedUnivalent.start_go_1 === univalentTrialParams.start_go_1 + 200,
-    'silenced: go signal still shifted');
+assert(
+    shiftedUnivalent.start_or_1 === univalentTrialParams.start_or_1,
+    'silenced: or1 start not shifted when dur_or_1 is 0',
+);
+assert(
+    shiftedUnivalent.start_mov_1 === univalentTrialParams.start_mov_1 + 200,
+    'silenced: active mov1 still shifted',
+);
+assert(
+    shiftedUnivalent.start_go_1 === univalentTrialParams.start_go_1 + 200,
+    'silenced: go signal still shifted',
+);
 
 // Zero offset returns a copy, not the same reference
 const zeroOffsetCopy = applySOAOffset(bivalentTrialParams, 0);
-assert(zeroOffsetCopy !== bivalentTrialParams, 'zero offset: returns new object, not same reference');
-assert(zeroOffsetCopy.start_mov_1 === bivalentTrialParams.start_mov_1,
-    'zero offset: values are identical');
-assert(zeroOffsetCopy.start_go_1 === bivalentTrialParams.start_go_1,
-    'zero offset: go signal unchanged');
-assert(zeroOffsetCopy.dur_1 === bivalentTrialParams.dur_1,
-    'zero offset: cue duration unchanged');
+assert(
+    zeroOffsetCopy !== bivalentTrialParams,
+    'zero offset: returns new object, not same reference',
+);
+assert(
+    zeroOffsetCopy.start_mov_1 === bivalentTrialParams.start_mov_1,
+    'zero offset: values are identical',
+);
+assert(
+    zeroOffsetCopy.start_go_1 === bivalentTrialParams.start_go_1,
+    'zero offset: go signal unchanged',
+);
+assert(zeroOffsetCopy.dur_1 === bivalentTrialParams.dur_1, 'zero offset: cue duration unchanged');
 
 // Original not mutated after all shifts above
 assert(bivalentTrialParams.start_mov_1 === 100, 'original still unmodified after multiple shifts');
@@ -529,7 +634,7 @@ section('classifyDualCanvasTransitions');
 
 const dualTrans = classifyDualCanvasTransitions(
     ['mov', 'mov', 'or', 'mov'],
-    ['mov', 'or',  'or', 'or']
+    ['mov', 'or', 'or', 'or'],
 );
 assert(dualTrans.length === 4, 'dual transitions: correct length');
 assert(dualTrans[0] === 'Repeat', 'dual transitions: same tasks → Repeat');
@@ -564,12 +669,15 @@ assert(switchTrials.length === 24, 'switch: 24 trials generated');
 
 // Every trial should have opposite tasks on left and right
 for (const t of switchTrials) {
-    assert(t.meta.t1_task !== t.meta.t2_task,
-        `switch: T1=${t.meta.t1_task} differs from T2=${t.meta.t2_task}`);
-    assert(t.meta.t2_task === switchTask(t.meta.t1_task),
-        'switch: T2 is switchTask(T1)');
-    assert(t.meta.transitionType === 'Switch',
-        'switch: all transitions are Switch when tasks always differ');
+    assert(
+        t.meta.t1_task !== t.meta.t2_task,
+        `switch: T1=${t.meta.t1_task} differs from T2=${t.meta.t2_task}`,
+    );
+    assert(t.meta.t2_task === switchTask(t.meta.t1_task), 'switch: T2 is switchTask(T1)');
+    assert(
+        t.meta.transitionType === 'Switch',
+        'switch: all transitions are Switch when tasks always differ',
+    );
 }
 
 // Return shape: leftSeParams, rightSeParams, meta
@@ -600,10 +708,14 @@ assert(sameTrials.length === 24, 'same: 24 trials generated');
 
 // Every trial should have identical tasks on both canvases
 for (const t of sameTrials) {
-    assert(t.meta.t1_task === t.meta.t2_task,
-        `same: T1=${t.meta.t1_task} matches T2=${t.meta.t2_task}`);
-    assert(t.meta.transitionType === 'Repeat',
-        'same: all transitions are Repeat when tasks always match');
+    assert(
+        t.meta.t1_task === t.meta.t2_task,
+        `same: T1=${t.meta.t1_task} matches T2=${t.meta.t2_task}`,
+    );
+    assert(
+        t.meta.transitionType === 'Repeat',
+        'same: all transitions are Repeat when tasks always match',
+    );
 }
 
 // ============================================================
@@ -619,8 +731,8 @@ const indTrials = generateDualCanvasBlockTrials(dualCanvasIndependentConfig, 60)
 assert(indTrials.length === 60, 'independent: 60 trials generated');
 
 // With independent sequences over 60 trials, expect both same and different pairings
-const hasRepeatPairing = indTrials.some(t => t.meta.t1_task === t.meta.t2_task);
-const hasSwitchPairing = indTrials.some(t => t.meta.t1_task !== t.meta.t2_task);
+const hasRepeatPairing = indTrials.some((t) => t.meta.t1_task === t.meta.t2_task);
+const hasSwitchPairing = indTrials.some((t) => t.meta.t1_task !== t.meta.t2_task);
 assert(hasRepeatPairing, 'independent: has some same-task pairings');
 assert(hasSwitchPairing, 'independent: has some different-task pairings');
 
@@ -637,20 +749,33 @@ const dualCanvasFixedSOAConfig = {
 const soaTrials = generateDualCanvasBlockTrials(dualCanvasFixedSOAConfig, 5);
 for (const t of soaTrials) {
     // Left canvas (T1): cue+go open at trial onset, stimulus follows at csi.
-    assert(t.leftSeParams.start_go_1 === 0,
-        `SOA: left go signal opens with the cue, got ${t.leftSeParams.start_go_1}`);
-    assert(t.leftSeParams.start_mov_1 === 200 || t.leftSeParams.start_or_1 === 200,
-        'SOA: left stimulus at csi=200');
+    assert(
+        t.leftSeParams.start_go_1 === 0,
+        `SOA: left go signal opens with the cue, got ${t.leftSeParams.start_go_1}`,
+    );
+    assert(
+        t.leftSeParams.start_mov_1 === 200 || t.leftSeParams.start_or_1 === 200,
+        'SOA: left stimulus at csi=200',
+    );
     // Right canvas (T2): the whole task is displaced by the SOA, cue included,
     // so its cue+go open at 400 and its stimulus lands at csi + soa = 600.
-    assert(t.rightSeParams.start_go_1 === 400,
-        `SOA: right go signal at soa=400, got ${t.rightSeParams.start_go_1}`);
-    assert(t.rightSeParams.start_1 === 400,
-        `SOA: right cue start shifted to soa=400, got ${t.rightSeParams.start_1}`);
-    assert(t.rightSeParams.dur_1 === dualCanvasFixedSOAConfig.csi + dualCanvasFixedSOAConfig.stimulusDuration,
-        `SOA: right cue duration NOT stretched by the shift`);
-    assert(t.rightSeParams.start_mov_1 === 600 || t.rightSeParams.start_or_1 === 600,
-        'SOA: right stimulus at csi + soa = 600');
+    assert(
+        t.rightSeParams.start_go_1 === 400,
+        `SOA: right go signal at soa=400, got ${t.rightSeParams.start_go_1}`,
+    );
+    assert(
+        t.rightSeParams.start_1 === 400,
+        `SOA: right cue start shifted to soa=400, got ${t.rightSeParams.start_1}`,
+    );
+    assert(
+        t.rightSeParams.dur_1 ===
+            dualCanvasFixedSOAConfig.csi + dualCanvasFixedSOAConfig.stimulusDuration,
+        `SOA: right cue duration NOT stretched by the shift`,
+    );
+    assert(
+        t.rightSeParams.start_mov_1 === 600 || t.rightSeParams.start_or_1 === 600,
+        'SOA: right stimulus at csi + soa = 600',
+    );
     // Meta records the SOA and the RT zero points
     assert(t.meta.soa === 400, 'SOA: meta records soa=400');
     assert(t.meta.t1_stim_onset === 200, 'SOA: T1 stimulus onset recorded');
@@ -662,10 +787,14 @@ section('generateDualCanvasBlockTrials — channel-indexed coherence fallback');
 
 // Default: both canvases use ch1_task (0.8) when task-indexed coherence not set
 const cohTrial = soaTrials[0];
-assert(cohTrial.leftSeParams.coh_mov_1 === 0.8 || cohTrial.leftSeParams.coh_or_1 === 0.8,
-    'coherence fallback: left canvas uses ch1_task=0.8');
-assert(cohTrial.rightSeParams.coh_mov_1 === 0.8 || cohTrial.rightSeParams.coh_or_1 === 0.8,
-    'coherence fallback: right canvas uses ch1_task=0.8');
+assert(
+    cohTrial.leftSeParams.coh_mov_1 === 0.8 || cohTrial.leftSeParams.coh_or_1 === 0.8,
+    'coherence fallback: left canvas uses ch1_task=0.8',
+);
+assert(
+    cohTrial.rightSeParams.coh_mov_1 === 0.8 || cohTrial.rightSeParams.coh_or_1 === 0.8,
+    'coherence fallback: right canvas uses ch1_task=0.8',
+);
 
 // ============================================================
 section('generateDualCanvasBlockTrials — task-indexed coherence');
@@ -681,15 +810,21 @@ const dualCanvasTaskCohConfig = {
 const cohTrials = generateDualCanvasBlockTrials(dualCanvasTaskCohConfig, 10);
 for (const t of cohTrials) {
     // Movement task should always get 0.9, regardless of which canvas it's on
-    const leftActiveCoh = t.meta.t1_task === 'mov' ? t.leftSeParams.coh_mov_1 : t.leftSeParams.coh_or_1;
+    const leftActiveCoh =
+        t.meta.t1_task === 'mov' ? t.leftSeParams.coh_mov_1 : t.leftSeParams.coh_or_1;
     const expectedLeft = t.meta.t1_task === 'mov' ? 0.9 : 0.5;
-    assert(leftActiveCoh === expectedLeft,
-        `task-indexed coh: left task=${t.meta.t1_task}, got=${leftActiveCoh}, expected=${expectedLeft}`);
+    assert(
+        leftActiveCoh === expectedLeft,
+        `task-indexed coh: left task=${t.meta.t1_task}, got=${leftActiveCoh}, expected=${expectedLeft}`,
+    );
 
-    const rightActiveCoh = t.meta.t2_task === 'mov' ? t.rightSeParams.coh_mov_1 : t.rightSeParams.coh_or_1;
+    const rightActiveCoh =
+        t.meta.t2_task === 'mov' ? t.rightSeParams.coh_mov_1 : t.rightSeParams.coh_or_1;
     const expectedRight = t.meta.t2_task === 'mov' ? 0.9 : 0.5;
-    assert(rightActiveCoh === expectedRight,
-        `task-indexed coh: right task=${t.meta.t2_task}, got=${rightActiveCoh}, expected=${expectedRight}`);
+    assert(
+        rightActiveCoh === expectedRight,
+        `task-indexed coh: right task=${t.meta.t2_task}, got=${rightActiveCoh}, expected=${expectedRight}`,
+    );
 }
 
 // ============================================================
@@ -725,12 +860,16 @@ section('generateDualCanvasBlockTrials — no NaN or undefined in SE params');
 
 for (const t of switchTrials) {
     for (const [k, v] of Object.entries(t.leftSeParams)) {
-        assert(v !== undefined && (typeof v !== 'number' || !isNaN(v)),
-            `leftSeParams.${k} not NaN/undefined`);
+        assert(
+            v !== undefined && (typeof v !== 'number' || !isNaN(v)),
+            `leftSeParams.${k} not NaN/undefined`,
+        );
     }
     for (const [k, v] of Object.entries(t.rightSeParams)) {
-        assert(v !== undefined && (typeof v !== 'number' || !isNaN(v)),
-            `rightSeParams.${k} not NaN/undefined`);
+        assert(
+            v !== undefined && (typeof v !== 'number' || !isNaN(v)),
+            `rightSeParams.${k} not NaN/undefined`,
+        );
     }
 }
 
@@ -764,9 +903,11 @@ assert(altTrials[0].meta !== undefined, 'trial has meta');
 section('generateSidedTrials — alternating sides');
 
 for (let i = 0; i < altTrials.length; i++) {
-    const expected = (i % 2 === 0) ? 'left' : 'right';
-    assert(altTrials[i].meta.side === expected,
-        `trial ${i+1}: side=${altTrials[i].meta.side}, expected ${expected}`);
+    const expected = i % 2 === 0 ? 'left' : 'right';
+    assert(
+        altTrials[i].meta.side === expected,
+        `trial ${i + 1}: side=${altTrials[i].meta.side}, expected ${expected}`,
+    );
 }
 
 // ============================================================
@@ -778,10 +919,14 @@ for (const t of altTrials) {
     assert(t.meta.blockId === 'test_alternating', 'blockId matches config');
     assert(t.meta.t2_task === null, 't2_task is null (single-task per trial)');
     assert(t.meta.earlyResolve === true, 'earlyResolve logged in meta');
-    assert(t.meta.t1_target_dir === 0 || t.meta.t1_target_dir === 180,
-        `t1_target_dir is 0 or 180, got ${t.meta.t1_target_dir}`);
-    assert(t.meta.t1_task === 'mov' || t.meta.t1_task === 'or',
-        `t1_task is mov or or, got ${t.meta.t1_task}`);
+    assert(
+        t.meta.t1_target_dir === 0 || t.meta.t1_target_dir === 180,
+        `t1_target_dir is 0 or 180, got ${t.meta.t1_target_dir}`,
+    );
+    assert(
+        t.meta.t1_task === 'mov' || t.meta.t1_task === 'or',
+        `t1_task is mov or or, got ${t.meta.t1_task}`,
+    );
 }
 
 // ============================================================
@@ -802,8 +947,10 @@ for (let i = 1; i < altTrials.length; i++) {
     const prev = altTrials[i - 1].meta.t1_task;
     const curr = altTrials[i].meta.t1_task;
     const expected = curr === prev ? 'Repeat' : 'Switch';
-    assert(altTrials[i].meta.transitionType === expected,
-        `trial ${i+1}: task ${prev}→${curr}, transition=${altTrials[i].meta.transitionType}, expected ${expected}`);
+    assert(
+        altTrials[i].meta.transitionType === expected,
+        `trial ${i + 1}: task ${prev}→${curr}, transition=${altTrials[i].meta.transitionType}, expected ${expected}`,
+    );
 }
 
 // ============================================================
@@ -811,19 +958,25 @@ section('generateSidedTrials — task sequence respects switchRate');
 
 // With switchRate=50 over 100 trials, expect both repeats and switches
 const altManyTrials = generateSidedTrials(alternatingConfig, 100);
-const altHasRepeat = altManyTrials.some(t => t.meta.transitionType === 'Repeat');
-const altHasSwitch = altManyTrials.some(t => t.meta.transitionType === 'Switch');
+const altHasRepeat = altManyTrials.some((t) => t.meta.transitionType === 'Repeat');
+const altHasSwitch = altManyTrials.some((t) => t.meta.transitionType === 'Switch');
 assert(altHasRepeat, 'switchRate 50: has repeat transitions');
 assert(altHasSwitch, 'switchRate 50: has switch transitions');
 
 // switchRate=0: all repeats after first trial
-const altPureConfig = { ...alternatingConfig, blockId: 'test_alt_pure', switchRate: 0, startTask: 'mov' };
+const altPureConfig = {
+    ...alternatingConfig,
+    blockId: 'test_alt_pure',
+    switchRate: 0,
+    startTask: 'mov',
+};
 const altPureTrials = generateSidedTrials(altPureConfig, 20);
 for (let i = 1; i < altPureTrials.length; i++) {
-    assert(altPureTrials[i].meta.transitionType === 'Repeat',
-        `pure block: trial ${i+1} is Repeat`);
-    assert(altPureTrials[i].meta.t1_task === 'mov',
-        `pure block: trial ${i+1} is mov`);
+    assert(
+        altPureTrials[i].meta.transitionType === 'Repeat',
+        `pure block: trial ${i + 1} is Repeat`,
+    );
+    assert(altPureTrials[i].meta.t1_task === 'mov', `pure block: trial ${i + 1} is mov`);
 }
 
 // ============================================================
@@ -841,7 +994,7 @@ const altChoiceITIConfig = {
     iti: { type: 'choice', value: 100, params: [100, 600] },
 };
 const altChoiceTrials = generateSidedTrials(altChoiceITIConfig, 50);
-const itiValues = new Set(altChoiceTrials.map(t => t.meta.iti));
+const itiValues = new Set(altChoiceTrials.map((t) => t.meta.iti));
 assert(itiValues.has(100), 'choice iti: includes 100');
 assert(itiValues.has(600), 'choice iti: includes 600');
 assert(itiValues.size === 2, `choice iti: only 2 distinct values, got ${itiValues.size}`);
@@ -858,8 +1011,10 @@ for (const t of altTrials) {
     assert(t.seParams.task_2 === null, 'task_2 is null');
 
     // Alternating has no SOA, so the cue+go open at trial onset.
-    assert(t.seParams.start_go_1 === 0,
-        `go signal opens with the cue, got ${t.seParams.start_go_1}`);
+    assert(
+        t.seParams.start_go_1 === 0,
+        `go signal opens with the cue, got ${t.seParams.start_go_1}`,
+    );
     assert(t.meta.t1_stim_onset === 200, 'alternating: T1 stimulus onset = csi');
     assert(t.meta.t2_stim_onset === null, 'alternating: no T2');
 }
@@ -869,7 +1024,10 @@ section('generateSidedTrials — coherence in active pathway');
 
 for (const t of altTrials) {
     if (t.meta.t1_task === 'mov') {
-        assert(t.seParams.coh_mov_1 === 0.8, `mov trial: coh_mov_1=0.8, got ${t.seParams.coh_mov_1}`);
+        assert(
+            t.seParams.coh_mov_1 === 0.8,
+            `mov trial: coh_mov_1=0.8, got ${t.seParams.coh_mov_1}`,
+        );
         assert(t.seParams.coh_or_1 === 0, `mov trial: coh_or_1=0 (silenced)`);
     } else {
         assert(t.seParams.coh_or_1 === 0.8, `or trial: coh_or_1=0.8, got ${t.seParams.coh_or_1}`);
@@ -888,10 +1046,16 @@ const altTaskCohConfig = {
 const altTaskCohTrials = generateSidedTrials(altTaskCohConfig, 20);
 for (const t of altTaskCohTrials) {
     if (t.meta.t1_task === 'mov') {
-        assert(t.seParams.coh_mov_1 === 0.9, `task-indexed alt mov: coh_mov_1=0.9, got ${t.seParams.coh_mov_1}`);
+        assert(
+            t.seParams.coh_mov_1 === 0.9,
+            `task-indexed alt mov: coh_mov_1=0.9, got ${t.seParams.coh_mov_1}`,
+        );
         assert(t.seParams.coh_or_1 === 0, `task-indexed alt mov: coh_or_1=0 (silenced)`);
     } else {
-        assert(t.seParams.coh_or_1 === 0.4, `task-indexed alt or: coh_or_1=0.4, got ${t.seParams.coh_or_1}`);
+        assert(
+            t.seParams.coh_or_1 === 0.4,
+            `task-indexed alt or: coh_or_1=0.4, got ${t.seParams.coh_or_1}`,
+        );
         assert(t.seParams.coh_mov_1 === 0, `task-indexed alt or: coh_mov_1=0 (silenced)`);
     }
 }
@@ -901,8 +1065,10 @@ section('generateSidedTrials — no NaN or undefined in SE params');
 
 for (const t of altTrials) {
     for (const [k, v] of Object.entries(t.seParams)) {
-        assert(v !== undefined && (typeof v !== 'number' || !isNaN(v)),
-            `seParams.${k} not NaN/undefined`);
+        assert(
+            v !== undefined && (typeof v !== 'number' || !isNaN(v)),
+            `seParams.${k} not NaN/undefined`,
+        );
     }
 }
 
@@ -950,22 +1116,29 @@ for (const t of blTrials) {
     assert(t.meta.t1_task === null, 't1_task is null (asterisk)');
     assert(t.meta.t2_task !== null, 't2_task is the actual task');
     assert(t.meta.earlyResolve === true, 'earlyResolve logged in meta');
-    assert(t.meta.t2_target_dir === 0 || t.meta.t2_target_dir === 180,
-        `t2_target_dir is 0 or 180, got ${t.meta.t2_target_dir}`);
+    assert(
+        t.meta.t2_target_dir === 0 || t.meta.t2_target_dir === 180,
+        `t2_target_dir is 0 or 180, got ${t.meta.t2_target_dir}`,
+    );
 }
 
 // ============================================================
 section('generateSidedTrials — single task (switchRate 0)');
 
 for (const t of blTrials) {
-    assert(t.meta.t2_task === 'mov', `t2_task is mov (switchRate=0, startTask=mov), got ${t.meta.t2_task}`);
+    assert(
+        t.meta.t2_task === 'mov',
+        `t2_task is mov (switchRate=0, startTask=mov), got ${t.meta.t2_task}`,
+    );
 }
 
 // All transitions after first should be Repeat
 assert(blTrials[0].meta.transitionType === 'First', 'first trial is First');
 for (let i = 1; i < blTrials.length; i++) {
-    assert(blTrials[i].meta.transitionType === 'Repeat',
-        `trial ${i+1}: transitionType is Repeat, got ${blTrials[i].meta.transitionType}`);
+    assert(
+        blTrials[i].meta.transitionType === 'Repeat',
+        `trial ${i + 1}: transitionType is Repeat, got ${blTrials[i].meta.transitionType}`,
+    );
 }
 
 // ============================================================
@@ -980,17 +1153,20 @@ for (const t of blOrTrials) {
 // ============================================================
 section('generateSidedTrials — SOA sampling');
 
-const blSOAValues = new Set(blTrials.map(t => t.meta.soa));
+const blSOAValues = new Set(blTrials.map((t) => t.meta.soa));
 assert(blSOAValues.has(100) || blSOAValues.has(600), 'SOA sampled from choice set');
 // Over 20 trials with 2 choices, very likely both appear
 // But to avoid flaky tests, just check they're valid values
 for (const t of blTrials) {
-    assert(t.meta.soa === 100 || t.meta.soa === 600,
-        `SOA is 100 or 600, got ${t.meta.soa}`);
+    assert(t.meta.soa === 100 || t.meta.soa === 600, `SOA is 100 or 600, got ${t.meta.soa}`);
 }
 
 // Fixed SOA
-const baselineFixedSOA = { ...baselineConfig, blockId: 'test_bl_fixed_soa', soa: { type: 'fixed', value: 300, params: [] } };
+const baselineFixedSOA = {
+    ...baselineConfig,
+    blockId: 'test_bl_fixed_soa',
+    soa: { type: 'fixed', value: 300, params: [] },
+};
 const blFixedTrials = generateSidedTrials(baselineFixedSOA, 5);
 for (const t of blFixedTrials) {
     assert(t.meta.soa === 300, `fixed SOA: got ${t.meta.soa}, expected 300`);
@@ -1015,8 +1191,10 @@ for (const t of blTrials) {
     // PRP baseline: the whole task canvas is displaced by the SOA inside the SE
     // timeline (the asterisk is S1 and goes up at trial onset), so cue+go open
     // at soa and the stimulus lands at csi + soa.
-    assert(t.seParams.start_go_1 === t.meta.soa,
-        `go signal at soa, got ${t.seParams.start_go_1} for soa=${t.meta.soa}`);
+    assert(
+        t.seParams.start_go_1 === t.meta.soa,
+        `go signal at soa, got ${t.seParams.start_go_1} for soa=${t.meta.soa}`,
+    );
     assert(t.seParams.start_1 === t.meta.soa, 'baseline: cue start shifted by SOA');
     assert(t.meta.t1_stim_onset === null, 'baseline: T1 is the asterisk, no stimulus onset');
     assert(t.meta.t2_stim_onset === 200 + t.meta.soa, 'baseline: T2 stimulus onset = csi + soa');
@@ -1036,25 +1214,37 @@ section('generateSidedTrials — no NaN or undefined in SE params');
 
 for (const t of blTrials) {
     for (const [k, v] of Object.entries(t.seParams)) {
-        assert(v !== undefined && (typeof v !== 'number' || !isNaN(v)),
-            `seParams.${k} not NaN/undefined`);
+        assert(
+            v !== undefined && (typeof v !== 'number' || !isNaN(v)),
+            `seParams.${k} not NaN/undefined`,
+        );
     }
 }
 
 // ============================================================
-section('generateDualCanvasBlockTrials / generateSidedTrials — { target, distractor } coherence throws');
+section(
+    'generateDualCanvasBlockTrials / generateSidedTrials — { target, distractor } coherence throws',
+);
 {
     // resolveCoherence's { target, distractor } format is understood only by
     // generateBlockTrials; these two functions still do the legacy inline
     // lookup and must fail loudly rather than silently resolving undefined.
     const dcConfig = { ...dualCanvasSwitchConfig, coherence: { target: 0.8, distractor: 0 } };
     let threwDC = false;
-    try { generateDualCanvasBlockTrials(dcConfig, 4); } catch (e) { threwDC = true; }
+    try {
+        generateDualCanvasBlockTrials(dcConfig, 4);
+    } catch (e) {
+        threwDC = true;
+    }
     assert(threwDC, 'generateDualCanvasBlockTrials: { target, distractor } coherence throws');
 
     const sidedConfig = { ...alternatingConfig, coherence: { target: 0.8, distractor: 0 } };
     let threwSided = false;
-    try { generateSidedTrials(sidedConfig, 4); } catch (e) { threwSided = true; }
+    try {
+        generateSidedTrials(sidedConfig, 4);
+    } catch (e) {
+        threwSided = true;
+    }
     assert(threwSided, 'generateSidedTrials: { target, distractor } coherence throws');
 }
 
@@ -1089,8 +1279,14 @@ for (const t of altTrials) {
     assert(t.meta.t1Side === 'left', `default t1Side is left, got ${t.meta.t1Side}`);
 }
 // First trial should be on left (t1Side default)
-assert(altTrials[0].meta.side === 'left', `first trial side is left, got ${altTrials[0].meta.side}`);
-assert(altTrials[1].meta.side === 'right', `second trial side is right, got ${altTrials[1].meta.side}`);
+assert(
+    altTrials[0].meta.side === 'left',
+    `first trial side is left, got ${altTrials[0].meta.side}`,
+);
+assert(
+    altTrials[1].meta.side === 'right',
+    `second trial side is right, got ${altTrials[1].meta.side}`,
+);
 
 // ============================================================
 section('generateSidedTrials — alternating with t1Side=right');
@@ -1102,13 +1298,21 @@ for (const t of altRightTrials) {
     assert(t.meta.t1Side === 'right', `t1Side is right, got ${t.meta.t1Side}`);
 }
 // First trial should be on right (t1Side='right')
-assert(altRightTrials[0].meta.side === 'right', `first trial side is right, got ${altRightTrials[0].meta.side}`);
-assert(altRightTrials[1].meta.side === 'left', `second trial side is left, got ${altRightTrials[1].meta.side}`);
+assert(
+    altRightTrials[0].meta.side === 'right',
+    `first trial side is right, got ${altRightTrials[0].meta.side}`,
+);
+assert(
+    altRightTrials[1].meta.side === 'left',
+    `second trial side is left, got ${altRightTrials[1].meta.side}`,
+);
 // Verify alternation continues
 for (let i = 0; i < altRightTrials.length; i++) {
-    const expectedSide = (i % 2 === 0) ? 'right' : 'left';
-    assert(altRightTrials[i].meta.side === expectedSide,
-        `trial ${i+1}: side is ${expectedSide}, got ${altRightTrials[i].meta.side}`);
+    const expectedSide = i % 2 === 0 ? 'right' : 'left';
+    assert(
+        altRightTrials[i].meta.side === expectedSide,
+        `trial ${i + 1}: side is ${expectedSide}, got ${altRightTrials[i].meta.side}`,
+    );
 }
 
 // ============================================================
@@ -1149,11 +1353,15 @@ for (const t of dcRightTrials) {
     // T1 params should be on the right canvas (no SOA shift)
     // T2 params should be on the left canvas (with SOA shift)
     // T1 (right canvas): cue+go open at trial onset, undelayed.
-    assert(t.rightSeParams.start_go_1 === 0,
-        `T1 on right: start_go_1 = 0, got ${t.rightSeParams.start_go_1}`);
+    assert(
+        t.rightSeParams.start_go_1 === 0,
+        `T1 on right: start_go_1 = 0, got ${t.rightSeParams.start_go_1}`,
+    );
     // T2 (left canvas): displaced wholesale by the SOA, so cue+go open at 600.
-    assert(t.leftSeParams.start_go_1 === 600,
-        `T2 on left: start_go_1 = 600 (SOA), got ${t.leftSeParams.start_go_1}`);
+    assert(
+        t.leftSeParams.start_go_1 === 600,
+        `T2 on left: start_go_1 = 600 (SOA), got ${t.leftSeParams.start_go_1}`,
+    );
     // Roles, not sides, drive the recorded RT zero points.
     assert(t.meta.t1_stim_onset === 200, 't1Side=right: T1 stimulus onset = csi');
     assert(t.meta.t2_stim_onset === 800, 't1Side=right: T2 stimulus onset = csi + soa');
@@ -1215,9 +1423,9 @@ section('generateCongruencySequence — three conditions with uneven split');
 
 const threeCong = generateCongruencySequence(10, ['a', 'b', 'c'], [0.33, 0.33, 0.34]);
 assert(threeCong.length === 10, 'three conditions: correct length');
-const aCount = threeCong.filter(c => c === 'a').length;
-const bCount = threeCong.filter(c => c === 'b').length;
-const cCount = threeCong.filter(c => c === 'c').length;
+const aCount = threeCong.filter((c) => c === 'a').length;
+const bCount = threeCong.filter((c) => c === 'b').length;
+const cCount = threeCong.filter((c) => c === 'c').length;
 assert(aCount + bCount + cCount === 10, 'three conditions: all accounted for');
 // Math.round(10*0.33)=3, Math.round(10*0.33)=3, remainder=4
 assert(aCount === 3, `three conditions: a count=${aCount}, expected 3`);
@@ -1228,14 +1436,19 @@ assert(cCount === 4, `three conditions: c count=${cCount}, expected 4`);
 section('generateTaskSequence — unknown sequenceType throws');
 
 let threwUnknownSeq = false;
-try { generateTaskSequence(10, 'ABAB', 50, null); } catch (e) { threwUnknownSeq = true; }
+try {
+    generateTaskSequence(10, 'ABAB', 50, null);
+} catch (e) {
+    threwUnknownSeq = true;
+}
 assert(threwUnknownSeq, 'unknown sequenceType throws');
 
 // ============================================================
 section('generateTaskSequence — null startTask random coin flip');
 
 // Over 100 runs, both mov and or should appear as first task
-let seenMovFirst = false, seenOrFirst = false;
+let seenMovFirst = false,
+    seenOrFirst = false;
 for (let i = 0; i < 100; i++) {
     const seq = generateTaskSequence(1, 'Random', 0, null);
     if (seq[0] === 'mov') seenMovFirst = true;
@@ -1291,7 +1504,10 @@ assert(firstTrial.meta.t1_distractor_dir === null, 'meta: distractorDirection nu
 section('generateBlockTrials — single-task meta directions');
 
 const pureTrial = pureTrials[0];
-assert([0, 180].includes(pureTrial.meta.t1_target_dir), 'single-task: primaryDirection is 0 or 180');
+assert(
+    [0, 180].includes(pureTrial.meta.t1_target_dir),
+    'single-task: primaryDirection is 0 or 180',
+);
 assert(pureTrial.meta.t2_target_dir === null, 'single-task: ch2Direction is null');
 
 // ============================================================
@@ -1341,8 +1557,10 @@ assert(dualOrBivalentParams.coh_or_2 === 0, 'or-bivalent: or2 silenced');
 // SE: mov2_abs = start_mov_2 + mov1.end = start_mov_2 + 500
 // Desired = csi + soa = 200 + 150 = 350
 // start_mov_2 = 350 - 500 = -150
-assert(dualOrBivalentParams.start_mov_2 === -150,
-    `or-bivalent: mov2 offset = -150, got ${dualOrBivalentParams.start_mov_2}`);
+assert(
+    dualOrBivalentParams.start_mov_2 === -150,
+    `or-bivalent: mov2 offset = -150, got ${dualOrBivalentParams.start_mov_2}`,
+);
 
 // ============================================================
 section('generateDualCanvasBlockTrials — unknown t2Rule throws descriptive error');
@@ -1361,7 +1579,10 @@ try {
     unknownT2ErrorMsg = e.message;
 }
 assert(threwOnUnknownT2, 'unknown t2Rule throws');
-assert(unknownT2ErrorMsg.includes('unknown_rule'), 'error message includes the invalid t2Rule value');
+assert(
+    unknownT2ErrorMsg.includes('unknown_rule'),
+    'error message includes the invalid t2Rule value',
+);
 
 // ============================================================
 section('generateSidedTrials — pure or block (startTask=or)');
@@ -1376,7 +1597,10 @@ const altPureOrTrials = generateSidedTrials(altPureOrConfig, 10);
 for (const t of altPureOrTrials) {
     assert(t.meta.t1_task === 'or', `alt pure or: task=${t.meta.t1_task}`);
     assert(t.seParams.coh_or_1 === 0.8, `alt pure or: coh_or_1=0.8, got ${t.seParams.coh_or_1}`);
-    assert(t.seParams.coh_mov_1 === 0, `alt pure or: coh_mov_1=0 (silenced), got ${t.seParams.coh_mov_1}`);
+    assert(
+        t.seParams.coh_mov_1 === 0,
+        `alt pure or: coh_mov_1=0 (silenced), got ${t.seParams.coh_mov_1}`,
+    );
     // Silenced pathway duration should be zeroed
     assert(t.seParams.dur_mov_1 === 0, `alt pure or: dur_mov_1=0 (silenced)`);
 }
@@ -1437,8 +1661,10 @@ const soaEqualsParams = buildTrialParams(soaEqualsDurSpec);
 // or1 active (coh=0.8, distractor pathway), end = 100+300 = 400
 // desired ch2 start = csi + soa = 100+300 = 400
 // offset = 400 - 400 = 0
-assert(soaEqualsParams.start_or_2 === 0,
-    `soa=dur_ch1: or2 offset = 0, got ${soaEqualsParams.start_or_2}`);
+assert(
+    soaEqualsParams.start_or_2 === 0,
+    `soa=dur_ch1: or2 offset = 0, got ${soaEqualsParams.start_or_2}`,
+);
 
 // soa = 0 → ch2 starts at same time as ch1
 const soaZeroSpec = {
@@ -1455,8 +1681,10 @@ const soaZeroSpec = {
 const soaZeroParams = buildTrialParams(soaZeroSpec);
 // or1 silenced (coh=0 → dur=0, end=0). SE: or2_abs = start_or_2 + 0 = start_or_2
 // desired = csi + soa = 200 + 0 = 200
-assert(soaZeroParams.start_or_2 === 200,
-    `soa=0: or2 offset = 200 (absolute), got ${soaZeroParams.start_or_2}`);
+assert(
+    soaZeroParams.start_or_2 === 200,
+    `soa=0: or2 offset = 200 (absolute), got ${soaZeroParams.start_or_2}`,
+);
 // With soa=0 both channels' cues open together at 0, and both stimuli land at csi.
 assert(soaZeroParams.start_go_2 === 0, `soa=0: go2 opens with cue2 at 0`);
 assert(soaZeroParams.start_2 === 0, `soa=0: cue2 at 0`);
@@ -1469,8 +1697,8 @@ section('generateFactorialSequence — single factor');
 
 const singleFactor = generateFactorialSequence(12, { transition: ['Repeat', 'Switch'] });
 assert(singleFactor.length === 12, 'single factor: correct length');
-const repeatCount = singleFactor.filter(c => c.transition === 'Repeat').length;
-const switchCount = singleFactor.filter(c => c.transition === 'Switch').length;
+const repeatCount = singleFactor.filter((c) => c.transition === 'Repeat').length;
+const switchCount = singleFactor.filter((c) => c.transition === 'Switch').length;
 assert(repeatCount === 6, `single factor: 6 Repeat cells, got ${repeatCount}`);
 assert(switchCount === 6, `single factor: 6 Switch cells, got ${switchCount}`);
 
@@ -1542,14 +1770,20 @@ section('generateFactorialSequence — empty factors');
 
 const empty = generateFactorialSequence(5, {});
 assert(empty.length === 5, 'empty factors: correct length');
-assert(empty.every(c => Object.keys(c).length === 0), 'empty factors: all empty objects');
+assert(
+    empty.every((c) => Object.keys(c).length === 0),
+    'empty factors: all empty objects',
+);
 
 // ============================================================
 section('generateFactorialSequence — single cell (1x1)');
 
 const singleCell = generateFactorialSequence(8, { transition: ['Repeat'] });
 assert(singleCell.length === 8, 'single cell: correct length');
-assert(singleCell.every(c => c.transition === 'Repeat'), 'single cell: all Repeat');
+assert(
+    singleCell.every((c) => c.transition === 'Repeat'),
+    'single cell: all Repeat',
+);
 
 // ============================================================
 section('generateFactorialSequence — shuffled (not in product order)');
@@ -1557,7 +1791,7 @@ section('generateFactorialSequence — shuffled (not in product order)');
 // With 100 trials and 2 cells, probability of all Repeat first is vanishingly small
 const shuffleCheck = generateFactorialSequence(100, { transition: ['Repeat', 'Switch'] });
 // Check that the first 50 aren't all Repeat (would indicate no shuffle)
-const first50Repeat = shuffleCheck.slice(0, 50).every(c => c.transition === 'Repeat');
+const first50Repeat = shuffleCheck.slice(0, 50).every((c) => c.transition === 'Repeat');
 assert(!first50Repeat, 'shuffled: not all Repeat in first half');
 
 // ============================================================
@@ -1566,7 +1800,10 @@ assert(!first50Repeat, 'shuffled: not all Repeat in first half');
 
 section('deriveTasksFromTransitions — basic');
 
-const derived = deriveTasksFromTransitions(['First', 'Repeat', 'Switch', 'Switch', 'Repeat'], 'mov');
+const derived = deriveTasksFromTransitions(
+    ['First', 'Repeat', 'Switch', 'Switch', 'Repeat'],
+    'mov',
+);
 assert(derived.length === 5, 'derived: correct length');
 assert(derived[0] === 'mov', 'derived: starts with mov');
 assert(derived[1] === 'mov', 'derived: Repeat keeps mov');
@@ -1578,7 +1815,10 @@ assert(derived[4] === 'mov', 'derived: Repeat keeps mov');
 section('deriveTasksFromTransitions — all Repeat');
 
 const allRepeat = deriveTasksFromTransitions(['First', 'Repeat', 'Repeat', 'Repeat'], 'or');
-assert(allRepeat.every(t => t === 'or'), 'all Repeat: all or');
+assert(
+    allRepeat.every((t) => t === 'or'),
+    'all Repeat: all or',
+);
 
 // ============================================================
 section('deriveTasksFromTransitions — all Switch');
@@ -1597,8 +1837,10 @@ const roundtripTransitions = ['First', 'Switch', 'Repeat', 'Switch', 'Repeat', '
 const roundtripTasks = deriveTasksFromTransitions(roundtripTransitions, roundtripStart);
 const reclassified = classifyTransitions(roundtripTasks);
 for (let i = 0; i < roundtripTransitions.length; i++) {
-    assert(reclassified[i] === roundtripTransitions[i],
-        `roundtrip: index ${i} — ${reclassified[i]} === ${roundtripTransitions[i]}`);
+    assert(
+        reclassified[i] === roundtripTransitions[i],
+        `roundtrip: index ${i} — ${reclassified[i]} === ${roundtripTransitions[i]}`,
+    );
 }
 
 // ============================================================
@@ -1634,7 +1876,10 @@ assert(gsvStochastic.congruency.length === 30, 'stochastic: congruency length');
 // ============================================================
 section('generateSequenceVectors — stochastic: single-task T2 is null');
 
-assert(gsvStochastic.task2.every(t => t === null), 'stochastic single-task: all task2 null');
+assert(
+    gsvStochastic.task2.every((t) => t === null),
+    'stochastic single-task: all task2 null',
+);
 
 // ============================================================
 section('generateSequenceVectors — stochastic: first transition is First');
@@ -1645,7 +1890,10 @@ assert(gsvStochastic.transition[0] === 'First', 'stochastic: first transition is
 section('generateSequenceVectors — stochastic: SOA null when no soa config');
 
 const gsvNoSOA = generateSequenceVectors({ ...gsvBaseConfig, blockId: 'test_gsv_no_soa' }, 10);
-assert(gsvNoSOA.soa.every(s => s === null), 'no soa config: all null');
+assert(
+    gsvNoSOA.soa.every((s) => s === null),
+    'no soa config: all null',
+);
 
 // ============================================================
 section('generateSequenceVectors — missing congruency defaults to univalent');
@@ -1653,33 +1901,44 @@ section('generateSequenceVectors — missing congruency defaults to univalent');
 const gsvNoCong = { ...gsvBaseConfig, blockId: 'test_gsv_no_cong' };
 delete gsvNoCong.congruency;
 const vecNoCong = generateSequenceVectors(gsvNoCong, 10);
-assert(vecNoCong.congruency.every(c => c === 'univalent'), 'missing congruency: all univalent');
+assert(
+    vecNoCong.congruency.every((c) => c === 'univalent'),
+    'missing congruency: all univalent',
+);
 
 // ============================================================
 section('generateSequenceVectors — dual-task: T2 defaults to switch');
 
-const gsvDualTask = generateSequenceVectors({
-    ...gsvBaseConfig,
-    blockId: 'test_gsv_dual',
-    paradigm: 'dual-task',
-    task1: 'mov',
-    soa: { type: 'choice', value: 100, params: [100, 600] },
-}, 20);
+const gsvDualTask = generateSequenceVectors(
+    {
+        ...gsvBaseConfig,
+        blockId: 'test_gsv_dual',
+        paradigm: 'dual-task',
+        task1: 'mov',
+        soa: { type: 'choice', value: 100, params: [100, 600] },
+    },
+    20,
+);
 for (let i = 0; i < 20; i++) {
-    assert(gsvDualTask.task2[i] === switchTask(gsvDualTask.task1[i]),
-        `dual-task default: task2 is switchTask(task1) at trial ${i+1}`);
+    assert(
+        gsvDualTask.task2[i] === switchTask(gsvDualTask.task1[i]),
+        `dual-task default: task2 is switchTask(task1) at trial ${i + 1}`,
+    );
 }
 
 // ============================================================
 section('generateSequenceVectors — dual-canvas: T2 defaults to independent');
 
-const gsvDualCanvas = generateSequenceVectors({
-    ...gsvBaseConfig,
-    blockId: 'test_gsv_dc',
-    paradigm: 'dual-canvas',
-    rso: 'disjoint',
-    soa: { type: 'fixed', value: 100 },
-}, 60);
+const gsvDualCanvas = generateSequenceVectors(
+    {
+        ...gsvBaseConfig,
+        blockId: 'test_gsv_dc',
+        paradigm: 'dual-canvas',
+        rso: 'disjoint',
+        soa: { type: 'fixed', value: 100 },
+    },
+    60,
+);
 // With independent T2 over 60 trials, expect both same and different pairings
 const dcHasSame = gsvDualCanvas.task1.some((t, i) => t === gsvDualCanvas.task2[i]);
 const dcHasDiff = gsvDualCanvas.task1.some((t, i) => t !== gsvDualCanvas.task2[i]);
@@ -1691,51 +1950,72 @@ section('generateSequenceVectors — dual-canvas: transitions reflect T1-T2 matc
 
 for (let i = 0; i < gsvDualCanvas.task1.length; i++) {
     const expected = gsvDualCanvas.task1[i] === gsvDualCanvas.task2[i] ? 'Repeat' : 'Switch';
-    assert(gsvDualCanvas.transition[i] === expected,
-        `dual-canvas transition[${i}]: ${gsvDualCanvas.transition[i]} === ${expected}`);
+    assert(
+        gsvDualCanvas.transition[i] === expected,
+        `dual-canvas transition[${i}]: ${gsvDualCanvas.transition[i]} === ${expected}`,
+    );
 }
 
 // ============================================================
 section('generateSequenceVectors — prp-baseline: task1 null, task2 has actual task');
 
-const gsvBaseline = generateSequenceVectors({
-    ...gsvBaseConfig,
-    blockId: 'test_gsv_bl',
-    paradigm: 'prp-baseline',
-    switchRate: 0,
-    startTask: 'mov',
-    soa: { type: 'fixed', value: 100 },
-}, 10);
-assert(gsvBaseline.task1.every(t => t === null), 'prp-baseline: all task1 null');
-assert(gsvBaseline.task2.every(t => t === 'mov'), 'prp-baseline: all task2 mov');
+const gsvBaseline = generateSequenceVectors(
+    {
+        ...gsvBaseConfig,
+        blockId: 'test_gsv_bl',
+        paradigm: 'prp-baseline',
+        switchRate: 0,
+        startTask: 'mov',
+        soa: { type: 'fixed', value: 100 },
+    },
+    10,
+);
+assert(
+    gsvBaseline.task1.every((t) => t === null),
+    'prp-baseline: all task1 null',
+);
+assert(
+    gsvBaseline.task2.every((t) => t === 'mov'),
+    'prp-baseline: all task2 mov',
+);
 
 // ============================================================
 section('generateSequenceVectors — effectiveStartTask: dual-task uses task1 field');
 
-const gsvDTStart = generateSequenceVectors({
-    ...gsvBaseConfig,
-    blockId: 'test_gsv_dt_start',
-    paradigm: 'dual-task',
-    task1: 'or',
-    startTask: null,
-    switchRate: 0,
-    soa: { type: 'fixed', value: 100 },
-}, 10);
+const gsvDTStart = generateSequenceVectors(
+    {
+        ...gsvBaseConfig,
+        blockId: 'test_gsv_dt_start',
+        paradigm: 'dual-task',
+        task1: 'or',
+        startTask: null,
+        switchRate: 0,
+        soa: { type: 'fixed', value: 100 },
+    },
+    10,
+);
 // task1 field is 'or', so all task1 should be 'or'
-assert(gsvDTStart.task1.every(t => t === 'or'), 'dual-task start: uses task1 field, all or');
+assert(
+    gsvDTStart.task1.every((t) => t === 'or'),
+    'dual-task start: uses task1 field, all or',
+);
 
 // ============================================================
 section('generateSequenceVectors — effectiveStartTask: single-task uses startTask (null = random)');
 
 // Over 50 runs, null startTask should produce both mov and or
-let gsvSeenMov = false, gsvSeenOr = false;
+let gsvSeenMov = false,
+    gsvSeenOr = false;
 for (let i = 0; i < 50; i++) {
-    const v = generateSequenceVectors({
-        ...gsvBaseConfig,
-        blockId: 'test_gsv_st_random',
-        startTask: null,
-        switchRate: 0,
-    }, 1);
+    const v = generateSequenceVectors(
+        {
+            ...gsvBaseConfig,
+            blockId: 'test_gsv_st_random',
+            startTask: null,
+            switchRate: 0,
+        },
+        1,
+    );
     if (v.task1[0] === 'mov') gsvSeenMov = true;
     if (v.task1[0] === 'or') gsvSeenOr = true;
 }
@@ -1747,12 +2027,15 @@ section('generateSequenceVectors — Factorial: switchRate validation');
 
 let threwOnBadRate = false;
 try {
-    generateSequenceVectors({
-        ...gsvBaseConfig,
-        blockId: 'test_gsv_bad_rate',
-        sequenceType: 'Factorial',
-        switchRate: 75,
-    }, 10);
+    generateSequenceVectors(
+        {
+            ...gsvBaseConfig,
+            blockId: 'test_gsv_bad_rate',
+            sequenceType: 'Factorial',
+            switchRate: 75,
+        },
+        10,
+    );
 } catch (e) {
     threwOnBadRate = true;
 }
@@ -1761,13 +2044,16 @@ assert(threwOnBadRate, 'Factorial throws on switchRate 75');
 // switchRate 0 should NOT throw
 let threwOnZeroRate = false;
 try {
-    generateSequenceVectors({
-        ...gsvBaseConfig,
-        blockId: 'test_gsv_zero_rate',
-        sequenceType: 'Factorial',
-        switchRate: 0,
-        startTask: 'mov',
-    }, 10);
+    generateSequenceVectors(
+        {
+            ...gsvBaseConfig,
+            blockId: 'test_gsv_zero_rate',
+            sequenceType: 'Factorial',
+            switchRate: 0,
+            startTask: 'mov',
+        },
+        10,
+    );
 } catch (e) {
     threwOnZeroRate = true;
 }
@@ -1776,35 +2062,47 @@ assert(!threwOnZeroRate, 'Factorial does not throw on switchRate 0');
 // ============================================================
 section('generateSequenceVectors — Factorial: pure block (switchRate=0, all Repeat)');
 
-const gsvFactPure = generateSequenceVectors({
-    ...gsvBaseConfig,
-    blockId: 'test_gsv_fact_pure',
-    sequenceType: 'Factorial',
-    switchRate: 0,
-    startTask: 'mov',
-    iti: { type: 'choice', params: [100, 600] },
-}, 10);
+const gsvFactPure = generateSequenceVectors(
+    {
+        ...gsvBaseConfig,
+        blockId: 'test_gsv_fact_pure',
+        sequenceType: 'Factorial',
+        switchRate: 0,
+        startTask: 'mov',
+        iti: { type: 'choice', params: [100, 600] },
+    },
+    10,
+);
 assert(gsvFactPure.transition[0] === 'First', 'Factorial pure: first is First');
-assert(gsvFactPure.transition.slice(1).every(t => t === 'Repeat'), 'Factorial pure: rest are Repeat');
-assert(gsvFactPure.task1.every(t => t === 'mov'), 'Factorial pure: all mov');
+assert(
+    gsvFactPure.transition.slice(1).every((t) => t === 'Repeat'),
+    'Factorial pure: rest are Repeat',
+);
+assert(
+    gsvFactPure.task1.every((t) => t === 'mov'),
+    'Factorial pure: all mov',
+);
 // ITI should still be crossed
 const factPureITI = new Set(gsvFactPure.iti);
 assert(factPureITI.has(100) && factPureITI.has(600), 'Factorial pure: ITI crossed');
-assert(gsvFactPure.iti.filter(v => v === 100).length === 5, 'Factorial pure: balanced ITI 100');
-assert(gsvFactPure.iti.filter(v => v === 600).length === 5, 'Factorial pure: balanced ITI 600');
+assert(gsvFactPure.iti.filter((v) => v === 100).length === 5, 'Factorial pure: balanced ITI 100');
+assert(gsvFactPure.iti.filter((v) => v === 600).length === 5, 'Factorial pure: balanced ITI 600');
 
 // ============================================================
 section('generateSequenceVectors — Factorial: transition x SOA crossed');
 
-const gsvFactCrossed = generateSequenceVectors({
-    ...gsvBaseConfig,
-    blockId: 'test_gsv_fact_crossed',
-    sequenceType: 'Factorial',
-    switchRate: 50,
-    startTask: 'mov',
-    soa: { type: 'choice', params: [100, 600] },
-    iti: { type: 'fixed', value: 500 },
-}, 20);
+const gsvFactCrossed = generateSequenceVectors(
+    {
+        ...gsvBaseConfig,
+        blockId: 'test_gsv_fact_crossed',
+        sequenceType: 'Factorial',
+        switchRate: 50,
+        startTask: 'mov',
+        soa: { type: 'choice', params: [100, 600] },
+        iti: { type: 'fixed', value: 500 },
+    },
+    20,
+);
 assert(gsvFactCrossed.transition[0] === 'First', 'Factorial crossed: first is First');
 // After first trial, check balanced cells (ignoring first which is forced to First)
 // 20 trials, 4 cells (2 trans x 2 soa). First trial forced to First.
@@ -1819,32 +2117,44 @@ for (let i = 1; i < 20; i++) {
 // remain with the original SOA values but a modified transition[0].
 // Total Repeat + Switch in trials 1..19 should be 19
 const factNonFirstCount = Object.values(factCellCounts).reduce((a, b) => a + b, 0);
-assert(factNonFirstCount === 19, `Factorial crossed: 19 non-First trials, got ${factNonFirstCount}`);
+assert(
+    factNonFirstCount === 19,
+    `Factorial crossed: 19 non-First trials, got ${factNonFirstCount}`,
+);
 // SOA should be perfectly balanced across all 20 trials (First override doesn't touch SOA)
-const soa100Count = gsvFactCrossed.soa.filter(s => s === 100).length;
-const soa600Count = gsvFactCrossed.soa.filter(s => s === 600).length;
+const soa100Count = gsvFactCrossed.soa.filter((s) => s === 100).length;
+const soa600Count = gsvFactCrossed.soa.filter((s) => s === 600).length;
 assert(soa100Count === 10, `Factorial crossed: 10 SOA=100, got ${soa100Count}`);
 assert(soa600Count === 10, `Factorial crossed: 10 SOA=600, got ${soa600Count}`);
 
 // ============================================================
 section('generateSequenceVectors — Factorial: congruency crossed');
 
-const gsvFactCong = generateSequenceVectors({
-    ...gsvBaseConfig,
-    blockId: 'test_gsv_fact_cong',
-    sequenceType: 'Factorial',
-    switchRate: 50,
-    startTask: 'mov',
-    congruency: { conditions: ['congruent', 'incongruent'], proportions: [0.5, 0.5] },
-    iti: { type: 'fixed', value: 500 },
-}, 24);
+const gsvFactCong = generateSequenceVectors(
+    {
+        ...gsvBaseConfig,
+        blockId: 'test_gsv_fact_cong',
+        sequenceType: 'Factorial',
+        switchRate: 50,
+        startTask: 'mov',
+        congruency: { conditions: ['congruent', 'incongruent'], proportions: [0.5, 0.5] },
+        iti: { type: 'fixed', value: 500 },
+    },
+    24,
+);
 // 2 transitions x 2 congruencies = 4 cells, 24/4 = 6 each
 const congCounts = {};
 for (const c of gsvFactCong.congruency) {
     congCounts[c] = (congCounts[c] || 0) + 1;
 }
-assert(congCounts['congruent'] === 12, `Factorial cong: 12 congruent, got ${congCounts['congruent']}`);
-assert(congCounts['incongruent'] === 12, `Factorial cong: 12 incongruent, got ${congCounts['incongruent']}`);
+assert(
+    congCounts['congruent'] === 12,
+    `Factorial cong: 12 congruent, got ${congCounts['congruent']}`,
+);
+assert(
+    congCounts['incongruent'] === 12,
+    `Factorial cong: 12 incongruent, got ${congCounts['incongruent']}`,
+);
 
 // ============================================================
 section('generateSequenceVectors — Factorial: task sequence consistent with transitions');
@@ -1854,43 +2164,58 @@ for (let i = 1; i < gsvFactCrossed.task1.length; i++) {
     const prev = gsvFactCrossed.task1[i - 1];
     const curr = gsvFactCrossed.task1[i];
     const expected = curr === prev ? 'Repeat' : 'Switch';
-    assert(gsvFactCrossed.transition[i] === expected,
-        `Factorial task-transition consistency: trial ${i+1} ${prev}->${curr} = ${expected}`);
+    assert(
+        gsvFactCrossed.transition[i] === expected,
+        `Factorial task-transition consistency: trial ${i + 1} ${prev}->${curr} = ${expected}`,
+    );
 }
 
 // ============================================================
 section('generateSequenceVectors — Factorial: non-crossed factors use fallback sampling');
 
-const gsvFactFallback = generateSequenceVectors({
-    ...gsvBaseConfig,
-    blockId: 'test_gsv_fact_fb',
-    sequenceType: 'Factorial',
-    switchRate: 50,
-    startTask: 'mov',
-    soa: { type: 'fixed', value: 200 },  // fixed, so not crossed
-    iti: { type: 'choice', params: [100, 600] },  // choice, so crossed
-}, 12);
+const gsvFactFallback = generateSequenceVectors(
+    {
+        ...gsvBaseConfig,
+        blockId: 'test_gsv_fact_fb',
+        sequenceType: 'Factorial',
+        switchRate: 50,
+        startTask: 'mov',
+        soa: { type: 'fixed', value: 200 }, // fixed, so not crossed
+        iti: { type: 'choice', params: [100, 600] }, // choice, so crossed
+    },
+    12,
+);
 // SOA should be sampled from fixed distribution (all 200)
-assert(gsvFactFallback.soa.every(s => s === 200),
-    'Factorial fallback: fixed SOA all 200');
+assert(
+    gsvFactFallback.soa.every((s) => s === 200),
+    'Factorial fallback: fixed SOA all 200',
+);
 // ITI should be crossed (balanced). numTrials must be divisible by the cell
 // count (2 transitions x 2 ITIs = 4): generateFactorialSequence fills any
 // remainder with RANDOM cells, so 10 trials gave 4 + Binomial(2, .5) ITI=100
 // rows and this assertion failed on ~50% of runs.
-assert(gsvFactFallback.iti.filter(v => v === 100).length === 6,
-    'Factorial fallback: ITI 100 balanced');
+assert(
+    gsvFactFallback.iti.filter((v) => v === 100).length === 6,
+    'Factorial fallback: ITI 100 balanced',
+);
 
 // ============================================================
 section('generateSequenceVectors — Factorial: SOA null when no soa config');
 
-const gsvFactNoSOA = generateSequenceVectors({
-    ...gsvBaseConfig,
-    blockId: 'test_gsv_fact_no_soa',
-    sequenceType: 'Factorial',
-    switchRate: 0,
-    startTask: 'mov',
-}, 8);
-assert(gsvFactNoSOA.soa.every(s => s === null), 'Factorial no soa: all null');
+const gsvFactNoSOA = generateSequenceVectors(
+    {
+        ...gsvBaseConfig,
+        blockId: 'test_gsv_fact_no_soa',
+        sequenceType: 'Factorial',
+        switchRate: 0,
+        startTask: 'mov',
+    },
+    8,
+);
+assert(
+    gsvFactNoSOA.soa.every((s) => s === null),
+    'Factorial no soa: all null',
+);
 
 // ============================================================
 // NEW: Integration — generateBlockTrials with Factorial
@@ -1918,23 +2243,30 @@ const factTrials = generateBlockTrials(factBlockConfig, 20);
 assert(factTrials.length === 20, 'Factorial block: 20 trials');
 
 // All SOAs should be null for single-task
-assert(factTrials.every(t => t.meta.soa === null), 'Factorial block: SOA null for single-task');
+assert(
+    factTrials.every((t) => t.meta.soa === null),
+    'Factorial block: SOA null for single-task',
+);
 
 // First trial is First
 assert(factTrials[0].meta.transitionType === 'First', 'Factorial block: first is First');
 
 // Transitions (excluding first) should be balanced: ~9-10 Repeat, ~9-10 Switch
-const factRepeat = factTrials.filter(t => t.meta.transitionType === 'Repeat').length;
-const factSwitch = factTrials.filter(t => t.meta.transitionType === 'Switch').length;
+const factRepeat = factTrials.filter((t) => t.meta.transitionType === 'Repeat').length;
+const factSwitch = factTrials.filter((t) => t.meta.transitionType === 'Switch').length;
 // 20 trials: 1 First + 19 distributed. Original pool has 10R/10S, one becomes First.
-assert(factRepeat + factSwitch === 19,
-    `Factorial block: 19 non-First transitions, got ${factRepeat + factSwitch}`);
+assert(
+    factRepeat + factSwitch === 19,
+    `Factorial block: 19 non-First transitions, got ${factRepeat + factSwitch}`,
+);
 
 // SE params should be valid
 for (const t of factTrials) {
     for (const [k, v] of Object.entries(t.seParams)) {
-        assert(v !== undefined && (typeof v !== 'number' || !isNaN(v)),
-            `Factorial block: seParams.${k} not NaN/undefined`);
+        assert(
+            v !== undefined && (typeof v !== 'number' || !isNaN(v)),
+            `Factorial block: seParams.${k} not NaN/undefined`,
+        );
     }
 }
 
@@ -1963,15 +2295,14 @@ const factPRPTrials = generateBlockTrials(factPRPConfig, 20);
 assert(factPRPTrials.length === 20, 'Factorial PRP: 20 trials');
 
 // SOA should be balanced
-const prpSOA100 = factPRPTrials.filter(t => t.meta.soa === 100).length;
-const prpSOA600 = factPRPTrials.filter(t => t.meta.soa === 600).length;
+const prpSOA100 = factPRPTrials.filter((t) => t.meta.soa === 100).length;
+const prpSOA600 = factPRPTrials.filter((t) => t.meta.soa === 600).length;
 assert(prpSOA100 === 10, `Factorial PRP: 10 SOA=100, got ${prpSOA100}`);
 assert(prpSOA600 === 10, `Factorial PRP: 10 SOA=600, got ${prpSOA600}`);
 
 // T2 should always be switch of T1 (default t2Rule for dual-task)
 for (const t of factPRPTrials) {
-    assert(t.meta.t2_task === switchTask(t.meta.t1_task),
-        `Factorial PRP: T2 is switch of T1`);
+    assert(t.meta.t2_task === switchTask(t.meta.t1_task), `Factorial PRP: T2 is switch of T1`);
 }
 
 // ============================================================
@@ -1986,10 +2317,15 @@ const factPureBlockConfig = {
 
 const factPureTrials = generateBlockTrials(factPureBlockConfig, 12);
 assert(factPureTrials.length === 12, 'Factorial pure block: 12 trials');
-assert(factPureTrials.every(t => t.meta.t1_task === 'or'), 'Factorial pure block: all or');
+assert(
+    factPureTrials.every((t) => t.meta.t1_task === 'or'),
+    'Factorial pure block: all or',
+);
 assert(factPureTrials[0].meta.transitionType === 'First', 'Factorial pure block: first is First');
-assert(factPureTrials.slice(1).every(t => t.meta.transitionType === 'Repeat'),
-    'Factorial pure block: rest are Repeat');
+assert(
+    factPureTrials.slice(1).every((t) => t.meta.transitionType === 'Repeat'),
+    'Factorial pure block: rest are Repeat',
+);
 
 // ============================================================
 // NEW: Integration — generateSidedTrials with Factorial
@@ -2016,26 +2352,33 @@ const factAltTrials = generateSidedTrials(factAltConfig, 20);
 assert(factAltTrials.length === 20, 'Factorial alternating: 20 trials');
 
 // SOA should be null for alternating
-assert(factAltTrials.every(t => t.meta.soa === null), 'Factorial alternating: SOA null');
+assert(
+    factAltTrials.every((t) => t.meta.soa === null),
+    'Factorial alternating: SOA null',
+);
 
 // ITI should be balanced
-const altITI100 = factAltTrials.filter(t => t.meta.iti === 100).length;
-const altITI600 = factAltTrials.filter(t => t.meta.iti === 600).length;
+const altITI100 = factAltTrials.filter((t) => t.meta.iti === 100).length;
+const altITI600 = factAltTrials.filter((t) => t.meta.iti === 600).length;
 assert(altITI100 === 10, `Factorial alternating: 10 ITI=100, got ${altITI100}`);
 assert(altITI600 === 10, `Factorial alternating: 10 ITI=600, got ${altITI600}`);
 
 // Sides alternate
 for (let i = 0; i < factAltTrials.length; i++) {
-    const expected = (i % 2 === 0) ? 'left' : 'right';
-    assert(factAltTrials[i].meta.side === expected,
-        `Factorial alternating: trial ${i+1} side=${factAltTrials[i].meta.side}`);
+    const expected = i % 2 === 0 ? 'left' : 'right';
+    assert(
+        factAltTrials[i].meta.side === expected,
+        `Factorial alternating: trial ${i + 1} side=${factAltTrials[i].meta.side}`,
+    );
 }
 
 // No NaN/undefined in SE params
 for (const t of factAltTrials) {
     for (const [k, v] of Object.entries(t.seParams)) {
-        assert(v !== undefined && (typeof v !== 'number' || !isNaN(v)),
-            `Factorial alternating: seParams.${k} not NaN/undefined`);
+        assert(
+            v !== undefined && (typeof v !== 'number' || !isNaN(v)),
+            `Factorial alternating: seParams.${k} not NaN/undefined`,
+        );
     }
 }
 
@@ -2062,15 +2405,24 @@ const factBlTrials = generateSidedTrials(factBlConfig, 10);
 assert(factBlTrials.length === 10, 'Factorial baseline: 10 trials');
 
 // SOA should be balanced
-const blSOA100 = factBlTrials.filter(t => t.meta.soa === 100).length;
-const blSOA600 = factBlTrials.filter(t => t.meta.soa === 600).length;
+const blSOA100 = factBlTrials.filter((t) => t.meta.soa === 100).length;
+const blSOA600 = factBlTrials.filter((t) => t.meta.soa === 600).length;
 assert(blSOA100 === 5, `Factorial baseline: 5 SOA=100, got ${blSOA100}`);
 assert(blSOA600 === 5, `Factorial baseline: 5 SOA=600, got ${blSOA600}`);
 
 // Task remapping: t1 null, t2 has actual task
-assert(factBlTrials.every(t => t.meta.t1_task === null), 'Factorial baseline: all t1_task null');
-assert(factBlTrials.every(t => t.meta.t2_task === 'mov'), 'Factorial baseline: all t2_task mov');
-assert(factBlTrials.every(t => t.meta.side === 'right'), 'Factorial baseline: all side right');
+assert(
+    factBlTrials.every((t) => t.meta.t1_task === null),
+    'Factorial baseline: all t1_task null',
+);
+assert(
+    factBlTrials.every((t) => t.meta.t2_task === 'mov'),
+    'Factorial baseline: all t2_task mov',
+);
+assert(
+    factBlTrials.every((t) => t.meta.side === 'right'),
+    'Factorial baseline: all side right',
+);
 
 // ============================================================
 // NEW: Integration — generateDualCanvasBlockTrials with Factorial
@@ -2101,8 +2453,8 @@ const factDCTrials = generateDualCanvasBlockTrials(factDCConfig, 20);
 assert(factDCTrials.length === 20, 'Factorial dual-canvas: 20 trials');
 
 // SOA balanced
-const dcSOA100 = factDCTrials.filter(t => t.meta.soa === 100).length;
-const dcSOA600 = factDCTrials.filter(t => t.meta.soa === 600).length;
+const dcSOA100 = factDCTrials.filter((t) => t.meta.soa === 100).length;
+const dcSOA600 = factDCTrials.filter((t) => t.meta.soa === 600).length;
 assert(dcSOA100 === 10, `Factorial dual-canvas: 10 SOA=100, got ${dcSOA100}`);
 assert(dcSOA600 === 10, `Factorial dual-canvas: 10 SOA=600, got ${dcSOA600}`);
 
@@ -2110,7 +2462,10 @@ assert(dcSOA600 === 10, `Factorial dual-canvas: 10 SOA=600, got ${dcSOA600}`);
 for (const t of factDCTrials) {
     assert(t.meta.t1_task !== t.meta.t2_task, 'Factorial dual-canvas switch: T1 !== T2');
     // With switch rule, transitions are always Switch
-    assert(t.meta.transitionType === 'Switch', 'Factorial dual-canvas switch: transition is Switch');
+    assert(
+        t.meta.transitionType === 'Switch',
+        'Factorial dual-canvas switch: transition is Switch',
+    );
 }
 
 // Return shape preserved
@@ -2120,12 +2475,16 @@ assert(factDCTrials[0].rightSeParams !== undefined, 'Factorial dual-canvas: has 
 // No NaN/undefined
 for (const t of factDCTrials) {
     for (const [k, v] of Object.entries(t.leftSeParams)) {
-        assert(v !== undefined && (typeof v !== 'number' || !isNaN(v)),
-            `Factorial dual-canvas: leftSeParams.${k} not NaN/undefined`);
+        assert(
+            v !== undefined && (typeof v !== 'number' || !isNaN(v)),
+            `Factorial dual-canvas: leftSeParams.${k} not NaN/undefined`,
+        );
     }
     for (const [k, v] of Object.entries(t.rightSeParams)) {
-        assert(v !== undefined && (typeof v !== 'number' || !isNaN(v)),
-            `Factorial dual-canvas: rightSeParams.${k} not NaN/undefined`);
+        assert(
+            v !== undefined && (typeof v !== 'number' || !isNaN(v)),
+            `Factorial dual-canvas: rightSeParams.${k} not NaN/undefined`,
+        );
     }
 }
 
@@ -2135,47 +2494,94 @@ assert(pickCoherenceValue(0.5, null, null) === 0.5, 'scalar');
 assert(pickCoherenceValue(0.5, 'mov', 'easy') === 0.5, 'scalar ignores task/level');
 assert(pickCoherenceValue({ mov: 0.8, or: 0.3 }, 'mov', null) === 0.8, 'task-keyed mov');
 assert(pickCoherenceValue({ mov: 0.8, or: 0.3 }, 'or', null) === 0.3, 'task-keyed or');
-assert(pickCoherenceValue({ low: 0.25, mid: 0.45, high: 0.7 }, null, 'mid') === 0.45, 'level-keyed');
-assert(pickCoherenceValue({ low: 0.25, mid: 0.45, high: 0.7 }, 'mov', 'high') === 0.7,
-    'level-keyed falls through when task not a key');
-assert(pickCoherenceValue({ mov: { easy: 0.8, hard: 0.3 }, or: { easy: 0.8, hard: 0.3 } }, 'mov', 'hard') === 0.3,
-    'task-then-level');
+assert(
+    pickCoherenceValue({ low: 0.25, mid: 0.45, high: 0.7 }, null, 'mid') === 0.45,
+    'level-keyed',
+);
+assert(
+    pickCoherenceValue({ low: 0.25, mid: 0.45, high: 0.7 }, 'mov', 'high') === 0.7,
+    'level-keyed falls through when task not a key',
+);
+assert(
+    pickCoherenceValue(
+        { mov: { easy: 0.8, hard: 0.3 }, or: { easy: 0.8, hard: 0.3 } },
+        'mov',
+        'hard',
+    ) === 0.3,
+    'task-then-level',
+);
 
 // ============================================================
 section('resolveCoherence — three config formats');
 // 1. channel-indexed used as-is
-const rcChannel = resolveCoherence({ ch1_task: 0.8, ch1_distractor: 0, ch2_task: 0.6, ch2_distractor: 0 },
-    'mov', 'or', true, null, null);
+const rcChannel = resolveCoherence(
+    { ch1_task: 0.8, ch1_distractor: 0, ch2_task: 0.6, ch2_distractor: 0 },
+    'mov',
+    'or',
+    true,
+    null,
+    null,
+);
 assert(rcChannel.ch1_task === 0.8 && rcChannel.ch2_task === 0.6, 'channel-indexed passthrough');
 // 2. target/distractor, single-task bivalent
-const rcTD = resolveCoherence({ target: { mov: 0.8, or: 0.3 }, distractor: 0.5 },
-    'mov', null, false, null, null);
-assert(rcTD.ch1_task === 0.8 && rcTD.ch1_distractor === 0.5 && rcTD.ch2_task === 0,
-    'target/distractor single-task');
+const rcTD = resolveCoherence(
+    { target: { mov: 0.8, or: 0.3 }, distractor: 0.5 },
+    'mov',
+    null,
+    false,
+    null,
+    null,
+);
+assert(
+    rcTD.ch1_task === 0.8 && rcTD.ch1_distractor === 0.5 && rcTD.ch2_task === 0,
+    'target/distractor single-task',
+);
 // 2b. leveled target + distractor
-const rcLvl = resolveCoherence({ target: { low: 0.25, mid: 0.45, high: 0.7 }, distractor: { low: 0.25, mid: 0.45, high: 0.7 } },
-    'mov', null, false, 'mid', 'high');
+const rcLvl = resolveCoherence(
+    {
+        target: { low: 0.25, mid: 0.45, high: 0.7 },
+        distractor: { low: 0.25, mid: 0.45, high: 0.7 },
+    },
+    'mov',
+    null,
+    false,
+    'mid',
+    'high',
+);
 assert(rcLvl.ch1_task === 0.45 && rcLvl.ch1_distractor === 0.7, 'leveled target/distractor');
 // 3. legacy task-indexed { mov, or }
 const rcLegacy = resolveCoherence({ mov: 0.3, or: 0.7 }, 'mov', 'or', true, null, null);
-assert(rcLegacy.ch1_task === 0.3 && rcLegacy.ch2_task === 0.7 && rcLegacy.ch1_distractor === 0,
-    'legacy task-indexed');
+assert(
+    rcLegacy.ch1_task === 0.3 && rcLegacy.ch2_task === 0.7 && rcLegacy.ch1_distractor === 0,
+    'legacy task-indexed',
+);
 
 // ============================================================
 section('generateSequenceVectors — levelFactors crossed and balanced');
 const lfConfig = {
-    paradigm: 'single-task', sequenceType: 'Factorial', switchRate: 50, startTask: 'mov',
-    csi: 0, stimulusDuration: 100, responseWindow: 100,
+    paradigm: 'single-task',
+    sequenceType: 'Factorial',
+    switchRate: 50,
+    startTask: 'mov',
+    csi: 0,
+    stimulusDuration: 100,
+    responseWindow: 100,
     iti: { type: 'fixed', value: 0 },
     congruency: { conditions: ['congruent', 'incongruent'], proportions: [0.5, 0.5] },
     levelFactors: { target: ['easy', 'hard'] },
     keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'a', 0: 'd' } },
-    coherence: { target: { mov: { easy: 0.8, hard: 0.3 }, or: { easy: 0.8, hard: 0.3 } }, distractor: 0.5 },
+    coherence: {
+        target: { mov: { easy: 0.8, hard: 0.3 }, or: { easy: 0.8, hard: 0.3 } },
+        distractor: 0.5,
+    },
 };
 const lfVec = generateSequenceVectors(lfConfig, 64);
 assert(lfVec.targetLevel && lfVec.targetLevel.length === 64, 'targetLevel vector length');
-assert(lfVec.targetLevel.every(l => l === 'easy' || l === 'hard'), 'targetLevel values valid');
-const nEasy = lfVec.targetLevel.filter(l => l === 'easy').length;
+assert(
+    lfVec.targetLevel.every((l) => l === 'easy' || l === 'hard'),
+    'targetLevel values valid',
+);
+const nEasy = lfVec.targetLevel.filter((l) => l === 'easy').length;
 assert(nEasy === 32, `targetLevel balanced 32/32 (got ${nEasy} easy)`);
 
 // ============================================================
@@ -2184,8 +2590,10 @@ const lfTrials = generateBlockTrials(lfConfig, 64);
 for (const t of lfTrials) {
     const task = t.meta.t1_task;
     const expected = t.meta.target_coh_level === 'easy' ? 0.8 : 0.3;
-    assert(t.seParams['coh_' + task + '_1'] === expected,
-        `level ${t.meta.target_coh_level} -> coh ${expected} for ${task}`);
+    assert(
+        t.seParams['coh_' + task + '_1'] === expected,
+        `level ${t.meta.target_coh_level} -> coh ${expected} for ${task}`,
+    );
     // bivalent: the other dimension carries the distractor coherence and is visible
     const distDim = task === 'mov' ? 'or' : 'mov';
     assert(t.seParams['coh_' + distDim + '_1'] === 0.5, 'distractor coherence 0.5');
@@ -2196,20 +2604,35 @@ for (const t of lfTrials) {
 // ============================================================
 section('generateBlockTrials — crossed target x distractor levels (Stroop crossed)');
 const scConfig = {
-    paradigm: 'single-task', sequenceType: 'Factorial', switchRate: 0, startTask: 'mov', task1: 'mov',
-    csi: 0, stimulusDuration: 100, responseWindow: 100, iti: { type: 'fixed', value: 0 },
+    paradigm: 'single-task',
+    sequenceType: 'Factorial',
+    switchRate: 0,
+    startTask: 'mov',
+    task1: 'mov',
+    csi: 0,
+    stimulusDuration: 100,
+    responseWindow: 100,
+    iti: { type: 'fixed', value: 0 },
     congruency: { conditions: ['congruent', 'incongruent'], proportions: [0.5, 0.5] },
     levelFactors: { target: ['low', 'mid', 'high'], distractor: ['low', 'mid', 'high'] },
     keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'a', 0: 'd' } },
-    coherence: { target: { low: 0.25, mid: 0.45, high: 0.7 }, distractor: { low: 0.25, mid: 0.45, high: 0.7 } },
+    coherence: {
+        target: { low: 0.25, mid: 0.45, high: 0.7 },
+        distractor: { low: 0.25, mid: 0.45, high: 0.7 },
+    },
 };
 const scTrials = generateBlockTrials(scConfig, 18);
 const levelMap = { low: 0.25, mid: 0.45, high: 0.7 };
 for (const t of scTrials) {
     assert(t.seParams.coh_mov_1 === levelMap[t.meta.target_coh_level], 'target level -> coh');
-    assert(t.seParams.coh_or_1 === levelMap[t.meta.distractor_coh_level], 'distractor level -> coh');
+    assert(
+        t.seParams.coh_or_1 === levelMap[t.meta.distractor_coh_level],
+        'distractor level -> coh',
+    );
 }
-const scCells = new Set(scTrials.map(t => t.meta.target_coh_level + 'x' + t.meta.distractor_coh_level));
+const scCells = new Set(
+    scTrials.map((t) => t.meta.target_coh_level + 'x' + t.meta.distractor_coh_level),
+);
 assert(scCells.size === 9, `all 9 target x distractor cells present (got ${scCells.size})`);
 
 // ============================================================
@@ -2225,119 +2648,229 @@ for (let i = 0; i < 50; i++) {
 // ============================================================
 // SweetPea CSV loader + injection tests (block-scoped to avoid name clashes).
 {
-section('loadSequenceVectors — switching CSV parse -> vectors');
-const tsCsv = [
-    'block_id,condition,trial_index,task,task_transition,response_transition,congruency,target_coh_level,target_dir',
-    'cp_taskswitch,A,0,mov,First,First,congruent,easy,left',
-    'cp_taskswitch,A,1,or,Switch,Repeat,incongruent,hard,left',
-    'cp_taskswitch,A,2,or,Repeat,Switch,congruent,easy,right',
-    'cp_taskswitch,A,3,mov,Switch,Switch,incongruent,hard,left',
-].join('\n');
-const tsCfg = {
-    paradigm: 'single-task', rso: 'identical',
-    keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'a', 0: 'd' } },
-    iti: { type: 'fixed', value: 0 },
-    csi: 0, stimulusDuration: 100, responseWindow: 100,
-    coherence: {
-        target: { mov: { easy: 0.8, hard: 0.3 }, or: { easy: 0.8, hard: 0.3 } },
-        distractor: 0.5,
-    },
-};
-const tsVec = loadSequenceVectors(tsCsv, tsCfg);
-assert(tsVec.task1.length === 4, 'loader: 4 rows');
-assert(JSON.stringify(tsVec.task1) === JSON.stringify(['mov', 'or', 'or', 'mov']), 'loader: task1 sequence');
-assert(JSON.stringify(tsVec.transition) === JSON.stringify(['First', 'Switch', 'Repeat', 'Switch']), 'loader: transition (first forced to First)');
-assert(JSON.stringify(tsVec.congruency) === JSON.stringify(['congruent', 'incongruent', 'congruent', 'incongruent']), 'loader: congruency');
-// left -> 180, right -> 0
-assert(JSON.stringify(tsVec.targetDir) === JSON.stringify([180, 180, 0, 180]), 'loader: target_dir label -> degrees');
-assert(JSON.stringify(tsVec.targetLevel) === JSON.stringify(['easy', 'hard', 'easy', 'hard']), 'loader: targetLevel');
-assert(tsVec.distractorLevel === undefined, 'loader: no distractorLevel column -> undefined');
-assert(tsVec.task2.every(t => t === null), 'loader: single-task -> task2 null');
-assert(tsVec.soa.every(s => s === null), 'loader: no soa column -> null');
-assert(tsVec.iti.every(i => i === 0), 'loader: iti sampled client-side (fixed 0)');
+    section('loadSequenceVectors — switching CSV parse -> vectors');
+    const tsCsv = [
+        'block_id,condition,trial_index,task,task_transition,response_transition,congruency,target_coh_level,target_dir',
+        'cp_taskswitch,A,0,mov,First,First,congruent,easy,left',
+        'cp_taskswitch,A,1,or,Switch,Repeat,incongruent,hard,left',
+        'cp_taskswitch,A,2,or,Repeat,Switch,congruent,easy,right',
+        'cp_taskswitch,A,3,mov,Switch,Switch,incongruent,hard,left',
+    ].join('\n');
+    const tsCfg = {
+        paradigm: 'single-task',
+        rso: 'identical',
+        keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'a', 0: 'd' } },
+        iti: { type: 'fixed', value: 0 },
+        csi: 0,
+        stimulusDuration: 100,
+        responseWindow: 100,
+        coherence: {
+            target: { mov: { easy: 0.8, hard: 0.3 }, or: { easy: 0.8, hard: 0.3 } },
+            distractor: 0.5,
+        },
+    };
+    const tsVec = loadSequenceVectors(tsCsv, tsCfg);
+    assert(tsVec.task1.length === 4, 'loader: 4 rows');
+    assert(
+        JSON.stringify(tsVec.task1) === JSON.stringify(['mov', 'or', 'or', 'mov']),
+        'loader: task1 sequence',
+    );
+    assert(
+        JSON.stringify(tsVec.transition) ===
+            JSON.stringify(['First', 'Switch', 'Repeat', 'Switch']),
+        'loader: transition (first forced to First)',
+    );
+    assert(
+        JSON.stringify(tsVec.congruency) ===
+            JSON.stringify(['congruent', 'incongruent', 'congruent', 'incongruent']),
+        'loader: congruency',
+    );
+    // left -> 180, right -> 0
+    assert(
+        JSON.stringify(tsVec.targetDir) === JSON.stringify([180, 180, 0, 180]),
+        'loader: target_dir label -> degrees',
+    );
+    assert(
+        JSON.stringify(tsVec.targetLevel) === JSON.stringify(['easy', 'hard', 'easy', 'hard']),
+        'loader: targetLevel',
+    );
+    assert(tsVec.distractorLevel === undefined, 'loader: no distractorLevel column -> undefined');
+    assert(
+        tsVec.task2.every((t) => t === null),
+        'loader: single-task -> task2 null',
+    );
+    assert(
+        tsVec.soa.every((s) => s === null),
+        'loader: no soa column -> null',
+    );
+    assert(
+        tsVec.iti.every((i) => i === 0),
+        'loader: iti sampled client-side (fixed 0)',
+    );
 
-// ============================================================
-section('loadSequenceVectors — bad input rejection');
-function throwsOn(csv, cfg, label) {
-    let threw = false;
-    try { loadSequenceVectors(csv, cfg); } catch (e) { threw = true; }
-    assert(threw, label);
-}
-throwsOn('block_id,congruency,target_dir\ncp,congruent,left', tsCfg, 'missing task column throws');
-throwsOn('task,target_dir\nmov,left', tsCfg, 'missing congruency column throws');
-throwsOn('task,congruency\nmov,congruent', tsCfg, 'missing target_dir column throws');
-throwsOn('task,congruency,target_dir\nxyz,congruent,left', tsCfg, 'unknown task throws');
-throwsOn('task,congruency,target_dir\nmov,sideways,left', tsCfg, 'unknown congruency throws');
-throwsOn('task,congruency,target_dir\nmov,congruent,up', tsCfg, 'unknown target_dir throws');
-throwsOn('task,task_transition,congruency,target_dir\nmov,First,congruent,left\nor,Wobble,incongruent,right', tsCfg, 'unknown transition throws');
-
-// ============================================================
-section('assignDirections — injected target direction');
-const idKeyMaps = { mov: { 180: 'a', 0: 'd' }, or: { 180: 'a', 0: 'd' } };
-const injC = assignDirections('mov', 'congruent', 'single-task', 'identical', idKeyMaps, 'parallel', 180);
-assert(injC.ch1_task === 180, 'injected target dir (180) honored');
-assert(injC.ch1_distractor === 180, 'congruent: distractor matches injected target');
-const injI = assignDirections('mov', 'incongruent', 'single-task', 'identical', idKeyMaps, 'parallel', 0);
-assert(injI.ch1_task === 0, 'injected target dir (0) honored');
-assert(injI.ch1_distractor === 180, 'incongruent: distractor opposite injected target');
-// dual-task injection: injected sets T1 target; T2 derived from congruency
-const injDT = assignDirections('mov', 'congruent', 'dual-task', 'disjoint',
-    { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } }, 'parallel', 180);
-assert(injDT.ch1_task === 180, 'dual-task: injected T1 target honored');
-assert(injDT.ch1_task === injDT.ch2_task, 'dual-task congruent: T2 same side as injected T1');
-// no injection -> still randomizes across draws (behavior unchanged)
-const noInj = new Set();
-for (let i = 0; i < 60; i++) noInj.add(assignDirections('mov', 'univalent', 'single-task', 'identical', idKeyMaps).ch1_task);
-assert(noInj.size === 2, 'no injection: target dir still randomized (both 0 and 180 seen)');
-
-// ============================================================
-section('integration — loaded CSV drives directions/coherence (balance preserved)');
-const tsTrials = generateBlockTrials(tsCfg, tsVec.task1.length, tsVec);
-assert(tsTrials.length === 4, 'integration: trial count from vectors');
-for (let i = 0; i < tsTrials.length; i++) {
-    // SweetPea-owned target direction must survive end-to-end (no re-randomization)
-    assert(tsTrials[i].meta.t1_target_dir === tsVec.targetDir[i], `integration: target_dir[${i}] honored`);
-    // coherence resolves from the CSV's level
-    const expectedCoh = tsVec.targetLevel[i] === 'easy' ? 0.8 : 0.3;
-    const task = tsVec.task1[i];
-    assert(tsTrials[i].seParams['coh_' + task + '_1'] === expectedCoh, `integration: coherence from level[${i}]`);
-    // distractor direction derived from target_dir + congruency
-    if (tsVec.congruency[i] === 'congruent') {
-        assert(tsTrials[i].meta.t1_distractor_dir === tsVec.targetDir[i], `integration: congruent distractor[${i}]`);
-    } else {
-        assert(tsTrials[i].meta.t1_distractor_dir === (tsVec.targetDir[i] + 180) % 360, `integration: incongruent distractor[${i}]`);
+    // ============================================================
+    section('loadSequenceVectors — bad input rejection');
+    function throwsOn(csv, cfg, label) {
+        let threw = false;
+        try {
+            loadSequenceVectors(csv, cfg);
+        } catch (e) {
+            threw = true;
+        }
+        assert(threw, label);
     }
-}
-// The whole point: with the identical keymap, correct response == f(target_dir).
-// Confirm the loaded target-dir counts survive (2 left-target easy, etc. as in CSV).
-const dirCounts = tsTrials.reduce((acc, t) => { acc[t.meta.t1_target_dir] = (acc[t.meta.t1_target_dir] || 0) + 1; return acc; }, {});
-assert(dirCounts[180] === 3 && dirCounts[0] === 1, 'integration: exact target-dir counts preserved from CSV');
+    throwsOn(
+        'block_id,congruency,target_dir\ncp,congruent,left',
+        tsCfg,
+        'missing task column throws',
+    );
+    throwsOn('task,target_dir\nmov,left', tsCfg, 'missing congruency column throws');
+    throwsOn('task,congruency\nmov,congruent', tsCfg, 'missing target_dir column throws');
+    throwsOn('task,congruency,target_dir\nxyz,congruent,left', tsCfg, 'unknown task throws');
+    throwsOn('task,congruency,target_dir\nmov,sideways,left', tsCfg, 'unknown congruency throws');
+    throwsOn('task,congruency,target_dir\nmov,congruent,up', tsCfg, 'unknown target_dir throws');
+    throwsOn(
+        'task,task_transition,congruency,target_dir\nmov,First,congruent,left\nor,Wobble,incongruent,right',
+        tsCfg,
+        'unknown transition throws',
+    );
 
-// ============================================================
-section('integration — PRP CSV (dual-task, soa + t2 derivation)');
-const prpCsv = [
-    'block_id,condition,trial_index,task,soa_level,congruency,target_dir',
-    'cp_prp,A,0,mov,100,congruent,left',
-    'cp_prp,A,1,or,300,incongruent,right',
-    'cp_prp,A,2,mov,600,congruent,right',
-].join('\n');
-const prpCfg = {
-    paradigm: 'dual-task', rso: 'disjoint', t2Rule: 'switch',
-    keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } },
-    iti: { type: 'fixed', value: 0 },
-    csi: 0, stimulusDuration: 100, responseWindow: 100,
-    coherence: { target: { mov: 0.8, or: 0.8 }, distractor: 0 },
-};
-const prpVec = loadSequenceVectors(prpCsv, prpCfg);
-assert(JSON.stringify(prpVec.task1) === JSON.stringify(['mov', 'or', 'mov']), 'PRP loader: T1 tasks');
-assert(JSON.stringify(prpVec.task2) === JSON.stringify(['or', 'mov', 'or']), 'PRP loader: T2 = other task (switch)');
-assert(JSON.stringify(prpVec.soa) === JSON.stringify([100, 300, 600]), 'PRP loader: soa levels parsed');
-assert(JSON.stringify(prpVec.targetDir) === JSON.stringify([180, 0, 0]), 'PRP loader: T1 target dirs');
-const prpTrials = generateBlockTrials(prpCfg, prpVec.task1.length, prpVec);
-assert(prpTrials[0].meta.soa === 100 && prpTrials[2].meta.soa === 600, 'PRP integration: soa in meta');
-assert(prpTrials[0].meta.t1_target_dir === 180, 'PRP integration: T1 dir from CSV');
-assert(prpTrials[0].meta.t2_target_dir === 180, 'PRP integration: congruent T2 same side as T1');
-assert(prpTrials[1].meta.t1_target_dir === 0 && prpTrials[1].meta.t2_target_dir === 180, 'PRP integration: incongruent T2 opposite');
+    // ============================================================
+    section('assignDirections — injected target direction');
+    const idKeyMaps = { mov: { 180: 'a', 0: 'd' }, or: { 180: 'a', 0: 'd' } };
+    const injC = assignDirections(
+        'mov',
+        'congruent',
+        'single-task',
+        'identical',
+        idKeyMaps,
+        'parallel',
+        180,
+    );
+    assert(injC.ch1_task === 180, 'injected target dir (180) honored');
+    assert(injC.ch1_distractor === 180, 'congruent: distractor matches injected target');
+    const injI = assignDirections(
+        'mov',
+        'incongruent',
+        'single-task',
+        'identical',
+        idKeyMaps,
+        'parallel',
+        0,
+    );
+    assert(injI.ch1_task === 0, 'injected target dir (0) honored');
+    assert(injI.ch1_distractor === 180, 'incongruent: distractor opposite injected target');
+    // dual-task injection: injected sets T1 target; T2 derived from congruency
+    const injDT = assignDirections(
+        'mov',
+        'congruent',
+        'dual-task',
+        'disjoint',
+        { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } },
+        'parallel',
+        180,
+    );
+    assert(injDT.ch1_task === 180, 'dual-task: injected T1 target honored');
+    assert(injDT.ch1_task === injDT.ch2_task, 'dual-task congruent: T2 same side as injected T1');
+    // no injection -> still randomizes across draws (behavior unchanged)
+    const noInj = new Set();
+    for (let i = 0; i < 60; i++)
+        noInj.add(
+            assignDirections('mov', 'univalent', 'single-task', 'identical', idKeyMaps).ch1_task,
+        );
+    assert(noInj.size === 2, 'no injection: target dir still randomized (both 0 and 180 seen)');
+
+    // ============================================================
+    section('integration — loaded CSV drives directions/coherence (balance preserved)');
+    const tsTrials = generateBlockTrials(tsCfg, tsVec.task1.length, tsVec);
+    assert(tsTrials.length === 4, 'integration: trial count from vectors');
+    for (let i = 0; i < tsTrials.length; i++) {
+        // SweetPea-owned target direction must survive end-to-end (no re-randomization)
+        assert(
+            tsTrials[i].meta.t1_target_dir === tsVec.targetDir[i],
+            `integration: target_dir[${i}] honored`,
+        );
+        // coherence resolves from the CSV's level
+        const expectedCoh = tsVec.targetLevel[i] === 'easy' ? 0.8 : 0.3;
+        const task = tsVec.task1[i];
+        assert(
+            tsTrials[i].seParams['coh_' + task + '_1'] === expectedCoh,
+            `integration: coherence from level[${i}]`,
+        );
+        // distractor direction derived from target_dir + congruency
+        if (tsVec.congruency[i] === 'congruent') {
+            assert(
+                tsTrials[i].meta.t1_distractor_dir === tsVec.targetDir[i],
+                `integration: congruent distractor[${i}]`,
+            );
+        } else {
+            assert(
+                tsTrials[i].meta.t1_distractor_dir === (tsVec.targetDir[i] + 180) % 360,
+                `integration: incongruent distractor[${i}]`,
+            );
+        }
+    }
+    // The whole point: with the identical keymap, correct response == f(target_dir).
+    // Confirm the loaded target-dir counts survive (2 left-target easy, etc. as in CSV).
+    const dirCounts = tsTrials.reduce((acc, t) => {
+        acc[t.meta.t1_target_dir] = (acc[t.meta.t1_target_dir] || 0) + 1;
+        return acc;
+    }, {});
+    assert(
+        dirCounts[180] === 3 && dirCounts[0] === 1,
+        'integration: exact target-dir counts preserved from CSV',
+    );
+
+    // ============================================================
+    section('integration — PRP CSV (dual-task, soa + t2 derivation)');
+    const prpCsv = [
+        'block_id,condition,trial_index,task,soa_level,congruency,target_dir',
+        'cp_prp,A,0,mov,100,congruent,left',
+        'cp_prp,A,1,or,300,incongruent,right',
+        'cp_prp,A,2,mov,600,congruent,right',
+    ].join('\n');
+    const prpCfg = {
+        paradigm: 'dual-task',
+        rso: 'disjoint',
+        t2Rule: 'switch',
+        keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } },
+        iti: { type: 'fixed', value: 0 },
+        csi: 0,
+        stimulusDuration: 100,
+        responseWindow: 100,
+        coherence: { target: { mov: 0.8, or: 0.8 }, distractor: 0 },
+    };
+    const prpVec = loadSequenceVectors(prpCsv, prpCfg);
+    assert(
+        JSON.stringify(prpVec.task1) === JSON.stringify(['mov', 'or', 'mov']),
+        'PRP loader: T1 tasks',
+    );
+    assert(
+        JSON.stringify(prpVec.task2) === JSON.stringify(['or', 'mov', 'or']),
+        'PRP loader: T2 = other task (switch)',
+    );
+    assert(
+        JSON.stringify(prpVec.soa) === JSON.stringify([100, 300, 600]),
+        'PRP loader: soa levels parsed',
+    );
+    assert(
+        JSON.stringify(prpVec.targetDir) === JSON.stringify([180, 0, 0]),
+        'PRP loader: T1 target dirs',
+    );
+    const prpTrials = generateBlockTrials(prpCfg, prpVec.task1.length, prpVec);
+    assert(
+        prpTrials[0].meta.soa === 100 && prpTrials[2].meta.soa === 600,
+        'PRP integration: soa in meta',
+    );
+    assert(prpTrials[0].meta.t1_target_dir === 180, 'PRP integration: T1 dir from CSV');
+    assert(
+        prpTrials[0].meta.t2_target_dir === 180,
+        'PRP integration: congruent T2 same side as T1',
+    );
+    assert(
+        prpTrials[1].meta.t1_target_dir === 0 && prpTrials[1].meta.t2_target_dir === 180,
+        'PRP integration: incongruent T2 opposite',
+    );
 }
 
 // ============================================================
@@ -2350,24 +2883,34 @@ section('loadSequenceVectors — t2Rule paths (same/independent/prp-baseline/unk
         'cp_prp,A,2,mov,600,congruent,right',
     ].join('\n');
     const dtCfgBase = {
-        paradigm: 'dual-task', rso: 'disjoint',
+        paradigm: 'dual-task',
+        rso: 'disjoint',
         keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } },
         iti: { type: 'fixed', value: 0 },
-        csi: 0, stimulusDuration: 100, responseWindow: 100,
+        csi: 0,
+        stimulusDuration: 100,
+        responseWindow: 100,
         coherence: { target: { mov: 0.8, or: 0.8 }, distractor: 0 },
     };
 
     // t2Rule: 'same' -> task2 mirrors task1 exactly
     const sameVec = loadSequenceVectors(dtCsv, { ...dtCfgBase, t2Rule: 'same' });
-    assert(JSON.stringify(sameVec.task2) === JSON.stringify(sameVec.task1),
-        'loader t2Rule=same: task2 equals task1');
+    assert(
+        JSON.stringify(sameVec.task2) === JSON.stringify(sameVec.task1),
+        'loader t2Rule=same: task2 equals task1',
+    );
 
     // t2Rule: 'independent' -> task2 is a fresh balanced Random sequence,
     // independent of task1 (length matches, values valid).
     const indepVec = loadSequenceVectors(dtCsv, { ...dtCfgBase, t2Rule: 'independent' });
-    assert(indepVec.task2.length === 3, 'loader t2Rule=independent: task2 length matches row count');
-    assert(indepVec.task2.every(t => t === 'mov' || t === 'or'),
-        'loader t2Rule=independent: task2 values are valid tasks');
+    assert(
+        indepVec.task2.length === 3,
+        'loader t2Rule=independent: task2 length matches row count',
+    );
+    assert(
+        indepVec.task2.every((t) => t === 'mov' || t === 'or'),
+        'loader t2Rule=independent: task2 values are valid tasks',
+    );
 
     // paradigm: 'prp-baseline' -> task1 nulled, task2 takes the CSV's task column
     const blCsv = [
@@ -2376,22 +2919,32 @@ section('loadSequenceVectors — t2Rule paths (same/independent/prp-baseline/unk
         'cp_prp_baseline,A,1,or,incongruent,right',
     ].join('\n');
     const blCfg = {
-        paradigm: 'prp-baseline', rso: 'disjoint',
+        paradigm: 'prp-baseline',
+        rso: 'disjoint',
         keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } },
         iti: { type: 'fixed', value: 0 },
-        csi: 0, stimulusDuration: 100, responseWindow: 100,
+        csi: 0,
+        stimulusDuration: 100,
+        responseWindow: 100,
         coherence: { target: { mov: 0.8, or: 0.8 }, distractor: 0 },
     };
     const blVec = loadSequenceVectors(blCsv, blCfg);
-    assert(blVec.task1.every(t => t === null), 'loader prp-baseline: all task1 null');
-    assert(JSON.stringify(blVec.task2) === JSON.stringify(['mov', 'or']),
-        'loader prp-baseline: task2 takes CSV task column');
+    assert(
+        blVec.task1.every((t) => t === null),
+        'loader prp-baseline: all task1 null',
+    );
+    assert(
+        JSON.stringify(blVec.task2) === JSON.stringify(['mov', 'or']),
+        'loader prp-baseline: task2 takes CSV task column',
+    );
 
     // unknown t2Rule -> throws loudly rather than silently resolving undefined
     let threwUnknownT2 = false;
     try {
         loadSequenceVectors(dtCsv, { ...dtCfgBase, t2Rule: 'bogus_rule' });
-    } catch (e) { threwUnknownT2 = true; }
+    } catch (e) {
+        threwUnknownT2 = true;
+    }
     assert(threwUnknownT2, 'loader: unknown t2Rule throws');
 }
 
@@ -2407,29 +2960,40 @@ section('integration — FOURCUE CSV (hand column, vertical geometry)');
         'cp_taskswitch,A,2,mov,right,Switch,Repeat,Switch,congruent,easy,left',
     ].join('\n');
     const fcCfg = {
-        paradigm: 'single-task', rso: 'disjoint',
+        paradigm: 'single-task',
+        rso: 'disjoint',
         keyMaps: { mov: { 90: 'w', 270: 's' }, or: { 90: 'i', 270: 'k' } },
         geometry: { axis: 'vertical', levelToDeg: { left: 90, right: 270 } },
         cueMode: 'hue+position',
         iti: { type: 'fixed', value: 0 },
-        csi: 0, stimulusDuration: 100, responseWindow: 100,
+        csi: 0,
+        stimulusDuration: 100,
+        responseWindow: 100,
         coherence: { target: { easy: 0.8, hard: 0.4 }, distractor: 0 },
         levelFactors: { target: ['easy', 'hard'] },
     };
     const fcVec = loadSequenceVectors(fcCsv, fcCfg);
-    assert(JSON.stringify(fcVec.hand) === JSON.stringify(['left', 'right', 'right']),
-        'fourcue loader: hand column parsed');
-    assert(JSON.stringify(fcVec.targetDir) === JSON.stringify([90, 270, 90]),
-        'fourcue loader: target_dir uses vertical geometry (90/270)');
+    assert(
+        JSON.stringify(fcVec.hand) === JSON.stringify(['left', 'right', 'right']),
+        'fourcue loader: hand column parsed',
+    );
+    assert(
+        JSON.stringify(fcVec.targetDir) === JSON.stringify([90, 270, 90]),
+        'fourcue loader: target_dir uses vertical geometry (90/270)',
+    );
     const fcTrials = generateBlockTrials(fcCfg, fcVec.task1.length, fcVec);
-    assert(fcTrials[0].meta.hand === 'left' && fcTrials[1].meta.hand === 'right',
-        'fourcue integration: meta.hand carried onto each trial');
+    assert(
+        fcTrials[0].meta.hand === 'left' && fcTrials[1].meta.hand === 'right',
+        'fourcue integration: meta.hand carried onto each trial',
+    );
 
     // An unknown hand value must throw rather than silently run.
     let threwHand = false;
     try {
         loadSequenceVectors(fcCsv.replace('mov,left', 'mov,middle'), fcCfg);
-    } catch (e) { threwHand = true; }
+    } catch (e) {
+        threwHand = true;
+    }
     assert(threwHand, 'fourcue loader: unknown hand value throws');
 
     // Disjoint CSVs have no hand column, so the hand vector stays absent and
@@ -2440,10 +3004,13 @@ section('integration — FOURCUE CSV (hand column, vertical geometry)');
         'cp_taskswitch,A,1,or,Switch,Repeat,incongruent,hard,right',
     ].join('\n');
     const djCfg = {
-        paradigm: 'single-task', rso: 'disjoint',
+        paradigm: 'single-task',
+        rso: 'disjoint',
         keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } },
         iti: { type: 'fixed', value: 0 },
-        csi: 0, stimulusDuration: 100, responseWindow: 100,
+        csi: 0,
+        stimulusDuration: 100,
+        responseWindow: 100,
         coherence: { target: { easy: 0.8, hard: 0.4 }, distractor: 0 },
         levelFactors: { target: ['easy', 'hard'] },
     };

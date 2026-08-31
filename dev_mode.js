@@ -15,40 +15,38 @@
 // setup controls (condition radio + participant-id box in index.html), and the
 // consent-screen skip (showConsent in session.js).
 (function () {
-  const params = new URLSearchParams(location.search);
-  const DEV_MODE = params.has("dev") && params.get("dev") !== "false";
-  window.DEV_MODE = DEV_MODE;
+    const params = new URLSearchParams(location.search);
+    const DEV_MODE = params.has('dev') && params.get('dev') !== 'false';
+    window.DEV_MODE = DEV_MODE;
 
-  if (!DEV_MODE) {
-    // Not a dev: hide the whole dev toolbar (dropdown, condition, participant id,
-    // Start, Stop, Abridged, Export). A real participant's session auto-launches
-    // from index.html into the consent screen; a param-less visitor gets the
-    // blank page (index.html renderBlank). Inline display beats the
-    // `.controls { display: flex }` author rule (which would override the
-    // `[hidden]` attribute), so set style.display directly.
-    const controls = document.querySelector(".controls");
-    if (controls) controls.style.display = "none";
-    return;
-  }
+    if (!DEV_MODE) {
+        // Not a dev: hide the whole dev toolbar (dropdown, condition, participant id,
+        // Start, Stop, Abridged, Export). A real participant's session auto-launches
+        // from index.html into the consent screen; a param-less visitor gets the
+        // blank page (index.html renderBlank). Inline display beats the
+        // `.controls { display: flex }` author rule (which would override the
+        // `[hidden]` attribute), so set style.display directly.
+        const controls = document.querySelector('.controls');
+        if (controls) controls.style.display = 'none';
+        return;
+    }
 
-  // Dev run: make it unmistakable so a dev session is never taken for real data.
-  console.log(
-    "[DEV MODE ON] CSV export enabled, dev controls shown, consent skipped. " +
-      "Remove ?dev from the URL for the real participant / blank page.",
-  );
-
-  const banner = document.createElement("div");
-  banner.textContent = "DEV MODE";
-  banner.style.cssText =
-    "position: fixed; top: 0; left: 0; right: 0; z-index: 99999; " +
-    "background: #7a2a2a; color: #fff; text-align: center; " +
-    "font: bold 12px/24px system-ui, sans-serif; letter-spacing: 1px; " +
-    "pointer-events: none;";
-  if (document.body) {
-    document.body.appendChild(banner);
-  } else {
-    document.addEventListener("DOMContentLoaded", () =>
-      document.body.appendChild(banner),
+    // Dev run: make it unmistakable so a dev session is never taken for real data.
+    console.log(
+        '[DEV MODE ON] CSV export enabled, dev controls shown, consent skipped. ' +
+            'Remove ?dev from the URL for the real participant / blank page.',
     );
-  }
+
+    const banner = document.createElement('div');
+    banner.textContent = 'DEV MODE';
+    banner.style.cssText =
+        'position: fixed; top: 0; left: 0; right: 0; z-index: 99999; ' +
+        'background: #7a2a2a; color: #fff; text-align: center; ' +
+        'font: bold 12px/24px system-ui, sans-serif; letter-spacing: 1px; ' +
+        'pointer-events: none;';
+    if (document.body) {
+        document.body.appendChild(banner);
+    } else {
+        document.addEventListener('DOMContentLoaded', () => document.body.appendChild(banner));
+    }
 })();

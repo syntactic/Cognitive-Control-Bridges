@@ -76,8 +76,7 @@ section('createQuest — initial intensity near prior mean');
 const q2 = createQuest(0.5, 0.2);
 const firstIntensity = q2.getNextIntensity();
 // Should be close to 0.5 (the prior mean), within the axis resolution
-approxEqual(firstIntensity, 0.5, 0.05,
-    'initial getNextIntensity near prior mean of 0.5');
+approxEqual(firstIntensity, 0.5, 0.05, 'initial getNextIntensity near prior mean of 0.5');
 
 // ============================================================
 
@@ -87,8 +86,10 @@ const qLow = createQuest(0.2, 0.15);
 const qHigh = createQuest(0.8, 0.15);
 const lowIntensity = qLow.getNextIntensity();
 const highIntensity = qHigh.getNextIntensity();
-assert(lowIntensity < highIntensity,
-    `low prior (${lowIntensity.toFixed(3)}) < high prior (${highIntensity.toFixed(3)})`);
+assert(
+    lowIntensity < highIntensity,
+    `low prior (${lowIntensity.toFixed(3)}) < high prior (${highIntensity.toFixed(3)})`,
+);
 approxEqual(lowIntensity, 0.2, 0.05, 'low prior near 0.2');
 approxEqual(highIntensity, 0.8, 0.05, 'high prior near 0.8');
 
@@ -98,8 +99,7 @@ section('createQuest — getNextIntensity returns valid coherence [0, 1]');
 
 const q3 = createQuest(0.5, 0.2);
 const intensity = q3.getNextIntensity();
-assert(intensity > 0 && intensity <= 1.0,
-    `intensity ${intensity} is in valid coherence range`);
+assert(intensity > 0 && intensity <= 1.0, `intensity ${intensity} is in valid coherence range`);
 
 // ============================================================
 // update — direction of movement
@@ -115,8 +115,10 @@ for (let i = 0; i < 5; i++) {
     q4.update(current, true);
 }
 const after = q4.getNextIntensity();
-assert(after < before,
-    `intensity decreased after correct responses: ${before.toFixed(3)} → ${after.toFixed(3)}`);
+assert(
+    after < before,
+    `intensity decreased after correct responses: ${before.toFixed(3)} → ${after.toFixed(3)}`,
+);
 
 // ============================================================
 
@@ -130,8 +132,10 @@ for (let i = 0; i < 5; i++) {
     q5.update(current, false);
 }
 const after5 = q5.getNextIntensity();
-assert(after5 > before5,
-    `intensity increased after incorrect responses: ${before5.toFixed(3)} → ${after5.toFixed(3)}`);
+assert(
+    after5 > before5,
+    `intensity increased after incorrect responses: ${before5.toFixed(3)} → ${after5.toFixed(3)}`,
+);
 
 // ============================================================
 // Convergence tests
@@ -167,8 +171,12 @@ for (let s = 0; s < numStaircases; s++) {
     totalEstimate += quest.getFinalEstimate();
 }
 const avgEstimate = totalEstimate / numStaircases;
-approxEqual(avgEstimate, trueThreshold, 0.15,
-    `average of ${numStaircases} staircases converges near true threshold ${trueThreshold}`);
+approxEqual(
+    avgEstimate,
+    trueThreshold,
+    0.15,
+    `average of ${numStaircases} staircases converges near true threshold ${trueThreshold}`,
+);
 
 // ============================================================
 
@@ -186,15 +194,21 @@ for (let s = 0; s < numStaircases; s++) {
     totalHigh += quest.getFinalEstimate();
 }
 const avgHigh = totalHigh / numStaircases;
-approxEqual(avgHigh, trueThresholdHigh, 0.15,
-    `average converges near high threshold ${trueThresholdHigh}`);
+approxEqual(
+    avgHigh,
+    trueThresholdHigh,
+    0.15,
+    `average converges near high threshold ${trueThresholdHigh}`,
+);
 
 // ============================================================
 
 section('createQuest — low threshold convergence separates from high');
 
-assert(avgEstimate < avgHigh,
-    `low threshold estimate (${avgEstimate.toFixed(3)}) < high threshold estimate (${avgHigh.toFixed(3)})`);
+assert(
+    avgEstimate < avgHigh,
+    `low threshold estimate (${avgEstimate.toFixed(3)}) < high threshold estimate (${avgHigh.toFixed(3)})`,
+);
 
 // ============================================================
 // getFinalEstimate tests
@@ -208,8 +222,7 @@ for (let i = 0; i < 10; i++) {
     q6.update(coh, i % 2 === 0); // alternating correct/incorrect
 }
 const finalEst = q6.getFinalEstimate();
-assert(finalEst > 0 && finalEst <= 1.0,
-    `final estimate ${finalEst.toFixed(4)} is valid coherence`);
+assert(finalEst > 0 && finalEst <= 1.0, `final estimate ${finalEst.toFixed(4)} is valid coherence`);
 
 // ============================================================
 
@@ -238,12 +251,18 @@ const q8 = createQuest(0.5, 0.2);
 // Update at very low coherence — should not crash
 q8.update(0.01, false);
 const afterLow = q8.getNextIntensity();
-assert(afterLow > 0 && afterLow <= 1.0, `valid after update at coherence 0.01: ${afterLow.toFixed(4)}`);
+assert(
+    afterLow > 0 && afterLow <= 1.0,
+    `valid after update at coherence 0.01: ${afterLow.toFixed(4)}`,
+);
 
 // Update at very high coherence — should not crash
 q8.update(0.99, true);
 const afterHigh = q8.getNextIntensity();
-assert(afterHigh > 0 && afterHigh <= 1.0, `valid after update at coherence 0.99: ${afterHigh.toFixed(4)}`);
+assert(
+    afterHigh > 0 && afterHigh <= 1.0,
+    `valid after update at coherence 0.99: ${afterHigh.toFixed(4)}`,
+);
 
 // ============================================================
 
@@ -260,8 +279,10 @@ qA.update(0.5, true);
 // qB should still be at initial estimate
 const qAIntensity = qA.getNextIntensity();
 const qBIntensity = qB.getNextIntensity();
-assert(qAIntensity < qBIntensity,
-    `qA moved (${qAIntensity.toFixed(3)}) while qB stayed (${qBIntensity.toFixed(3)})`);
+assert(
+    qAIntensity < qBIntensity,
+    `qA moved (${qAIntensity.toFixed(3)}) while qB stayed (${qBIntensity.toFixed(3)})`,
+);
 
 // ============================================================
 
@@ -270,11 +291,10 @@ section('createQuest — many correct trials push intensity toward minimum');
 const q9 = createQuest(0.5, 0.2);
 for (let i = 0; i < 20; i++) {
     const coh = q9.getNextIntensity();
-    q9.update(coh, true);  // always correct
+    q9.update(coh, true); // always correct
 }
 const veryEasy = q9.getNextIntensity();
-assert(veryEasy < 0.25,
-    `20 consecutive correct pushes intensity very low: ${veryEasy.toFixed(4)}`);
+assert(veryEasy < 0.25, `20 consecutive correct pushes intensity very low: ${veryEasy.toFixed(4)}`);
 
 // ============================================================
 
@@ -283,11 +303,13 @@ section('createQuest — many incorrect trials push intensity toward maximum');
 const q10 = createQuest(0.5, 0.2);
 for (let i = 0; i < 20; i++) {
     const coh = q10.getNextIntensity();
-    q10.update(coh, false);  // always incorrect
+    q10.update(coh, false); // always incorrect
 }
 const veryHard = q10.getNextIntensity();
-assert(veryHard > 0.8,
-    `20 consecutive incorrect pushes intensity very high: ${veryHard.toFixed(4)}`);
+assert(
+    veryHard > 0.8,
+    `20 consecutive incorrect pushes intensity very high: ${veryHard.toFixed(4)}`,
+);
 
 // ============================================================
 // Summary

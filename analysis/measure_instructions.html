@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Instruction screen height audit</title>
-<!--
+    <head>
+        <meta charset="UTF-8" />
+        <title>Instruction screen height audit</title>
+        <!--
   Measures every instruction screen of every canonical session against the
   600 px canvas, in a real layout engine.
 
@@ -21,208 +21,250 @@
   The CSS below is copied verbatim from index.html. If you change the overlay or
   content styling there, change it here too or this audit measures fiction.
 -->
-<style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, -apple-system, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+        <style>
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    sans-serif;
+                background: #1a1a2e;
+                color: #e0e0e0;
+                padding: 20px;
+            }
 
-    /* ---- verbatim from index.html ---- */
-    #canvas-container {
-        width: 600px;
-        height: 600px;
-        border: 1px solid #333;
-        border-radius: 8px;
-        background: #0a0a1a;
-        position: relative;
-        outline: none;
-    }
-    .instructions-overlay {
-        position: absolute;
-        inset: 0;
-        background: rgba(10, 10, 26, 0.95);
-        display: flex;
-        align-items: flex-start;
-        justify-content: center;
-        overflow-y: auto;
-        padding: 20px;
-        z-index: 10;
-        border-radius: 8px;
-    }
-    .instructions-content {
-        /* The copy is authored with hard line breaks at ~66 characters (see
+            /* ---- verbatim from index.html ---- */
+            #canvas-container {
+                width: 600px;
+                height: 600px;
+                border: 1px solid #333;
+                border-radius: 8px;
+                background: #0a0a1a;
+                position: relative;
+                outline: none;
+            }
+            .instructions-overlay {
+                position: absolute;
+                inset: 0;
+                background: rgba(10, 10, 26, 0.95);
+                display: flex;
+                align-items: flex-start;
+                justify-content: center;
+                overflow-y: auto;
+                padding: 20px;
+                z-index: 10;
+                border-radius: 8px;
+            }
+            .instructions-content {
+                /* The copy is authored with hard line breaks at ~66 characters (see
            canonical_paradigms.js). At 80% of a 600 px canvas the measure only
            fits ~55, so almost every authored line ALSO soft-wrapped, producing
            a ragged two-line-per-sentence screen. The overlay's 20 px padding
            already supplies the margin, so the content may use the full width
            and the authored breaks land where they were written. */
-        max-width: 100%;
-        margin: auto 0;
-        text-align: center;
-        font-size: 1em;
-        line-height: 1.6;
-        color: #c0c0c0;
-    }
-    .demo-row {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 16px;
-        margin: 12px 0;
-    }
-    .demo-row .demo-canvas {
-        width: 150px;
-        height: 150px;
-        background: #000;
-        border-radius: 6px;
-        flex: none;
-    }
-    .demo-row .demo-key {
-        width: 108px;
-        image-rendering: pixelated;
-        flex: none;
-    }
-    /* ---- end verbatim ---- */
+                max-width: 100%;
+                margin: auto 0;
+                text-align: center;
+                font-size: 1em;
+                line-height: 1.6;
+                color: #c0c0c0;
+            }
+            .demo-row {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 16px;
+                margin: 12px 0;
+            }
+            .demo-row .demo-canvas {
+                width: 150px;
+                height: 150px;
+                background: #000;
+                border-radius: 6px;
+                flex: none;
+            }
+            .demo-row .demo-key {
+                width: 108px;
+                image-rendering: pixelated;
+                flex: none;
+            }
+            /* ---- end verbatim ---- */
 
-    #report { font-family: ui-monospace, Menlo, monospace; font-size: 12px; white-space: pre; margin-top: 20px; }
-    .ok { color: #6fcf72; }
-    .bad { color: #ff6b6b; }
-</style>
-</head>
-<body>
+            #report {
+                font-family: ui-monospace, Menlo, monospace;
+                font-size: 12px;
+                white-space: pre;
+                margin-top: 20px;
+            }
+            .ok {
+                color: #6fcf72;
+            }
+            .bad {
+                color: #ff6b6b;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="canvas-container"></div>
+        <div id="report">measuring…</div>
 
-<div id="canvas-container"></div>
-<div id="report">measuring…</div>
+        <script src="../engine.js"></script>
+        <script src="../training_stages.js"></script>
+        <script src="../demo_block_configs.js"></script>
+        <script src="../hirsch_block_configs.js"></script>
+        <script src="../switch-frequency.js"></script>
+        <script src="../instruction_demo.js"></script>
+        <script src="../canonical_paradigms.js"></script>
+        <script src="../session_helpers.js"></script>
 
-<script src="../engine.js"></script>
-<script src="../training_stages.js"></script>
-<script src="../demo_block_configs.js"></script>
-<script src="../hirsch_block_configs.js"></script>
-<script src="../switch-frequency.js"></script>
-<script src="../instruction_demo.js"></script>
-<script src="../canonical_paradigms.js"></script>
-<script src="../session_helpers.js"></script>
+        <script>
+            const CANVAS = 600;
+            const container = document.getElementById('canvas-container');
 
-<script>
-const CANVAS = 600;
-const container = document.getElementById('canvas-container');
+            // Reproduce showInstructions() exactly: one overlay, innerHTML with <br>.
+            //
+            // Returns { needed, available }. `needed` is the content's own laid-out height
+            // plus the overlay's vertical padding — the height the screen WANTS. Do not use
+            // overlay.scrollHeight: it saturates at the overlay's client height for anything
+            // that fits, so every comfortable screen reads as an identical 598 and you
+            // cannot see how much slack you have while trimming.
+            function measure(text, demo = null) {
+                container.innerHTML = '';
+                const overlay = document.createElement('div');
+                overlay.className = 'instructions-overlay';
+                overlay.innerHTML = `<div class="instructions-content">${instructionHtml(text, Boolean(demo))}</div>`;
+                const content = overlay.firstElementChild;
+                // Placement is shared with showInstructions (instruction_demo.js), rather
+                // than reimplemented here: an audit that measures a different placement from
+                // the one that ships measures fiction. The REAL element is built and
+                // measured — a placeholder of the "right" size would just be this audit
+                // asserting its own assumption.
+                let running = null;
+                if (demo) running = placeInstructionDemo(content, demo, null);
+                container.appendChild(overlay);
+                const pad =
+                    parseFloat(getComputedStyle(overlay).paddingTop) +
+                    parseFloat(getComputedStyle(overlay).paddingBottom);
+                const result = {
+                    needed: Math.ceil(content.getBoundingClientRect().height + pad),
+                    available: overlay.clientHeight,
+                };
+                // The cartoon owns an rAF loop and pending timers; leaving 46 of them running
+                // would not change a number here but would peg the CPU for the rest of the run.
+                if (running) running.stop();
+                container.innerHTML = '';
+                return result;
+            }
 
-// Reproduce showInstructions() exactly: one overlay, innerHTML with <br>.
-//
-// Returns { needed, available }. `needed` is the content's own laid-out height
-// plus the overlay's vertical padding — the height the screen WANTS. Do not use
-// overlay.scrollHeight: it saturates at the overlay's client height for anything
-// that fits, so every comfortable screen reads as an identical 598 and you
-// cannot see how much slack you have while trimming.
-function measure(text, demo = null) {
-    container.innerHTML = '';
-    const overlay = document.createElement('div');
-    overlay.className = 'instructions-overlay';
-    overlay.innerHTML =
-        `<div class="instructions-content">${instructionHtml(text, Boolean(demo))}</div>`;
-    const content = overlay.firstElementChild;
-    // Placement is shared with showInstructions (instruction_demo.js), rather
-    // than reimplemented here: an audit that measures a different placement from
-    // the one that ships measures fiction. The REAL element is built and
-    // measured — a placeholder of the "right" size would just be this audit
-    // asserting its own assumption.
-    let running = null;
-    if (demo) running = placeInstructionDemo(content, demo, null);
-    container.appendChild(overlay);
-    const pad = parseFloat(getComputedStyle(overlay).paddingTop)
-        + parseFloat(getComputedStyle(overlay).paddingBottom);
-    const result = {
-        needed: Math.ceil(content.getBoundingClientRect().height + pad),
-        available: overlay.clientHeight,
-    };
-    // The cartoon owns an rAF loop and pending timers; leaving 46 of them running
-    // would not change a number here but would peg the CPU for the rest of the run.
-    if (running) running.stop();
-    container.innerHTML = '';
-    return result;
-}
+            // Four-cue scheme (?scheme=fourcue): its copy differs from disjoint — the border
+            // legend gains " on your LEFT/RIGHT", the task-switch cue line names the side, and
+            // the demo draws a half-border with vertically-rotated birds. Measured alongside
+            // disjoint so a wrapped legend line cannot silently overflow one scheme only.
+            const FOURCUE = cpResolveScheme('fourcue');
+            const SESSIONS = {
+                cp_prp_training: CP_PRP_TRAINING_SESSION,
+                cp_taskswitch_training: CP_TASKSWITCH_TRAINING_SESSION,
+                cp_taskswitch_asym_training: CP_TASKSWITCH_ASYM_TRAINING_SESSION,
+                cp_stroop_training: CP_STROOP_TRAINING_SESSION,
+                cp_stroop_crossed_training: CP_STROOP_CROSSED_TRAINING_SESSION,
+                // The test-only sessions run the same copy without the practice preamble;
+                // measured too so trimming one path cannot silently overflow the other.
+                cp_prp: CP_PRP_SESSION,
+                cp_taskswitch: CP_TASKSWITCH_SESSION,
+                cp_taskswitch_asym: CP_TASKSWITCH_ASYM_SESSION,
+                cp_stroop: CP_STROOP_SESSION,
+                cp_stroop_crossed: CP_STROOP_CROSSED_SESSION,
+                // Four-cue scheme, both paths.
+                cp_prp_training_fourcue: cpBuildPrpTrainingSession('A', FOURCUE),
+                cp_taskswitch_training_fourcue: cpBuildTaskSwitchTrainingSession('A', FOURCUE),
+                cp_taskswitch_asym_training_fourcue: cpBuildTaskSwitchAsymTrainingSession(
+                    'A',
+                    FOURCUE,
+                ),
+                cp_stroop_training_fourcue: cpBuildStroopTrainingSession('A', FOURCUE),
+                cp_stroop_crossed_training_fourcue: cpBuildStroopCrossedTrainingSession(
+                    'A',
+                    FOURCUE,
+                ),
+                cp_prp_fourcue: cpTestSessionFor('cp_prp', 'A', FOURCUE),
+                cp_taskswitch_fourcue: cpTestSessionFor('cp_taskswitch', 'A', FOURCUE),
+                cp_taskswitch_asym_fourcue: cpTestSessionFor('cp_taskswitch_asym', 'A', FOURCUE),
+                cp_stroop_fourcue: cpTestSessionFor('cp_stroop', 'A', FOURCUE),
+                cp_stroop_crossed_fourcue: cpTestSessionFor('cp_stroop_crossed', 'A', FOURCUE),
+            };
 
-// Four-cue scheme (?scheme=fourcue): its copy differs from disjoint — the border
-// legend gains " on your LEFT/RIGHT", the task-switch cue line names the side, and
-// the demo draws a half-border with vertically-rotated birds. Measured alongside
-// disjoint so a wrapped legend line cannot silently overflow one scheme only.
-const FOURCUE = cpResolveScheme('fourcue');
-const SESSIONS = {
-    cp_prp_training: CP_PRP_TRAINING_SESSION,
-    cp_taskswitch_training: CP_TASKSWITCH_TRAINING_SESSION,
-    cp_taskswitch_asym_training: CP_TASKSWITCH_ASYM_TRAINING_SESSION,
-    cp_stroop_training: CP_STROOP_TRAINING_SESSION,
-    cp_stroop_crossed_training: CP_STROOP_CROSSED_TRAINING_SESSION,
-    // The test-only sessions run the same copy without the practice preamble;
-    // measured too so trimming one path cannot silently overflow the other.
-    cp_prp: CP_PRP_SESSION,
-    cp_taskswitch: CP_TASKSWITCH_SESSION,
-    cp_taskswitch_asym: CP_TASKSWITCH_ASYM_SESSION,
-    cp_stroop: CP_STROOP_SESSION,
-    cp_stroop_crossed: CP_STROOP_CROSSED_SESSION,
-    // Four-cue scheme, both paths.
-    cp_prp_training_fourcue: cpBuildPrpTrainingSession('A', FOURCUE),
-    cp_taskswitch_training_fourcue: cpBuildTaskSwitchTrainingSession('A', FOURCUE),
-    cp_taskswitch_asym_training_fourcue: cpBuildTaskSwitchAsymTrainingSession('A', FOURCUE),
-    cp_stroop_training_fourcue: cpBuildStroopTrainingSession('A', FOURCUE),
-    cp_stroop_crossed_training_fourcue: cpBuildStroopCrossedTrainingSession('A', FOURCUE),
-    cp_prp_fourcue: cpTestSessionFor('cp_prp', 'A', FOURCUE),
-    cp_taskswitch_fourcue: cpTestSessionFor('cp_taskswitch', 'A', FOURCUE),
-    cp_taskswitch_asym_fourcue: cpTestSessionFor('cp_taskswitch_asym', 'A', FOURCUE),
-    cp_stroop_fourcue: cpTestSessionFor('cp_stroop', 'A', FOURCUE),
-    cp_stroop_crossed_fourcue: cpTestSessionFor('cp_stroop_crossed', 'A', FOURCUE),
-};
+            const lines = [];
+            let worst = 0,
+                overflowing = 0,
+                measured = 0,
+                available = CANVAS;
 
-const lines = [];
-let worst = 0, overflowing = 0, measured = 0, available = CANVAS;
+            function record(label, text, out, demo = null) {
+                const { needed, available: avail } = measure(text, demo);
+                available = avail;
+                measured++;
+                worst = Math.max(worst, needed);
+                const over = needed > avail;
+                if (over) overflowing++;
+                const slack = avail - needed;
+                out.push(
+                    `  ${label}  ${String(needed).padStart(4)} px  ` +
+                        (over ? `*** OVERFLOWS by ${-slack} px ***` : `ok (${slack} px spare)`),
+                );
+            }
 
-function record(label, text, out, demo = null) {
-    const { needed, available: avail } = measure(text, demo);
-    available = avail;
-    measured++;
-    worst = Math.max(worst, needed);
-    const over = needed > avail;
-    if (over) overflowing++;
-    const slack = avail - needed;
-    out.push(`  ${label}  ${String(needed).padStart(4)} px  ` +
-        (over ? `*** OVERFLOWS by ${-slack} px ***` : `ok (${slack} px spare)`));
-}
+            for (const [id, session] of Object.entries(SESSIONS)) {
+                lines.push(`\n${id}`);
+                session.forEach((blockDef, i) => {
+                    const label =
+                        `[${i}] ${(blockDef.stage || 'test').padEnd(4)}` +
+                        (blockDef.demo ? ' +demo' : '      ');
+                    if (!blockDef.instructions) {
+                        lines.push(`  ${label}  (no screen — break screen precedes it)`);
+                        return;
+                    }
+                    record(label, blockDef.instructions, lines, blockDef.demo);
+                });
+            }
 
-for (const [id, session] of Object.entries(SESSIONS)) {
-    lines.push(`\n${id}`);
-    session.forEach((blockDef, i) => {
-        const label = `[${i}] ${(blockDef.stage || 'test').padEnd(4)}`
-            + (blockDef.demo ? ' +demo' : '      ');
-        if (!blockDef.instructions) {
-            lines.push(`  ${label}  (no screen — break screen precedes it)`);
-            return;
-        }
-        record(label, blockDef.instructions, lines, blockDef.demo);
-    });
-}
+            // The capped break screen is generated in runSession (showBreak), not stored on a
+            // blockDef, so measure a representative worst case: the longest heading, the
+            // longest summary line, and the countdown + armed-confirm prompt lines that
+            // showBreak appends as its own elements.
+            const breakScreen =
+                'Training complete — the test blocks begin next.\n\n' +
+                formatBreakSummary({
+                    numResponses: 120,
+                    numCorrect: 100,
+                    accuracy: 100 / 120,
+                    meanRt: 1234.5,
+                }) +
+                '\n\n' +
+                'Take a break — up to one minute.\n\n' +
+                'Break: 60 s remaining.\n\n' +
+                'Press Enter again to confirm.';
+            lines.push('\nbreak screen (runSession)');
+            record('     ', breakScreen, lines);
 
-// The capped break screen is generated in runSession (showBreak), not stored on a
-// blockDef, so measure a representative worst case: the longest heading, the
-// longest summary line, and the countdown + armed-confirm prompt lines that
-// showBreak appends as its own elements.
-const breakScreen =
-    'Training complete — the test blocks begin next.\n\n' +
-    formatBreakSummary({ numResponses: 120, numCorrect: 100, accuracy: 100 / 120, meanRt: 1234.5 }) + '\n\n' +
-    'Take a break — up to one minute.\n\n' +
-    'Break: 60 s remaining.\n\n' +
-    'Press Enter again to confirm.';
-lines.push('\nbreak screen (runSession)');
-record('     ', breakScreen, lines);
+            lines.push(`\n${'-'.repeat(58)}`);
+            lines.push(
+                `measured ${measured} screens; tallest ${worst} px against ${available} px of usable canvas`,
+            );
+            lines.push(
+                overflowing === 0
+                    ? 'PASS — every screen fits without scrolling'
+                    : `FAIL — ${overflowing} screen(s) overflow`,
+            );
 
-lines.push(`\n${'-'.repeat(58)}`);
-lines.push(`measured ${measured} screens; tallest ${worst} px against ${available} px of usable canvas`);
-lines.push(overflowing === 0
-    ? 'PASS — every screen fits without scrolling'
-    : `FAIL — ${overflowing} screen(s) overflow`);
-
-const report = document.getElementById('report');
-report.textContent = lines.join('\n');
-report.className = overflowing === 0 ? 'ok' : 'bad';
-console.log(lines.join('\n'));
-window.__AUDIT__ = { measured, worst, overflowing, text: lines.join('\n') };
-</script>
-</body>
+            const report = document.getElementById('report');
+            report.textContent = lines.join('\n');
+            report.className = overflowing === 0 ? 'ok' : 'bad';
+            console.log(lines.join('\n'));
+            window.__AUDIT__ = { measured, worst, overflowing, text: lines.join('\n') };
+        </script>
+    </body>
 </html>

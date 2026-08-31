@@ -29,7 +29,7 @@ const RIGHT_HAND_KEYS_ORTHOGONAL = { 90: 'j', 270: 'l' };
 // put up/down onto the horizontal A/D, J/L keys. Deriving a task's direction pool
 // from these keys yields [90, 270], which is what makes the fourcue stimulus
 // vertical without any separate geometry flag in the generator.
-const LEFT_HAND_KEYS_VERTICAL  = { 90: 'w', 270: 's' };
+const LEFT_HAND_KEYS_VERTICAL = { 90: 'w', 270: 's' };
 const RIGHT_HAND_KEYS_VERTICAL = { 90: 'i', 270: 'k' };
 
 /**
@@ -126,10 +126,10 @@ function cpResolveScheme(name) {
 const SE_LEFT_HAND_LETTERS = 'qwertasdfgzxcvb';
 const SE_RIGHT_HAND_LETTERS = 'yuiophjklnm';
 function seHandSideOf(keyMap) {
-    const keys = Object.values(keyMap || {}).map(k => String(k).toLowerCase());
+    const keys = Object.values(keyMap || {}).map((k) => String(k).toLowerCase());
     if (keys.length === 0) return null;
-    if (keys.every(k => SE_LEFT_HAND_LETTERS.includes(k))) return 'left';
-    if (keys.every(k => SE_RIGHT_HAND_LETTERS.includes(k))) return 'right';
+    if (keys.every((k) => SE_LEFT_HAND_LETTERS.includes(k))) return 'left';
+    if (keys.every((k) => SE_RIGHT_HAND_LETTERS.includes(k))) return 'right';
     return null;
 }
 
@@ -154,7 +154,15 @@ function seHandSideOf(keyMap) {
  *   it which half.
  * @param {string} [cueBorderStyle] - 'solid' or 'segmented'.
  */
-function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps, cueMode, cueBorderStyle) {
+function buildSEConfig(
+    rso,
+    earlyResolve,
+    feedback,
+    acceptFirstResponse,
+    keyMaps,
+    cueMode,
+    cueBorderStyle,
+) {
     if (keyMaps) {
         return {
             movementKeyMap: { ...keyMaps.mov },
@@ -201,9 +209,13 @@ function buildSEConfig(rso, earlyResolve, feedback, acceptFirstResponse, keyMaps
  * prp-baseline/dual-task, all of which are task- or side-tied instead).
  */
 function isFourcueSingleTaskBlock(blockConfig, canvasType) {
-    return blockConfig.cueMode === 'hue+position'
-        && canvasType !== 'dual-canvas' && canvasType !== 'alternating'
-        && canvasType !== 'prp-baseline' && blockConfig.paradigm !== 'dual-task';
+    return (
+        blockConfig.cueMode === 'hue+position' &&
+        canvasType !== 'dual-canvas' &&
+        canvasType !== 'alternating' &&
+        canvasType !== 'prp-baseline' &&
+        blockConfig.paradigm !== 'dual-task'
+    );
 }
 
 /**
@@ -238,7 +250,13 @@ function fourcueSingleTaskKeyMaps(task, hand) {
  * @param {{earlyResolve: boolean, feedback: boolean, acceptFirstResponse: boolean, size: number}} opts
  */
 function makeCanvasSEConfig(task, keys, { earlyResolve, feedback, acceptFirstResponse, size }) {
-    const config = { size, acceptFirstResponse, feedback, earlyResolve, resolveDelay: RESOLVE_DELAY };
+    const config = {
+        size,
+        acceptFirstResponse,
+        feedback,
+        earlyResolve,
+        resolveDelay: RESOLVE_DELAY,
+    };
     if (task === 'mov') {
         config.movementKeyMap = { ...keys };
         config.orientationKeyMap = { ...DUMMY_KEYS };
@@ -259,7 +277,15 @@ function makeCanvasSEConfig(task, keys, { earlyResolve, feedback, acceptFirstRes
  * @param {boolean} earlyResolve - whether the trial resolves on response
  * @param {number} size - canvas size (fraction of viewport)
  */
-function buildDualCanvasSEConfigs(leftTask, rightTask, earlyResolve, feedback, acceptFirstResponse, size, mapping) {
+function buildDualCanvasSEConfigs(
+    leftTask,
+    rightTask,
+    earlyResolve,
+    feedback,
+    acceptFirstResponse,
+    size,
+    mapping,
+) {
     const { left: leftKeys, right: rightKeys } = handKeysForMapping(mapping);
     const opts = { earlyResolve, feedback, acceptFirstResponse, size };
     return {
@@ -277,10 +303,23 @@ function buildDualCanvasSEConfigs(leftTask, rightTask, earlyResolve, feedback, a
  * @param {boolean} earlyResolve - whether the trial resolves on response
  * @param {number} size - canvas size (fraction of viewport)
  */
-function buildAlternatingSEConfig(task, side, earlyResolve, feedback, acceptFirstResponse, size, mapping) {
+function buildAlternatingSEConfig(
+    task,
+    side,
+    earlyResolve,
+    feedback,
+    acceptFirstResponse,
+    size,
+    mapping,
+) {
     const handKeys = handKeysForMapping(mapping);
     const sideKeys = side === 'left' ? handKeys.left : handKeys.right;
-    return makeCanvasSEConfig(task, sideKeys, { earlyResolve, feedback, acceptFirstResponse, size });
+    return makeCanvasSEConfig(task, sideKeys, {
+        earlyResolve,
+        feedback,
+        acceptFirstResponse,
+        size,
+    });
 }
 
 // ============================================================
@@ -294,8 +333,8 @@ function buildAlternatingSEConfig(task, side, earlyResolve, feedback, acceptFirs
 function buildKeyTaskMap(seConfig, trial) {
     const movKeys = Object.values(seConfig.movementKeyMap || {});
     const orKeys = Object.values(seConfig.orientationKeyMap || {});
-    const isDisjoint = movKeys.length > 0 && orKeys.length > 0 &&
-        !movKeys.some(k => orKeys.includes(k));
+    const isDisjoint =
+        movKeys.length > 0 && orKeys.length > 0 && !movKeys.some((k) => orKeys.includes(k));
     if (!isDisjoint) return null;
     const task1 = trial.meta.t1_task;
     const task1Keys = task1 === 'mov' ? movKeys : orKeys;
@@ -395,8 +434,8 @@ function extractResponse(data, trial, seConfig) {
 
     if (keyMap) {
         // Disjoint RSO: split keypresses by key set, extract independently
-        const t1Presses = keyPresses.filter(kp => keyMap.task1Keys.includes(kp.key));
-        const t2Presses = keyPresses.filter(kp => keyMap.task2Keys.includes(kp.key));
+        const t1Presses = keyPresses.filter((kp) => keyMap.task1Keys.includes(kp.key));
+        const t2Presses = keyPresses.filter((kp) => keyMap.task2Keys.includes(kp.key));
         t1Result = extractSingleStreamResponse(t1Presses, t1Onset, seConfig.acceptFirstResponse);
         t2Result = extractSingleStreamResponse(t2Presses, t2Onset, seConfig.acceptFirstResponse);
     } else {
@@ -404,7 +443,11 @@ function extractResponse(data, trial, seConfig) {
         t1Result = extractSingleStreamResponse(keyPresses, t1Onset, seConfig.acceptFirstResponse);
         if (isDualTask) {
             const remaining = keyPresses.slice(t1Result.consumedCount);
-            t2Result = extractSingleStreamResponse(remaining, t2Onset, seConfig.acceptFirstResponse);
+            t2Result = extractSingleStreamResponse(
+                remaining,
+                t2Onset,
+                seConfig.acceptFirstResponse,
+            );
         }
     }
 
@@ -417,9 +460,12 @@ function extractResponse(data, trial, seConfig) {
         rt2: isDualTask ? (t2Result.rt ?? null) : null,
         accuracy2: isDualTask ? (t2Result.accuracy ?? 'miss') : null,
         anticipations2: isDualTask ? (t2Result.anticipations ?? 0) : null,
-        responseOrder: (isDualTask && t1Result.rt_raw !== null && t2Result.rt_raw !== null)
-            ? (t1Result.rt_raw <= t2Result.rt_raw ? 'T1-first' : 'T2-first')
-            : null,
+        responseOrder:
+            isDualTask && t1Result.rt_raw !== null && t2Result.rt_raw !== null
+                ? t1Result.rt_raw <= t2Result.rt_raw
+                    ? 'T1-first'
+                    : 'T2-first'
+                : null,
         rawKeyPresses: JSON.stringify(keyPresses),
     };
 }
@@ -433,29 +479,48 @@ function extractResponse(data, trial, seConfig) {
  */
 function extractAlternatingResponse(data, trial, seConfig) {
     const onset = trial.meta.t1_stim_onset ?? trial.meta.t2_stim_onset;
-    const result = extractSingleStreamResponse(data.keyPresses, onset, seConfig.acceptFirstResponse);
+    const result = extractSingleStreamResponse(
+        data.keyPresses,
+        onset,
+        seConfig.acceptFirstResponse,
+    );
     return {
         rt1: result.rt,
         rt1_raw: result.rt_raw,
         accuracy1: result.accuracy,
         anticipations1: result.anticipations,
-        rt2: null, rt2_raw: null, accuracy2: null, anticipations2: null,
+        rt2: null,
+        rt2_raw: null,
+        accuracy2: null,
+        anticipations2: null,
         rawKeyPresses: JSON.stringify(data.keyPresses),
     };
 }
 
 function extractDualCanvasResponse(t1Data, t2Data, t1StimOnset, t2StimOnset, t1Config, t2Config) {
-    const t1Result = extractSingleStreamResponse(t1Data.keyPresses, t1StimOnset, t1Config.acceptFirstResponse);
-    const t2Result = extractSingleStreamResponse(t2Data.keyPresses, t2StimOnset, t2Config.acceptFirstResponse);
+    const t1Result = extractSingleStreamResponse(
+        t1Data.keyPresses,
+        t1StimOnset,
+        t1Config.acceptFirstResponse,
+    );
+    const t2Result = extractSingleStreamResponse(
+        t2Data.keyPresses,
+        t2StimOnset,
+        t2Config.acceptFirstResponse,
+    );
 
     let responseOrder = null;
     if (t1Result.rt_raw !== null && t2Result.rt_raw !== null) {
-        responseOrder = (t2Result.rt_raw - t1Result.rt_raw > 0) ? 'T1-first' : 'T2-first';
+        responseOrder = t2Result.rt_raw - t1Result.rt_raw > 0 ? 'T1-first' : 'T2-first';
     }
 
     return {
-        rt1: t1Result.rt, rt1_raw: t1Result.rt_raw, accuracy1: t1Result.accuracy,
-        rt2: t2Result.rt, rt2_raw: t2Result.rt_raw, accuracy2: t2Result.accuracy,
+        rt1: t1Result.rt,
+        rt1_raw: t1Result.rt_raw,
+        accuracy1: t1Result.accuracy,
+        rt2: t2Result.rt,
+        rt2_raw: t2Result.rt_raw,
+        accuracy2: t2Result.accuracy,
         anticipations1: t1Result.anticipations,
         anticipations2: t2Result.anticipations,
         responseOrder,
@@ -513,7 +578,7 @@ function hashSeed(str) {
 function makeSeededRng(seed) {
     let a = seed >>> 0;
     return function next() {
-        a = (a + 0x6D2B79F5) >>> 0;
+        a = (a + 0x6d2b79f5) >>> 0;
         let t = a;
         t = Math.imul(t ^ (t >>> 15), t | 1);
         t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
@@ -548,12 +613,14 @@ function drawSequenceIds(seedKey, poolSize, count) {
     if (count > poolSize) {
         throw new Error(
             `drawSequenceIds: cannot draw ${count} distinct sequences from a pool of ` +
-            `${poolSize}. Generate a larger pool (sweetpea/generate.py --pool N) and ` +
-            'raise CP_SEQUENCE_POOL_SIZE to match.'
+                `${poolSize}. Generate a larger pool (sweetpea/generate.py --pool N) and ` +
+                'raise CP_SEQUENCE_POOL_SIZE to match.',
         );
     }
     if (seedKey === undefined || seedKey === null || String(seedKey) === '') {
-        throw new Error('drawSequenceIds: seedKey is required — an unseeded draw is not reproducible across a reload');
+        throw new Error(
+            'drawSequenceIds: seedKey is required — an unseeded draw is not reproducible across a reload',
+        );
     }
     const rng = makeSeededRng(hashSeed(seedKey));
     const ids = Array.from({ length: poolSize }, (_, i) => i + 1);
@@ -573,7 +640,7 @@ function argMax(arr) {
             maxIndex = i;
         }
     }
-    return maxIndex
+    return maxIndex;
 }
 
 function createQuest(priorMean, priorSD) {
@@ -591,7 +658,7 @@ function createQuest(priorMean, priorSD) {
     const beta = 3.5;
     const epsilon = 0.03315;
     let qArray = computePrior(intensityAxis, logMean, logSD);
-    const originalPrior = [ ...qArray ];
+    const originalPrior = [...qArray];
 
     function createAxis() {
         const axis = new Array(numValues).fill(0);
@@ -606,13 +673,13 @@ function createQuest(priorMean, priorSD) {
         // Drops the log(priorSD) and 0.5*log(2*pi) normalizing terms — constant
         // across the loop, so they don't affect argMax.
         for (let i = 0; i < intensityAxis.length; i++) {
-            logPrior[i] = -0.5 * ((intensityAxis[i] - priorMean) / priorSD) ** 2
+            logPrior[i] = -0.5 * ((intensityAxis[i] - priorMean) / priorSD) ** 2;
         }
         return logPrior;
     }
 
     function psi(x) {
-        return gamma + (1 - gamma - delta) * (1 - Math.exp(-(10**(beta * (x + epsilon)))));
+        return gamma + (1 - gamma - delta) * (1 - Math.exp(-(10 ** (beta * (x + epsilon)))));
     }
 
     // s/f: log-likelihood of a correct/incorrect response, indexed by distance
@@ -623,7 +690,7 @@ function createQuest(priorMean, priorSD) {
 
     function compute_s_and_f() {
         const padding = numValues;
-        const size = (2 * padding) + 1;
+        const size = 2 * padding + 1;
         const s = new Array(size).fill(0);
         const f = new Array(size).fill(0);
         for (let i = 0; i < size; i++) {
@@ -636,7 +703,7 @@ function createQuest(priorMean, priorSD) {
     }
 
     function getNextIntensity() {
-        return 10**intensityAxis[argMax(qArray)];
+        return 10 ** intensityAxis[argMax(qArray)];
     }
 
     function update(testedCoherence, wasCorrect) {
@@ -646,7 +713,7 @@ function createQuest(priorMean, priorSD) {
         for (let i = 0; i < qArray.length; i++) {
             // (testedIndex - i) is the hypothesis's distance from what was
             // tested; + numValues re-centers it into the padded rulebook.
-            const shiftIndex = (testedIndex - i) + numValues;
+            const shiftIndex = testedIndex - i + numValues;
             // Guards a testedCoherence far outside the expected min/max.
             if (shiftIndex >= 0 && shiftIndex < arrayToUse.length) {
                 qArray[i] += arrayToUse[shiftIndex];
@@ -656,13 +723,13 @@ function createQuest(priorMean, priorSD) {
 
     function getFinalEstimate() {
         const likelihoodOnly = qArray.map((val, i) => val - originalPrior[i]);
-        return 10**intensityAxis[argMax(likelihoodOnly)];
+        return 10 ** intensityAxis[argMax(likelihoodOnly)];
     }
 
     return {
         getNextIntensity,
         update,
-        getFinalEstimate
+        getFinalEstimate,
     };
 }
 
@@ -788,11 +855,11 @@ function assertValidBlockConfig(blockConfig) {
     if (blockConfig.earlyResolve && !blockConfig.acceptFirstResponse) {
         throw new Error(
             `blockConfig '${id}': earlyResolve is true but acceptFirstResponse is false. ` +
-            'That combination resolves the trial early only on a CORRECT press, so an ' +
-            "error is comfortably corrected and scored 'corrected' with the second " +
-            "press's RT. earlyResolve does NOT imply acceptFirstResponse: set " +
-            'acceptFirstResponse: true (first press is the response) or ' +
-            'earlyResolve: false.'
+                'That combination resolves the trial early only on a CORRECT press, so an ' +
+                "error is comfortably corrected and scored 'corrected' with the second " +
+                "press's RT. earlyResolve does NOT imply acceptFirstResponse: set " +
+                'acceptFirstResponse: true (first press is the response) or ' +
+                'earlyResolve: false.',
         );
     }
 
@@ -804,9 +871,9 @@ function assertValidBlockConfig(blockConfig) {
     if (blockConfig.coherenceRamp && blockConfig.paradigm === 'dual-task') {
         throw new Error(
             `blockConfig '${id}': coherenceRamp is not allowed on a 'dual-task' block. ` +
-            'The ramp writes T1\'s channel only (coh_<task>_1), so T2 would run at test ' +
-            'coherence throughout — a silent T1-difficulty manipulation crossed with SOA, ' +
-            'which is the exact confound a PRP block exists to measure.'
+                "The ramp writes T1's channel only (coh_<task>_1), so T2 would run at test " +
+                'coherence throughout — a silent T1-difficulty manipulation crossed with SOA, ' +
+                'which is the exact confound a PRP block exists to measure.',
         );
     }
 }
@@ -826,21 +893,19 @@ function assertValidBlockConfig(blockConfig) {
  * @throws {Error} when the ramp target does not resolve to a finite number
  */
 function resolveRampTarget(ramp, task, blockId) {
-    const to = typeof ramp.to === 'number'
-        ? ramp.to
-        : (ramp.to != null ? ramp.to[task] : undefined);
+    const to = typeof ramp.to === 'number' ? ramp.to : ramp.to != null ? ramp.to[task] : undefined;
     if (!Number.isFinite(to)) {
         throw new Error(
             `blockConfig '${blockId || '(unnamed block)'}': coherenceRamp.to did not resolve ` +
-            `to a finite number for task '${task}' (got ${JSON.stringify(to)}). ` +
-            'A per-task ramp table needs an entry for every task the stage can present, ' +
-            'and a stage whose t1_task is null cannot carry a per-task ramp at all.'
+                `to a finite number for task '${task}' (got ${JSON.stringify(to)}). ` +
+                'A per-task ramp table needs an entry for every task the stage can present, ' +
+                'and a stage whose t1_task is null cannot carry a per-task ramp at all.',
         );
     }
     if (!Number.isFinite(ramp.from)) {
         throw new Error(
             `blockConfig '${blockId || '(unnamed block)'}': coherenceRamp.from must be a ` +
-            `finite number (got ${JSON.stringify(ramp.from)}).`
+                `finite number (got ${JSON.stringify(ramp.from)}).`,
         );
     }
     return to;
@@ -861,7 +926,12 @@ function resolveRampTarget(ramp, task, blockId) {
  * @param {number} rampLength - number of trials the descent spans
  * @returns {number}
  */
-function rampedCoherence(trialIndex, fromCoherence, toCoherence, rampLength = TRAINING_RAMP_LENGTH) {
+function rampedCoherence(
+    trialIndex,
+    fromCoherence,
+    toCoherence,
+    rampLength = TRAINING_RAMP_LENGTH,
+) {
     if (rampLength <= 1) return toCoherence;
     if (trialIndex <= 0) return fromCoherence;
     if (trialIndex >= rampLength - 1) return toCoherence;
@@ -896,7 +966,10 @@ function summarizeBlockPerformance(rows) {
     let rtSum = 0;
     let rtCount = 0;
     for (const row of rows) {
-        for (const [accuracy, rt] of [[row.accuracy1, row.rt1], [row.accuracy2, row.rt2]]) {
+        for (const [accuracy, rt] of [
+            [row.accuracy1, row.rt1],
+            [row.accuracy2, row.rt2],
+        ]) {
             if (accuracy == null) continue;
             numResponses++;
             if (!accuracy.startsWith('correct')) continue;
@@ -925,9 +998,8 @@ function summarizeBlockPerformance(rows) {
 function formatBreakSummary(summary) {
     if (!summary) return null;
     const accuracy = `${Math.round(summary.accuracy * 100)}% correct`;
-    const rt = summary.meanRt !== null
-        ? `, average ${Math.round(summary.meanRt)} ms per answer`
-        : '';
+    const rt =
+        summary.meanRt !== null ? `, average ${Math.round(summary.meanRt)} ms per answer` : '';
     return `Since the last break: ${accuracy}${rt}.`;
 }
 
@@ -947,9 +1019,9 @@ function formatBreakSummary(summary) {
 // repeat (a held key) is ignored, and the confirm is refused until confirmMinMs
 // after arming, so a single bounced/double-fired keydown cannot arm-and-confirm
 // in one physical press.
-const BREAK_CAP_MS = 60000;          // hard ceiling on one break (l.12 "a minute")
-const BREAK_ADVANCE_KEY = 'Enter';   // the one key that advances; matches KeyboardEvent.key
-const BREAK_CONFIRM_MIN_MS = 250;    // confirm ignored until this long after arming
+const BREAK_CAP_MS = 60000; // hard ceiling on one break (l.12 "a minute")
+const BREAK_ADVANCE_KEY = 'Enter'; // the one key that advances; matches KeyboardEvent.key
+const BREAK_CONFIRM_MIN_MS = 250; // confirm ignored until this long after arming
 
 /**
  * Pure controller for a capped break's deliberate early-advance.
@@ -966,15 +1038,22 @@ function createBreakController(opts = {}) {
     const confirmMinMs = opts.confirmMinMs ?? BREAK_CONFIRM_MIN_MS;
     let armedAt = null;
     return {
-        get armed() { return armedAt !== null; },
+        get armed() {
+            return armedAt !== null;
+        },
         press(key, now, repeat = false) {
-            if (repeat) return 'ignored';           // held key: never advances
+            if (repeat) return 'ignored'; // held key: never advances
             if (key !== advanceKey) return 'ignored'; // only the one key counts
-            if (armedAt === null) { armedAt = now; return 'armed'; }
+            if (armedAt === null) {
+                armedAt = now;
+                return 'armed';
+            }
             if (now - armedAt < confirmMinMs) return 'ignored'; // debounce a double-fire
             return 'advance';
         },
-        reset() { armedAt = null; },
+        reset() {
+            armedAt = null;
+        },
     };
 }
 
@@ -1025,8 +1104,7 @@ function scheduledSoa(trialIndex, soaLevels, scheduleLength = TRAINING_SOA_SCHED
     // (longer, easier) levels, which is the safe direction to err in.
     const levelIndex = Math.min(
         descending.length - 1,
-        Math.floor((trialIndex * descending.length) / scheduleLength)
+        Math.floor((trialIndex * descending.length) / scheduleLength),
     );
     return descending[levelIndex];
 }
-

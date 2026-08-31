@@ -54,9 +54,9 @@ function advancementRate(p, { windowSize = 16, threshold = 14, cap = 36 } = {}) 
     // the stage still running. Index = state, value = probability mass.
     let live = new Float64Array(numStates);
     let nextLive = new Float64Array(numStates);
-    live[0] = 1;                 // no trials run yet; leading zeros are "not yet run"
-    let passed = 0;              // absorbed mass: criterion met, stage stopped
-    let expectedTrials = 0;      // sum over trials of P(trial actually runs)
+    live[0] = 1; // no trials run yet; leading zeros are "not yet run"
+    let passed = 0; // absorbed mass: criterion met, stage stopped
+    let expectedTrials = 0; // sum over trials of P(trial actually runs)
 
     for (let trial = 1; trial <= cap; trial++) {
         // Every live path runs this trial.
@@ -75,7 +75,10 @@ function advancementRate(p, { windowSize = 16, threshold = 14, cap = 36 } = {}) 
                 const fullWindow = ((s << 1) | outcome) & ((1 << windowSize) - 1);
                 const nextState = fullWindow & histMask;
                 // The criterion can only fire once a full window exists.
-                if (trial >= windowSize && popcount[fullWindow >> histBits] + popcount[nextState] >= threshold) {
+                if (
+                    trial >= windowSize &&
+                    popcount[fullWindow >> histBits] + popcount[nextState] >= threshold
+                ) {
                     passed += w;
                 } else {
                     nextLive[nextState] += w;
@@ -111,9 +114,9 @@ if (require.main === module) {
         const { windowSize = 16, threshold = 14 } = opts || {};
         console.log(
             `  ${label.padEnd(38)} ${threshold}/${windowSize}  p=${p.toFixed(3)}  ` +
-            `per-window ${pct(r.perWindow, 3).padStart(8)}   ` +
-            `across-cap ${pct(r.passRate, 3).padStart(8)}   ` +
-            `mean trials ${r.meanTrials.toFixed(1)}`
+                `per-window ${pct(r.perWindow, 3).padStart(8)}   ` +
+                `across-cap ${pct(r.passRate, 3).padStart(8)}   ` +
+                `mean trials ${r.meanTrials.toFixed(1)}`,
         );
     };
 
@@ -123,19 +126,21 @@ if (require.main === module) {
     row('single-response @ the rejected 10/16', 0.5, { threshold: 10 });
 
     console.log('\nPRP S8 (two responses; trial passes iff BOTH correct)');
-    for (const perTask of [0.80, 0.85, 0.90, 0.95]) {
-        row(`competent participant @ ${pct(perTask, 0)}/task`, perTask * perTask, { threshold: 12 });
+    for (const perTask of [0.8, 0.85, 0.9, 0.95]) {
+        row(`competent participant @ ${pct(perTask, 0)}/task`, perTask * perTask, {
+            threshold: 12,
+        });
         row(`  same participant under 14/16`, perTask * perTask, { threshold: 14 });
     }
 
     console.log('\nSINGLE-RESPONSE STAGES (S2-S6, switching S8) at 14/16');
-    for (const p of [0.70, 0.75, 0.80, 0.85, 0.90, 0.95]) {
+    for (const p of [0.7, 0.75, 0.8, 0.85, 0.9, 0.95]) {
         row(`true accuracy ${pct(p, 0)}`, p);
     }
 
     console.log('\nS2/S3 EXCLUSION EXPOSURE — P(flagged) = 1 - across-cap pass rate');
     console.log('  (cp_taskswitch_asym ramps S3 to CP_HARD = 0.3)');
-    for (const p of [0.80, 0.75, 0.70]) {
+    for (const p of [0.8, 0.75, 0.7]) {
         const r = advancementRate(p);
         console.log(`    true accuracy ${pct(p, 0)}  ->  flagged ${pct(1 - r.passRate)}`);
     }
