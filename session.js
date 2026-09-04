@@ -167,10 +167,7 @@ const Session = (() => {
     }
 
     function showConsent(containerEl, options = {}) {
-        // Consent is skipped only in developer mode (dev_mode.js). Real participants
-        // always see it. Guarded for the node test env, where window is undefined.
-        const bypass = typeof window !== 'undefined' && !!window.DEV_MODE;
-        if (bypass) {
+        if (options.skipConsent || typeof document === 'undefined' || !containerEl) {
             return Promise.resolve();
         }
         containerEl.classList.add('consent-mode');

@@ -11,9 +11,8 @@
 // no ?dev is a real/blank page; a dev opts in explicitly.
 //
 // What dev mode turns on (see the consumers): the CSV export button
-// (CSV_EXPORT_ENABLED in session.js), the .controls toolbar (below), the dev
-// setup controls (condition radio + participant-id box in index.html), and the
-// consent-screen skip (showConsent in session.js).
+// (CSV_EXPORT_ENABLED in session.js), the .controls toolbar (below), and the dev
+// setup controls (condition radio + participant-id box in index.html).
 (function () {
     const params = new URLSearchParams(location.search);
     const DEV_MODE = params.has('dev') && params.get('dev') !== 'false';
@@ -33,7 +32,7 @@
 
     // Dev run: make it unmistakable so a dev session is never taken for real data.
     console.log(
-        '[DEV MODE ON] CSV export enabled, dev controls shown, consent skipped. ' +
+        '[DEV MODE ON] CSV export enabled, dev controls shown. ' +
             'Remove ?dev from the URL for the real participant / blank page.',
     );
 
