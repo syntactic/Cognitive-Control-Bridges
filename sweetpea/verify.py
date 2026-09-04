@@ -283,7 +283,7 @@ def main():
             check_generic(path, rows, args.verbose)
         if rows and "hand" in rows[0]:
             check_hand(path, rows, args.verbose,
-                       hand_tol=2 if args.scheme == "fourcue_cse" else 1)
+                       hand_tol=2 if args.scheme in ("fourcue", "fourcue_cse") else 1)
         if rows:
             check_cse(path, rows, args.verbose)
 
