@@ -71,3 +71,5 @@ node_modules/
 # Firebase service-account key (SECRET — never commit) and local Firestore exports
 serviceAccountKey.json
 firestore_export.json
+data/exports/
+session_*.csv
