@@ -22,8 +22,8 @@ const KEY_PATH = process.env.FIREBASE_KEY || './serviceAccountKey.json';
 if (!fs.existsSync(KEY_PATH)) {
     console.error(
         `\nERROR: Service account key not found at ${KEY_PATH}.\n` +
-        'Download it from Firebase Console -> Project Settings -> Service Accounts -> "Generate new private key",\n' +
-        'and save it as serviceAccountKey.json in the repository root.\n',
+            'Download it from Firebase Console -> Project Settings -> Service Accounts -> "Generate new private key",\n' +
+            'and save it as serviceAccountKey.json in the repository root.\n',
     );
     process.exit(1);
 }
@@ -32,15 +32,55 @@ initializeApp({ credential: cert(require(path.resolve(KEY_PATH))) });
 const db = getFirestore();
 
 // Standard column schema across all single-canvas and dual-canvas experimental paradigms
+// Mirrors the flat per-trial record uploaded by saveBlock() (session.js), plus the
+// session-level fields joined in from the parent doc. Congruency is intentionally NOT
+// here: it is never stored, and is reconstructed from the direction columns in analysis.
 const CSV_COLUMNS = [
-    'session_id', 'prolific_pid', 'study_id', 'paradigm', 'condition', 'started_at',
-    'blockOrder', 'blockId', 'blockType', 'phase', 'stage', 'isPractice', 'sequenceId',
-    'trialNumber', 't1_task', 't2_task', 'transitionType', 'hand', 'target_coh_level',
-    't1_target_coherence', 't1_distractor_coherence', 't2_target_coherence',
-    't1_target_dir', 't1_distractor_dir', 't2_target_dir', 't2_distractor_dir',
-    'congruency', 'iti', 'iti_achieved', 'soa', 'earlyResolve',
-    'rt1', 'accuracy1', 'rt2', 'accuracy2', 'anticipations1', 'anticipations2',
-    'responseOrder', 'rt1_raw', 'rt2_raw', 'rawKeyPresses',
+    'session_id',
+    'prolific_pid',
+    'study_id',
+    'paradigm',
+    'condition',
+    'started_at',
+    'blockOrder',
+    'blockId',
+    'blockType',
+    'phase',
+    'stage',
+    'isPractice',
+    'sequenceId',
+    'trialNumber',
+    't1_task',
+    't2_task',
+    'transitionType',
+    'hand',
+    'side',
+    't1Side',
+    'target_coh_level',
+    'distractor_coh_level',
+    't1_target_coherence',
+    't1_distractor_coherence',
+    't2_target_coherence',
+    't1_target_dir',
+    't1_distractor_dir',
+    't2_target_dir',
+    't2_distractor_dir',
+    't1_stim_onset',
+    't2_stim_onset',
+    'iti',
+    'iti_achieved',
+    'soa',
+    'earlyResolve',
+    'rt1',
+    'accuracy1',
+    'rt2',
+    'accuracy2',
+    'anticipations1',
+    'anticipations2',
+    'responseOrder',
+    'rt1_raw',
+    'rt2_raw',
+    'rawKeyPresses',
 ];
 
 /**
@@ -53,7 +93,10 @@ function trialsToCSV(trials) {
         CSV_COLUMNS.map((col) => {
             let val = t[col];
             if (val === undefined || val === null) return '';
-            if (typeof val === 'string' && (val.includes(',') || val.includes('"') || val.includes('\n'))) {
+            if (
+                typeof val === 'string' &&
+                (val.includes(',') || val.includes('"') || val.includes('\n'))
+            ) {
                 return `"${val.replace(/"/g, '""')}"`;
             }
             return String(val);
@@ -125,7 +168,9 @@ async function main() {
     }
 
     // Sort newest session first so recent pilot test runs appear at the top of the summary
-    allSessions.sort((a, b) => (b.started_at?.toMillis?.() ?? 0) - (a.started_at?.toMillis?.() ?? 0));
+    allSessions.sort(
+        (a, b) => (b.started_at?.toMillis?.() ?? 0) - (a.started_at?.toMillis?.() ?? 0),
+    );
 
     // Save full JSON snapshot for provenance before flattening into CSVs
     const jsonFile = path.join(options.outDir, 'firestore_export.json');
@@ -137,12 +182,12 @@ async function main() {
     console.log('='.repeat(90));
     console.log(
         '  STATUS'.padEnd(26) +
-        'PID'.padEnd(12) +
-        'PARADIGM'.padEnd(22) +
-        'COND'.padEnd(6) +
-        'BLOCKS'.padEnd(8) +
-        'TRIALS'.padEnd(8) +
-        'SESSION ID'
+            'PID'.padEnd(12) +
+            'PARADIGM'.padEnd(22) +
+            'COND'.padEnd(6) +
+            'BLOCKS'.padEnd(8) +
+            'TRIALS'.padEnd(8) +
+            'SESSION ID',
     );
     console.log('-'.repeat(90));
 
@@ -163,7 +208,9 @@ async function main() {
                     t.study_id = s.study_id || '';
                     t.condition = s.condition || '';
                     t.paradigm = t.paradigm || s.paradigm || '';
-                    t.started_at = s.started_at?.toDate?.() ? s.started_at.toDate().toISOString() : '';
+                    t.started_at = s.started_at?.toDate?.()
+                        ? s.started_at.toDate().toISOString()
+                        : '';
 
                     if (t.phase === 'test' || (!t.isPractice && t.blockOrder >= 9)) {
                         hasTestTrials = true;
@@ -189,12 +236,12 @@ async function main() {
 
         console.log(
             `  ${statusTag.padEnd(24)} ` +
-            `${(s.prolific_pid || 'unknown').slice(0, 10).padEnd(11)} ` +
-            `${(s.paradigm || 'none').slice(0, 20).padEnd(21)} ` +
-            `${(s.condition || '-').padEnd(5)} ` +
-            `${String(s.blocks.length).padStart(2).padEnd(7)} ` +
-            `${String(trials.length).padStart(4).padEnd(7)} ` +
-            `${s.id}`,
+                `${(s.prolific_pid || 'unknown').slice(0, 10).padEnd(11)} ` +
+                `${(s.paradigm || 'none').slice(0, 20).padEnd(21)} ` +
+                `${(s.condition || '-').padEnd(5)} ` +
+                `${String(s.blocks.length).padStart(2).padEnd(7)} ` +
+                `${String(trials.length).padStart(4).padEnd(7)} ` +
+                `${s.id}`,
         );
 
         // Apply PID filter if requested
@@ -217,7 +264,9 @@ async function main() {
     }
 
     console.log('-'.repeat(90));
-    console.log(`\nExport Mode: ${options.all ? 'ALL sessions with trials (--all)' : 'COMPLETE sessions only (default)'}`);
+    console.log(
+        `\nExport Mode: ${options.all ? 'ALL sessions with trials (--all)' : 'COMPLETE sessions only (default)'}`,
+    );
     console.log(`Export Directory: ${path.resolve(options.outDir)}`);
     console.log(`Exported Individual Session CSVs: ${exportedSessionFiles.length}`);
     for (const f of exportedSessionFiles) {
@@ -227,7 +276,9 @@ async function main() {
     if (options.combined && allExportedTrials.length > 0) {
         const combinedPath = path.join(options.outDir, 'combined_trials.csv');
         fs.writeFileSync(combinedPath, trialsToCSV(allExportedTrials));
-        console.log(`\nGenerated Master Combined CSV: ${combinedPath} (${allExportedTrials.length} total trials)`);
+        console.log(
+            `\nGenerated Master Combined CSV: ${combinedPath} (${allExportedTrials.length} total trials)`,
+        );
     }
     console.log();
 }
