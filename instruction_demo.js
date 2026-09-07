@@ -503,7 +503,7 @@ function createInstructionDemo(spec, sprites) {
 //
 // The fallback for screens with no marker is to insert after the first paragraph
 // break (see placeInstructionDemo). That fallback was written for training
-// screens, which open with a "STEP n of 8 — title" heading; it breaks on test
+// screens, which open with a "STEP n of 10 — title" heading; it breaks on test
 // screens, which are prefixed with CP_TEST_BLOCK_PREAMBLE, so the cartoon would
 // land above the copy it illustrates. The explicit marker avoids special-casing
 // the preamble. It's consumed whether or not a demo is supplied, so a screen that

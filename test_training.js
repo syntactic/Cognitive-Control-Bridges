@@ -191,6 +191,7 @@ eval(
     CP_PRP_SOA_LEVELS,
     CP_SEQUENCE_POOL_SIZE,
     CP_TEST_BLOCKS_PER_SESSION,
+    CP_SCHEMES,
     DEMO_KEYCAPS,
     INSTRUCTION_DEMO_ANCHOR,
 };
@@ -212,6 +213,7 @@ const {
     CP_PRP_SOA_LEVELS,
     CP_SEQUENCE_POOL_SIZE,
     CP_TEST_BLOCKS_PER_SESSION,
+    CP_SCHEMES,
     DEMO_KEYCAPS,
     INSTRUCTION_DEMO_ANCHOR,
 } = globalThis.__T;
@@ -355,10 +357,10 @@ section('buildSharedTrainingStages — structure');
 const stages = buildSharedTrainingStages(BASE_SPEC);
 const byStage = Object.fromEntries(stages.map((s) => [s.stage, s]));
 
-assert(stages.length === 6, 'builds six stages');
+assert(stages.length === 8, 'builds eight stages');
 assert(
-    stages.map((s) => s.stage).join(',') === 'S2,S3,S3a,S3b,S4,S6',
-    'stages run S2, S3, Stroop (S3a/S3b), S4, S6 (2026-08-25 reorder)',
+    stages.map((s) => s.stage).join(',') === 'S2,S3,S3a,S3b,S3c,S3d,S4,S6',
+    'stages run S2, S3, Stroop (S3a/S3b), cued single-task (S3c/S3d), S4, S6',
 );
 assert(
     !stages.some((s) => s.stage === 'S1'),
@@ -396,7 +398,7 @@ assert(
     stages.every((s) => s.blockConfig.blockId === `train_${s.stage}`),
     'block ids are prefixed stage ids',
 );
-assert(new Set(stages.map((s) => s.blockConfig.blockId)).size === 6, 'block ids are unique');
+assert(new Set(stages.map((s) => s.blockConfig.blockId)).size === 8, 'block ids are unique');
 assert(
     stages.every((s) => s.instructions === null),
     'no instruction copy is invented',
@@ -475,6 +477,38 @@ for (const [stage, task, level] of [
         s.blockConfig.coherence.distractor === 0.5,
         `${stage} shows the distractor at test level`,
     );
+    assert(s.blockConfig.coherence.target === level, `${stage} keeps the target at its test level`);
+    assert(s.blockConfig.coherenceRamp === undefined, `${stage} does not ramp — S2/S3 already did`);
+}
+
+section('buildSharedTrainingStages — S3c/S3d (cued single task, no switching)');
+
+// S3c/S3d split the border debut off S4: a known single task, but with the cue
+// now SHOWN (positive CSI, not suppressed). This is what makes S4 (which adds
+// switching) less steep. Under fourcue the shown cue is also where side->hand
+// begins, but that is stamped downstream in cpBuildTrainingSession, not here.
+for (const [stage, task, level] of [
+    ['S3c', 'mov', 0.8],
+    ['S3d', 'or', 0.3],
+]) {
+    const s = byStage[stage];
+    assert(s.isTraining === true, `${stage} is a criterion stage`);
+    assert(s.numTrials === undefined, `${stage} sets no numTrials (runBlock uses TRAINING_CAP)`);
+    assert(
+        s.blockConfig.paradigm === 'single-task',
+        `${stage} is single-task (one fixed task on screen)`,
+    );
+    assert(s.blockConfig.switchRate === 0, `${stage} does not switch — the task is fixed`);
+    assert(s.blockConfig.task1 === task, `${stage} trains the ${task} task`);
+    assert(s.blockConfig.startTask === task, `${stage} fixes the starting task`);
+    assert(s.blockConfig.csi > 0, `${stage} shows the cue as an advance signal (positive CSI)`);
+    assert(s.blockConfig.csi === 200, `${stage} uses the default cue-training CSI`);
+    assert(
+        s.blockConfig.cueDuration === undefined,
+        `${stage} does NOT suppress the cue — the border is the new thing here`,
+    );
+    assert(s.blockConfig.congruency.conditions.join() === 'univalent', `${stage} is univalent`);
+    assert(s.blockConfig.coherence.distractor === 0, `${stage} has no distractor`);
     assert(s.blockConfig.coherence.target === level, `${stage} keeps the target at its test level`);
     assert(s.blockConfig.coherenceRamp === undefined, `${stage} does not ramp — S2/S3 already did`);
 }
@@ -992,8 +1026,8 @@ for (const [id, expected] of Object.entries(CP_EXPECTED)) {
     const testBlocks = session.slice(session.length - testSession.length);
 
     assert(
-        training.map((b) => b.stage).join(',') === 'S2,S3,S3a,S3b,S4,S6,S7,S8',
-        `${id}: training runs S2, S3, Stroop (S3a/S3b), S4, S6, shared PRP (S7), then S8`,
+        training.map((b) => b.stage).join(',') === 'S2,S3,S3a,S3b,S3c,S3d,S4,S6,S7,S8',
+        `${id}: training runs S2, S3, Stroop (S3a/S3b), cued (S3c/S3d), S4, S6, shared PRP (S7), then S8`,
     );
     assert(!training.some((b) => b.stage === 'S1'), `${id}: there is no S1 (dropped 2026-08-25)`);
     assert(!training.some((b) => b.stage === 'S5'), `${id}: there is no S5 (dropped 2026-08-25)`);
@@ -1641,7 +1675,7 @@ section('canonical sessions — instruction-screen demos');
 // answers which question. These assertions are on the SPEC, which is plain data;
 // the rendering itself is DOM code and is covered by
 // analysis/measure_instructions.js in real Chromium.
-const CP_TRAINING_STAGES = ['S2', 'S3', 'S3a', 'S3b', 'S4', 'S6', 'S7', 'S8'];
+const CP_TRAINING_STAGES = ['S2', 'S3', 'S3a', 'S3b', 'S3c', 'S3d', 'S4', 'S6', 'S7', 'S8'];
 
 for (const id of Object.keys(CP_EXPECTED)) {
     const keyMaps = CP_EXPECTED[id].keyMaps;
@@ -1695,7 +1729,9 @@ for (const id of Object.keys(CP_EXPECTED)) {
             `${id}/${stage}: cartoon shows no border yet`,
         );
     }
-    for (const stage of ['S4', 'S6']) {
+    // The border enters the cartoon at S3c (the split-out debut) and is present in
+    // every cued stage from there on.
+    for (const stage of ['S3c', 'S3d', 'S4', 'S6']) {
         const demo = stageOf(id, stage).demo;
         assert(
             demo.segments.every((seg) => Boolean(seg.border)),
@@ -1771,6 +1807,29 @@ for (const id of Object.keys(CP_EXPECTED)) {
         stageOf(id, 'S6').demo.segments.every((s) => s.movement !== null && s.orientation !== null),
         `${id}/S6: cartoon is bivalent`,
     );
+    // S3c/S3d are single-task like S2/S3 (the border is what's new, not a second
+    // dimension), so each shows only its own task's stimulus.
+    assert(
+        stageOf(id, 'S3c').demo.segments.every(
+            (s) => s.orientation === null && s.movement !== null,
+        ),
+        `${id}/S3c: cartoon shows the flying task only`,
+    );
+    assert(
+        stageOf(id, 'S3d').demo.segments.every(
+            (s) => s.movement === null && s.orientation !== null,
+        ),
+        `${id}/S3d: cartoon shows the facing task only`,
+    );
+    // The border color matches the task: orange (mov) for S3c, blue (or) for S3d.
+    assert(
+        stageOf(id, 'S3c').demo.segments.every((s) => s.border === 'mov'),
+        `${id}/S3c: the cartoon border is the flying (orange) cue`,
+    );
+    assert(
+        stageOf(id, 'S3d').demo.segments.every((s) => s.border === 'or'),
+        `${id}/S3d: the cartoon border is the facing (blue) cue`,
+    );
 }
 
 // S6's two segments are the SAME stimulus under different cues, so the correct
@@ -1803,14 +1862,15 @@ assert(
     'cp_prp/S8: both cues are on screen once the second stimulus arrives',
 );
 
-section('canonical sessions — the border is introduced at S4');
+section('canonical sessions — the border debuts at S3c, switching at S4');
 
-// Cues are suppressed in S2/S3/S3a/S3b (cueDuration: 0), so no colored border
-// is painted during early single-task training. The colored border is introduced
-// at S4, where it becomes informative (tasks are mixed) and predictive (appears
-// just before the birds).
+// Cues are suppressed in S2/S3/S3a/S3b (cueDuration: 0), so no colored border is
+// painted, or mentioned, during that early single-task training. The colored
+// border debuts at S3c/S3d, on one already-known task with no switching, so
+// reading the border is learned on its own. S4 then adds switching — it no longer
+// introduces the cue as new (2026-09-10 split).
 for (const id of Object.keys(CP_EXPECTED)) {
-    for (const stage of ['S2', 'S3']) {
+    for (const stage of ['S2', 'S3', 'S3a', 'S3b']) {
         const text = stageOf(id, stage).instructions;
         assert(
             !/border/i.test(text),
@@ -1818,12 +1878,59 @@ for (const id of Object.keys(CP_EXPECTED)) {
         );
         assert(!/ORANGE|BLUE/.test(text), `${id}/${stage}: does not mention border colors`);
     }
-    const s4 = stageOf(id, 'S4').instructions;
-    assert(/colored border/i.test(s4), `${id}/S4: introduces the colored border`);
+    // S3c debuts the border, on a fixed known task, appearing just before the birds.
+    const s3c = stageOf(id, 'S3c').instructions;
+    assert(/colored border/i.test(s3c), `${id}/S3c: introduces the colored border`);
     assert(
-        /BEFORE the birds/.test(s4),
-        `${id}/S4: states that the border now appears just BEFORE the birds`,
+        /BEFORE the birds/.test(s3c),
+        `${id}/S3c: states that the border appears just BEFORE the birds`,
     );
+    // S4 is now about switching, not the cue. It must say the task can switch, and
+    // must not re-introduce the border as a new thing.
+    const s4 = stageOf(id, 'S4').instructions;
+    assert(/switch/i.test(s4), `${id}/S4: introduces switching`);
+    assert(
+        !/a colored border now appears/i.test(s4),
+        `${id}/S4: does not re-introduce the border as new (it debuted at S3c)`,
+    );
+}
+
+section('canonical sessions — hand varies from S3c on under fourcue, not before');
+
+// Under the fourcue scheme, single-task stages vary the response hand (the 2x2:
+// colour x side). Hand variation must not start until the cue is shown, since the
+// border's SIDE is what carries it: S2/S3/S3a/S3b keep the task-tied hand (cue
+// suppressed), and variation begins at S3c, the first cued stage. Under disjoint
+// there is no hand variation at all.
+{
+    const fcSession = cpBuildTaskSwitchTrainingSession('A', CP_SCHEMES.fourcue);
+    const fcByStage = Object.fromEntries(fcSession.map((b) => [b.stage, b]));
+    for (const stage of ['S2', 'S3', 'S3a', 'S3b']) {
+        assert(
+            fcByStage[stage].blockConfig.varyHand === false,
+            `fourcue/${stage}: hand does not vary while the cue is suppressed`,
+        );
+    }
+    for (const stage of ['S3c', 'S3d', 'S4', 'S6']) {
+        assert(
+            fcByStage[stage].blockConfig.varyHand === true,
+            `fourcue/${stage}: hand varies once the cue is shown`,
+        );
+    }
+    assert(
+        fcByStage.S7.blockConfig.varyHand === false,
+        'fourcue/S7: the dual-task PRP stage never varies hand',
+    );
+
+    const djByStage = Object.fromEntries(
+        cpBuildTaskSwitchTrainingSession('A').map((b) => [b.stage, b]),
+    );
+    for (const stage of ['S3c', 'S3d', 'S4', 'S6']) {
+        assert(
+            djByStage[stage].blockConfig.varyHand !== true,
+            `disjoint/${stage}: hand never varies under the disjoint scheme`,
+        );
+    }
 }
 
 // One vocabulary for one object. S2-S4 said "frame" and S5/S6/S8 + the legend

@@ -9,7 +9,7 @@
 // (canonical_paradigms.js et al.) can call these builders at load time. Nothing
 // here reads a global from a later-loading file.
 //
-// Scope: the shared single-task stages S2, S3, S3a, S3b, S4, S6
+// Scope: the shared single-task stages S2, S3, S3a, S3b, S3c, S3d, S4, S6
 // (buildSharedTrainingStages) and the paradigm-final S8
 // (buildParadigmFinalStage). The shared dual-task PRP stage S7 is assembled in
 // cpBuildTrainingSession via buildParadigmFinalStage(kind:'prp'), since the
@@ -72,10 +72,11 @@ const TRAINING_BOTH_CONGRUENCIES = {
 
 /**
  * Build the shared training stages for one paradigm, in run order: S2, S3 (learn
- * each pathway), S3a, S3b (Stroop — single-task conflict), S4 (switching,
+ * each pathway), S3a, S3b (Stroop — single-task conflict), S3c, S3d (the cued
+ * border shown on one already-known task, no switching yet), S4 (switching,
  * univalent), S6 (switching, bivalent + conflict).
  *
- * All six are single-canvas, one task on screen at a time — including for cp_prp,
+ * All eight are single-canvas, one task on screen at a time — including for cp_prp,
  * whose test block is dual-task. The dual-task PRP stage and the paradigm-specific
  * S8 are assembled in cpBuildTrainingSession, so `spec` has no `paradigm` field.
  *
@@ -100,7 +101,7 @@ const TRAINING_BOTH_CONGRUENCIES = {
  * @param {object} [spec.demos] - optional instruction-screen cartoon specs keyed
  *   by stage id. The depiction depends on the paradigm's key maps, which this
  *   file doesn't know. Consumed by createInstructionDemo; see cpTrainingDemos.
- * @returns {object[]} blockDef-shaped objects [S2, S3, S3a, S3b, S4, S6], in order.
+ * @returns {object[]} blockDef-shaped objects [S2, S3, S3a, S3b, S3c, S3d, S4, S6], in order.
  */
 function buildSharedTrainingStages(spec) {
     if (!spec || !spec.keyMaps || !spec.keyMaps.mov || !spec.keyMaps.or) {
@@ -125,7 +126,7 @@ function buildSharedTrainingStages(spec) {
     if (!(cfg.cueCsi > 0)) {
         throw new Error(
             `buildSharedTrainingStages: cueCsi must be positive (got ${cfg.cueCsi}). ` +
-                'S4 exists to make the cue an ADVANCE signal; a zero CSI cannot do that.',
+                'The cued stages (S3c onward) make the cue an ADVANCE signal; a zero CSI cannot.',
         );
     }
 
@@ -189,6 +190,24 @@ function buildSharedTrainingStages(spec) {
             coherence: { target: target[task], distractor: cfg.testCoherenceDistractor },
         });
 
+    // Hand-practice stages (S3c, S3d): one already-known task with the cue now
+    // SHOWN — positive CSI, cues NOT suppressed. switchRate 0 keeps the task
+    // fixed, so the only new thing is the informative border. Under the fourcue
+    // scheme the border's SIDE also starts indicating the response hand (varyHand,
+    // stamped downstream), so this splits what used to land all at once at S4 (cue
+    // debut, switching, and side->hand) into a gentler ramp. No ramp: S2/S3 already
+    // brought each task to test level. Univalent, no distractor — same stimulus as
+    // the pathway stages, just cued.
+    const handPracticeStage = (stage, task) =>
+        criterionStage(stage, {
+            csi: cfg.cueCsi,
+            switchRate: 0,
+            startTask: task,
+            task1: task,
+            congruency: TRAINING_UNIVALENT_CONGRUENCY,
+            coherence: { target: target[task], distractor: 0 },
+        });
+
     const stages = [];
 
     // --- S2/S3: one S-R pathway at a time --------------------------------
@@ -205,11 +224,20 @@ function buildSharedTrainingStages(spec) {
     stages.push(stroopStage('S3a', TRAINING_FIRST_TASK));
     stages.push(stroopStage('S3b', TRAINING_SECOND_TASK));
 
-    // --- S4: cue introduction --------------------------------------------
+    // --- S3c/S3d: the informative border on one known task ---------------
+    // The cue is shown for the first time here, still on a fixed single task, so
+    // the participant reads the border without also having to track a switch. This
+    // is the split that made S4 (below) less steep.
+    stages.push(handPracticeStage('S3c', TRAINING_FIRST_TASK));
+    stages.push(handPracticeStage('S3d', TRAINING_SECOND_TASK));
+
+    // --- S4: switching introduction --------------------------------------
     // Switching is the new skill, introduced univalent to isolate it (even though
     // S3a/S3b already showed bivalence) — each new skill gets its own gentle ramp.
-    // Positive CSI puts the cue before the stimulus; startTask null + switchRate 50
-    // mixes the tasks. The ramp is per-task; runBlock resolves it per trial.
+    // The cue is no longer new (it debuted at S3c/S3d); what changes here is that
+    // the task starts mixing. Positive CSI puts the cue before the stimulus;
+    // startTask null + switchRate 50 mixes the tasks. Ramp is per-task; runBlock
+    // resolves it per trial.
     stages.push(
         criterionStage('S4', {
             csi: cfg.cueCsi,

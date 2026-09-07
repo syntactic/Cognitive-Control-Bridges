@@ -426,6 +426,16 @@ function cpSchemeVocab(scheme) {
     };
 }
 
+// Paint a task word in its own cue color so the copy visually reinforces the
+// task->color mapping (orange = flying/movement, blue = facing/orientation). The
+// hex is read from DEMO_CUE_COLORS — the same values SE paints the border with —
+// so the words can never drift from the cues. instructionHtml() renders the copy
+// without escaping HTML, so the span reaches the screen; the height audit renders
+// it the same way, and the word stays a plain substring for tests that scan copy.
+function cpColorTask(word, task) {
+    return `<span style="color:${DEMO_CUE_COLORS[task]}">${word}</span>`;
+}
+
 // The cue is a colored border (src/game.js: movCueColor '#fb0' orange, orCueColor
 // '#0af' blue). Dashes vs dots separate the first from the second task of a
 // dual-task trial, not movement from orientation — see the note above
@@ -442,12 +452,12 @@ function cpSchemeVocab(scheme) {
 function cpBorderLegend(keyMaps, scheme) {
     if (!cpSchemeVocab(scheme).positional) {
         return (
-            '  ORANGE border  ->  answer the FLYING question.\n' +
-            '  BLUE border    ->  answer the FACING question.'
+            `  ORANGE border  ->  answer the ${cpColorTask('FLYING', 'mov')} question.\n` +
+            `  BLUE border    ->  answer the ${cpColorTask('FACING', 'or')} question.`
         );
     }
     return (
-        '  COLOR is the QUESTION:  ORANGE = FLYING,  BLUE = FACING.\n' +
+        `  COLOR is the QUESTION:  ORANGE = ${cpColorTask('FLYING', 'mov')},  BLUE = ${cpColorTask('FACING', 'or')}.\n` +
         '  SIDE is the HAND:\n' +
         cpFourcueHandLines(keyMaps)
     );
@@ -480,10 +490,10 @@ const CP_PRP_INSTRUCTIONS = (t1Task, keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => 
     const movFirst = t1Task === 'mov';
     const vocab = cpSchemeVocab(scheme);
     const movItem =
-        'MOVEMENT — which way are the birds FLYING?\n' +
+        `MOVEMENT — which way are the birds ${cpColorTask('FLYING', 'mov')}?\n` +
         `   ${cpHandLabel(keyMaps.mov)}${cpKeyPhrase(keyMaps.mov)}.`;
     const orItem =
-        'ORIENTATION — which way are the birds FACING?\n' +
+        `ORIENTATION — which way are the birds ${cpColorTask('FACING', 'or')}?\n` +
         `   ${cpHandLabel(keyMaps.or)}${cpKeyPhrase(keyMaps.or)}.`;
     // Which dimension is static at trial onset depends on which task is T1.
     const stimulusStory = movFirst
@@ -533,9 +543,9 @@ const cpTaskSwitchInstructions = (keyMaps = CP_DISJOINT_KEY_MAPS, scheme) => {
     return (
         'ONE task per trial. It may switch from trial to trial.\n\n' +
         'The border color tells you which task:\n\n' +
-        `  ORANGE = MOVEMENT (which way are the birds FLYING?)\n` +
+        `  ORANGE = MOVEMENT (which way are the birds ${cpColorTask('FLYING', 'mov')}?)\n` +
         `     ${cpHandLabel(keyMaps.mov)}${cpKeyPhrase(keyMaps.mov)}.\n` +
-        `  BLUE = ORIENTATION (which way are they FACING?)\n` +
+        `  BLUE = ORIENTATION (which way are they ${cpColorTask('FACING', 'or')}?)\n` +
         `     ${cpHandLabel(keyMaps.or)}${cpKeyPhrase(keyMaps.or)}.\n\n` +
         INSTRUCTION_DEMO_ANCHOR +
         '\n\n' +
@@ -563,7 +573,7 @@ const CP_STROOP_INSTRUCTIONS = (task, keyMaps = CP_DISJOINT_KEY_MAPS) => {
     const target = task === 'mov' ? 'FLYING' : 'FACING';
     const other = task === 'mov' ? 'FACING' : 'FLYING';
     return (
-        `Interference block: the ${target} question only.\n\n` +
+        `Interference block: the ${cpColorTask(target, task)} question only.\n\n` +
         `Respond to which way the birds are ${target}; ignore which way\n` +
         `they are ${other}.\n` +
         `  ${cpKeyLine(keyMaps[task], cpKeysAreShared(keyMaps))}\n\n` +
@@ -778,7 +788,8 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     // gives the keys per hand, so this collapses to a one-line reminder.
     const bothLines = vocab.positional
         ? '  (Up-key = up, down-key = down, on the hand the border points to.)'
-        : `  Flying:  ${cpKeyPhrase(keyMaps.mov)}.\n` + `  Facing:    ${cpKeyPhrase(keyMaps.or)}.`;
+        : `  ${cpColorTask('Flying', 'mov')}:  ${cpKeyPhrase(keyMaps.mov)}.\n` +
+          `  ${cpColorTask('Facing', 'or')}:    ${cpKeyPhrase(keyMaps.or)}.`;
     // The single most confusable thing about the key policy, said out loud at
     // the moment the second map is introduced (S3).
     const secondMapNote = shared
@@ -789,14 +800,16 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
           'they never swap.';
 
     // Cues are suppressed in S2/S3 (single-task pathway) and S3a/S3b (Stroop), so
-    // no border shows during early training. The colored border is introduced at S4
-    // (task switching), where it becomes informative and predictive.
+    // no border shows during early training. The colored border is introduced at
+    // S3c/S3d, on one already-known task with no switching, so reading the border
+    // is learned on its own; S4 then adds switching. (Split 2026-09-10: S4 used to
+    // introduce the border AND switching AND, under fourcue, side->hand at once.)
     //
     // Copy is kept tight because every screen also carries an animated cartoon
     // (~148 px of a 598 px budget): anything the cartoon shows was cut, anything it
     // can't was kept. Re-run `node analysis/measure_instructions.js` after any edit.
     const S2 =
-        'STEP 1 of 8 — the flying task.\n\n' +
+        `STEP 1 of 10 — the ${cpColorTask('flying', 'mov')} task.\n\n` +
         'Your job: say which way the group of birds is FLYING.\n\n' +
         `  ${movLine}\n\n` +
         'Answer as FAST as you can while still getting it right. The birds\n' +
@@ -805,7 +818,7 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
         'by itself. Press any key to begin.';
 
     const S3 =
-        'STEP 2 of 8 — a second question: which way are the birds FACING?\n\n' +
+        `STEP 2 of 10 — a second question: which way are the birds ${cpColorTask('FACING', 'or')}?\n\n` +
         'This time the birds do not fly at all. They stay in place, FACING\n' +
         `either ${vocab.eitherOr}.\n\n` +
         `  ${orLine}\n\n` +
@@ -817,7 +830,7 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     // in the simplest setting — one sustained task with a distractor that can
     // disagree. The cartoon shows the conflict, so the copy just names the rule.
     const S3a =
-        'STEP 3 of 8 — the flying task, now with a distraction.\n\n' +
+        `STEP 3 of 10 — the ${cpColorTask('flying', 'mov')} task, now with a distraction.\n\n` +
         'Still just ONE question: which way are the birds FLYING?\n\n' +
         `  ${movLine}\n\n` +
         `The birds now ALSO face ${vocab.eitherOr}, which can point the OTHER\n` +
@@ -826,20 +839,60 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
         'Press any key to begin.';
 
     const S3b =
-        'STEP 4 of 8 — the facing task, now with a distraction.\n\n' +
+        `STEP 4 of 10 — the ${cpColorTask('facing', 'or')} task, now with a distraction.\n\n` +
         'Now just the FACING question: which way are the birds FACING?\n\n' +
         `  ${orLine}\n\n` +
         'The birds are also FLYING, which can disagree with the way they\n' +
         'face. Ignore the flying — answer the FACING question only.\n\n' +
         'Press any key to begin.';
 
-    // S4: the border is introduced as a new component to tell the participant
-    // which question to answer, appearing just before the birds (predictive CSI).
+    // S3c/S3d: the informative border, shown for the first time on a task the
+    // participant already knows, with no switching. Under fourcue this is also
+    // where the border's SIDE starts telling you which hand to answer with, so the
+    // side->hand rule is learned before the question can change (S4). The middle of
+    // the screen branches by scheme: fourcue teaches side->hand with the per-hand
+    // key lines; disjoint just notes the border's color names the task.
+    const S3cBody = vocab.positional
+        ? 'A colored border now appears just BEFORE the birds. This is still\n' +
+          'the flying question, but the border can be on the LEFT or the\n' +
+          'RIGHT, and its SIDE tells you which hand to answer with:\n\n' +
+          cpFourcueHandLines(keyMaps) +
+          '\n\n' +
+          'The question does not change this step; only the hand does.'
+        : 'A colored border now appears just BEFORE the birds, so you can get\n' +
+          'ready. This is still the flying question, and the border is ORANGE\n' +
+          'to match it. Answer exactly as before.\n\n' +
+          `  ${movLine}`;
+    const S3c =
+        `STEP 5 of 10 — the same ${cpColorTask('flying', 'mov')} task, now with a border.\n\n` +
+        S3cBody +
+        '\n\n' +
+        'Press any key to begin.';
+
+    const S3dBody = vocab.positional
+        ? 'Same idea for the facing question: the border can be on the LEFT\n' +
+          'or the RIGHT, and its SIDE tells you which hand to answer with:\n\n' +
+          cpFourcueHandLines(keyMaps) +
+          '\n\n' +
+          'Again the question does not change; only the hand does.'
+        : 'The border works the same way here. It is BLUE to match the\n' +
+          'facing question, and still appears just before the birds. Answer\n' +
+          'exactly as before.\n\n' +
+          `  ${orLine}`;
+    const S3d =
+        `STEP 6 of 10 — the same ${cpColorTask('facing', 'or')} task, now with a border.\n\n` +
+        S3dBody +
+        '\n\n' +
+        'Press any key to begin.';
+
+    // S4: switching is the new skill. The border is no longer new (it debuted at
+    // S3c/S3d); what changes here is that the question can switch from trial to
+    // trial. The legend is repeated as a quick reminder, not as a first teaching.
     const S4 =
-        'STEP 5 of 8 — a colored border now tells you what to do.\n\n' +
-        'From now on the two questions are mixed, and can change every trial.\n\n' +
-        'A colored border now appears just BEFORE the birds to tell you which\n' +
-        'question to answer, so you can get ready:\n\n' +
+        'STEP 7 of 10 — now the question can switch.\n\n' +
+        'You know the border now. From here the two questions are mixed: the\n' +
+        'border can ask for a different question on the next trial, so check\n' +
+        'it every time before you answer.\n\n' +
         legend +
         '\n\n' +
         bothLines +
@@ -849,7 +902,7 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     // S6: bivalence + conflict, now while switching. Conflict isn't new (S3a/S3b),
     // so this screen frames the combination, not a first encounter with conflict.
     const S6 =
-        'STEP 6 of 8 — both at once, while the border switches.\n\n' +
+        'STEP 8 of 10 — both at once, while the border switches.\n\n' +
         'This combines the two things you just practiced: the birds are BOTH\n' +
         'flying AND facing (and may disagree, as in the distraction rounds),\n' +
         'while the border keeps switching which question to answer.\n\n' +
@@ -863,11 +916,11 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     // movement-first (the stage is identical for everyone), so the copy names the
     // order outright, unlike the paradigm-agnostic S8.
     const S7 =
-        'STEP 7 of 8 — TWO answers on every trial.\n\n' +
+        'STEP 9 of 10 — TWO answers on every trial.\n\n' +
         'Every trial now asks BOTH questions, one shortly after the other,\n' +
         'and you give two answers, in this order:\n\n' +
-        `  1) FLYING first.   ${cpKeyPhrase(keyMaps.mov)}.\n` +
-        `  2) FACING second.    ${cpKeyPhrase(keyMaps.or)}.\n\n` +
+        `  1) ${cpColorTask('FLYING', 'mov')} first.   ${cpKeyPhrase(keyMaps.mov)}.\n` +
+        `  2) ${cpColorTask('FACING', 'or')} second.    ${cpKeyPhrase(keyMaps.or)}.\n\n` +
         'Answer in that order, even if you work the second one out early.\n' +
         'The gap between the two starts long and gets shorter as you go.\n\n' +
         'Press any key to begin.';
@@ -877,6 +930,8 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
         S3,
         S3a,
         S3b,
+        S3c,
+        S3d,
         S4,
         S6,
         S7,
@@ -1057,6 +1112,84 @@ function cpTrainingDemos(keyMaps, finalStage, scheme) {
         { movement: movB, orientation: orA, border: null, key: keyMaps.or[orA], keyTask: 'or' },
     ];
 
+    // S3c/S3d: one already-known task, now with the cue SHOWN — the split-out
+    // gentle debut of the informative border, before switching (S4) is added.
+    // Disjoint shows the task's own colour on its task-tied hand across both
+    // directions. Fourcue shows the SAME task's border on alternating SIDES, so
+    // what the cartoon teaches is side->hand; the depressed keycap follows the
+    // side, matching the s4Fourcue convention (keyTask names the question, not the
+    // physical cluster the key sits in).
+    const handMov = positional
+        ? [
+              {
+                  movement: movA,
+                  orientation: null,
+                  border: 'mov',
+                  side: 'left',
+                  key: keyFor('left', movA),
+                  keyTask: 'mov',
+              },
+              {
+                  movement: movB,
+                  orientation: null,
+                  border: 'mov',
+                  side: 'right',
+                  key: keyFor('right', movB),
+                  keyTask: 'mov',
+              },
+          ]
+        : [
+              {
+                  movement: movA,
+                  orientation: null,
+                  border: 'mov',
+                  key: keyMaps.mov[movA],
+                  keyTask: 'mov',
+              },
+              {
+                  movement: movB,
+                  orientation: null,
+                  border: 'mov',
+                  key: keyMaps.mov[movB],
+                  keyTask: 'mov',
+              },
+          ];
+    const handOr = positional
+        ? [
+              {
+                  movement: null,
+                  orientation: orA,
+                  border: 'or',
+                  side: 'left',
+                  key: keyFor('left', orA),
+                  keyTask: 'or',
+              },
+              {
+                  movement: null,
+                  orientation: orB,
+                  border: 'or',
+                  side: 'right',
+                  key: keyFor('right', orB),
+                  keyTask: 'or',
+              },
+          ]
+        : [
+              {
+                  movement: null,
+                  orientation: orA,
+                  border: 'or',
+                  key: keyMaps.or[orA],
+                  keyTask: 'or',
+              },
+              {
+                  movement: null,
+                  orientation: orB,
+                  border: 'or',
+                  key: keyMaps.or[orB],
+                  keyTask: 'or',
+              },
+          ];
+
     return {
         // S2 is the first cartoon (S1 was dropped). The only stage whose cartoon is
         // degraded, matching the one line of copy that promises it. 0.75 of 8 birds
@@ -1066,6 +1199,10 @@ function cpTrainingDemos(keyMaps, finalStage, scheme) {
         S3: withCue({ segments: faceBoth }),
         S3a: withCue({ segments: stroopMov }),
         S3b: withCue({ segments: stroopOr }),
+        // S3c/S3d: the border shown on a fixed, known task. Disjoint = one colour on
+        // its task-tied hand; fourcue = same task, border on both sides.
+        S3c: withCue({ segments: handMov }),
+        S3d: withCue({ segments: handOr }),
         // S4: univalent still, but now cued and mixed. Disjoint shows one segment
         // per task (colour + task-tied hand change together); fourcue shows all
         // four colour x side cues.
@@ -1291,7 +1428,7 @@ function cpFinalStageInstructions(keyMaps, finalStage, scheme) {
     // distractor") was learned in S2-S6 and is shown again in this stage's cartoon.
     void finalStage;
     return (
-        'STEP 6 of 6 — putting it all together.\n\n' +
+        'STEP 10 of 10 — putting it all together.\n\n' +
         'Now you put everything together. You may meet some of the situations\n' +
         'you trained on, and some you have not — but the rule never changes:\n\n' +
         cpBorderLegend(keyMaps, scheme) +
@@ -1472,10 +1609,14 @@ function cpBuildTrainingSession(spec) {
     // The training stages carry spec.keyMaps already; stamp the rest of the scheme
     // (geometry/cueMode/keyResolution) onto them. The test blocks were already
     // stamped by cpTestSessionFor.
-    // S2-S3 teach one task at a time on its default (task-tied) hand, so hand
-    // doesn't vary there even under fourcue — the 2x2 (color x side) is introduced
-    // at S4 with the informative cue. Later single-task stages (S4-S6, S8
-    // switching/rehearsal) vary hand like the test blocks; PRP's S8 never does.
+    // S2/S3 (pathways) and S3a/S3b (Stroop) teach one task at a time on its
+    // default (task-tied) hand, with the cue suppressed, so hand doesn't vary there
+    // even under fourcue. The 2x2 (color x side) is introduced at S3c/S3d, the
+    // first stages with the cue shown — under fourcue their border appears on the
+    // sampled side, which is what teaches side->hand. Every later single-task stage
+    // (S3c/S3d, S4-S6, S8 switching/rehearsal) varies hand like the test blocks;
+    // PRP's S8 never does. So the early set is exactly the four cue-suppressed
+    // stages, and S3c/S3d are deliberately NOT in it.
     const EARLY_SINGLE_HAND_STAGES = new Set(['S2', 'S3', 'S3a', 'S3b']);
     const stampStage = (blockDef) => {
         const stamped = cpStampScheme(blockDef.blockConfig, scheme);
