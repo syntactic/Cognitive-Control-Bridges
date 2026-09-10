@@ -27,6 +27,10 @@
         // `[hidden]` attribute), so set style.display directly.
         const controls = document.querySelector('.controls');
         if (controls) controls.style.display = 'none';
+        // The .info hint is a dev aid too; hide it so it doesn't sit under the
+        // canvas for a participant's whole session.
+        const info = document.querySelector('.info');
+        if (info) info.style.display = 'none';
         return;
     }
 

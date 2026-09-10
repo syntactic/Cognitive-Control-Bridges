@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Bridge Experiment Demos</title>
+        <title>Cognitive Control Experiment</title>
         <link rel="icon" type="image/png" href="favicon/favicon-96x96.png" sizes="96x96" />
         <link rel="icon" type="image/svg+xml" href="favicon/favicon.svg" />
         <link rel="shortcut icon" href="favicon/favicon.ico" />
@@ -259,8 +259,7 @@
     </head>
     <body>
         <header>
-            <h1>Bridge Experiment Demos</h1>
-            <p>Parametric bridges between task switching and dual-task paradigms</p>
+            <h1>Cognitive Control Experiment</h1>
         </header>
 
         <div class="controls">
@@ -358,9 +357,10 @@
             </div>
         </div>
 
-        <div class="info">
-            Click the canvas area to give it focus before starting. Keys: A = left, D = right.
-        </div>
+        <!-- Dev-only hint. The per-scheme key mapping is taught on the instruction
+             screens, so no static key legend here (it would be stale under fourcue).
+             Hidden for participants by dev_mode.js. -->
+        <div class="info">Click the canvas area to give it focus before starting.</div>
 
         <!-- Dependencies -->
         <script src="node_modules/super-experiment/dist/bundle.js"></script>
@@ -443,12 +443,8 @@
             // would not be linkable to a Prolific submission.
             const DEV_PARTICIPANT_ID = 'DEV';
 
-            // Prolific completion code — PLACEHOLDER. Paste the code from the study's
-            // Prolific dashboard (Data collection → completion). While it is null the
-            // debrief shows a manual "Return to Prolific" button but does NOT auto-
-            // redirect, so a build shipped without the real code cannot strand
-            // participants on a dead completion URL.
-            const CP_COMPLETION_CODE = null;
+            // Prolific completion code
+            const CP_COMPLETION_CODE = 'CEI1B24X';
 
             function readParticipantMode() {
                 const params = new URLSearchParams(window.location.search);
@@ -772,13 +768,15 @@
             async function launchSession() {
                 // Response-set scheme: disjoint (horizontal A/D+J/L, the committed Phase 1
                 // build), fourcue (vertical W/S+I/K, positional cue), or fourcue_cse
-                // (fourcue plus n−1 congruency in cp_stroop/cp_prp). Threaded into both the
-                // session build (keys/geometry/copy) and runSession (cue rendering). In dev
-                // mode the dev-scheme dropdown wins; otherwise the ?scheme URL param
-                // (default disjoint for a real participant). Unknown values fall back to disjoint.
+                // (fourcue plus n−1 congruency). Threaded into both the session build
+                // (keys/geometry/copy) and runSession (cue rendering). In dev mode the
+                // dev-scheme dropdown wins; otherwise the ?scheme URL param, defaulting
+                // to fourcue_cse — the current study design. disjoint/fourcue are legacy
+                // and reachable only via an explicit ?scheme=. Unknown values fall back
+                // to disjoint (cpResolveScheme).
                 const schemeName = window.DEV_MODE
                     ? document.getElementById('dev-scheme').value
-                    : new URLSearchParams(window.location.search).get('scheme') || 'disjoint';
+                    : new URLSearchParams(window.location.search).get('scheme') || 'fourcue_cse';
                 const scheme = cpResolveScheme(schemeName);
 
                 // Dev setup: with no participant URL, build a synthetic participantMode

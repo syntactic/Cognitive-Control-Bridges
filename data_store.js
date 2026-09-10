@@ -36,8 +36,8 @@ const DEV_FIREBASE_CONFIG = {
     appId: '1:826914087397:web:8a7f9e774376b5b1e5cf0c',
 };
 
-// EU prod database — PLACEHOLDER. Fill in from the EU project's web-app config
-// (Firebase console → Project settings → your apps → Web app → config object).
+// EU prod database (EU region, GDPR). Real participant runs on the prod host land
+// here; selectFirebaseConfig() below routes by host.
 const PROD_FIREBASE_CONFIG = {
     apiKey: 'AIzaSyAQcQW1ng3qHt-ELZ4cEWb9FU0wvLqUwZg',
     authDomain: 'cognitive-control-paradigms.firebaseapp.com',
