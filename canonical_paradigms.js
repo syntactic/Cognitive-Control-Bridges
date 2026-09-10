@@ -809,8 +809,8 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     // (~148 px of a 598 px budget): anything the cartoon shows was cut, anything it
     // can't was kept. Re-run `node analysis/measure_instructions.js` after any edit.
     const S2 =
-        `STEP 1 of 10 — the ${cpColorTask('flying', 'mov')} task.\n\n` +
-        'Your job: say which way the group of birds is FLYING.\n\n' +
+        `The ${cpColorTask('flying', 'mov')} task.\n\n` +
+        `Your job: say which way the group of birds is ${cpColorTask('FLYING', 'mov')}.\n\n` +
         `  ${movLine}\n\n` +
         'Answer as FAST as you can while still getting it right. The birds\n' +
         'start out very easy to read and gradually get harder.\n\n' +
@@ -818,8 +818,8 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
         'by itself. Press any key to begin.';
 
     const S3 =
-        `STEP 2 of 10 — a second question: which way are the birds ${cpColorTask('FACING', 'or')}?\n\n` +
-        'This time the birds do not fly at all. They stay in place, FACING\n' +
+        `A second question: which way are the birds ${cpColorTask('FACING', 'or')}?\n\n` +
+        `This time the birds do not fly at all. They stay in place, ${cpColorTask('FACING', 'or')}\n` +
         `either ${vocab.eitherOr}.\n\n` +
         `  ${orLine}\n\n` +
         secondMapNote +
@@ -830,20 +830,20 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     // in the simplest setting — one sustained task with a distractor that can
     // disagree. The cartoon shows the conflict, so the copy just names the rule.
     const S3a =
-        `STEP 3 of 10 — the ${cpColorTask('flying', 'mov')} task, now with a distraction.\n\n` +
-        'Still just ONE question: which way are the birds FLYING?\n\n' +
+        `The ${cpColorTask('flying', 'mov')} task, now with a distraction.\n\n` +
+        `Still just ONE question: which way are the birds ${cpColorTask('FLYING', 'mov')}?\n\n` +
         `  ${movLine}\n\n` +
         `The birds now ALSO face ${vocab.eitherOr}, which can point the OTHER\n` +
         'way from how they fly. Ignore which way they face — answer the\n' +
-        'FLYING question only, even when the two disagree.\n\n' +
+        `${cpColorTask('FLYING', 'mov')} question only, even when the two disagree.\n\n` +
         'Press any key to begin.';
 
     const S3b =
-        `STEP 4 of 10 — the ${cpColorTask('facing', 'or')} task, now with a distraction.\n\n` +
-        'Now just the FACING question: which way are the birds FACING?\n\n' +
+        `The ${cpColorTask('facing', 'or')} task, now with a distraction.\n\n` +
+        `Now just the ${cpColorTask('FACING', 'or')} question: which way are the birds ${cpColorTask('FACING', 'or')}?\n\n` +
         `  ${orLine}\n\n` +
         'The birds are also FLYING, which can disagree with the way they\n' +
-        'face. Ignore the flying — answer the FACING question only.\n\n' +
+        `face. Ignore the flying — answer the ${cpColorTask('FACING', 'or')} question only.\n\n` +
         'Press any key to begin.';
 
     // S3c/S3d: the informative border, shown for the first time on a task the
@@ -853,34 +853,34 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     // the screen branches by scheme: fourcue teaches side->hand with the per-hand
     // key lines; disjoint just notes the border's color names the task.
     const S3cBody = vocab.positional
-        ? 'A colored border now appears just BEFORE the birds. This is still\n' +
-          'the flying question, but the border can be on the LEFT or the\n' +
-          'RIGHT, and its SIDE tells you which hand to answer with:\n\n' +
+        ? `A ${cpColorTask('colored border', 'mov')} now appears just before the birds. This is still\n` +
+          'the flying question, but the border can be on the left or the\n' +
+          'right, and its side tells you which hand to answer with:\n\n' +
           cpFourcueHandLines(keyMaps) +
           '\n\n' +
           'The question does not change this step; only the hand does.'
-        : 'A colored border now appears just BEFORE the birds, so you can get\n' +
-          'ready. This is still the flying question, and the border is ORANGE\n' +
+        : 'A colored border now appears just before the birds, so you can get\n' +
+          `ready. This is still the flying question, and the border is ${cpColorTask('orange', 'mov')}\n` +
           'to match it. Answer exactly as before.\n\n' +
           `  ${movLine}`;
     const S3c =
-        `STEP 5 of 10 — the same ${cpColorTask('flying', 'mov')} task, now with a border.\n\n` +
+        `The same ${cpColorTask('flying', 'mov')} task, now with a border.\n\n` +
         S3cBody +
         '\n\n' +
         'Press any key to begin.';
 
     const S3dBody = vocab.positional
-        ? 'Same idea for the facing question: the border can be on the LEFT\n' +
-          'or the RIGHT, and its SIDE tells you which hand to answer with:\n\n' +
+        ? 'Same idea for the facing question: the border can be on the left\n' +
+          'or the right, and its side tells you which hand to answer with:\n\n' +
           cpFourcueHandLines(keyMaps) +
           '\n\n' +
           'Again the question does not change; only the hand does.'
-        : 'The border works the same way here. It is BLUE to match the\n' +
+        : `The border works the same way here. It is ${cpColorTask('blue', 'or')} to match the\n` +
           'facing question, and still appears just before the birds. Answer\n' +
           'exactly as before.\n\n' +
           `  ${orLine}`;
     const S3d =
-        `STEP 6 of 10 — the same ${cpColorTask('facing', 'or')} task, now with a border.\n\n` +
+        `The same ${cpColorTask('facing', 'or')} task, now with a border.\n\n` +
         S3dBody +
         '\n\n' +
         'Press any key to begin.';
@@ -889,7 +889,7 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     // S3c/S3d); what changes here is that the question can switch from trial to
     // trial. The legend is repeated as a quick reminder, not as a first teaching.
     const S4 =
-        'STEP 7 of 10 — now the question can switch.\n\n' +
+        'Now the question can switch.\n\n' +
         'You know the border now. From here the two questions are mixed: the\n' +
         'border can ask for a different question on the next trial, so check\n' +
         'it every time before you answer.\n\n' +
@@ -902,9 +902,9 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     // S6: bivalence + conflict, now while switching. Conflict isn't new (S3a/S3b),
     // so this screen frames the combination, not a first encounter with conflict.
     const S6 =
-        'STEP 8 of 10 — both at once, while the border switches.\n\n' +
+        'Both at once, while the border switches.\n\n' +
         'This combines the two things you just practiced: the birds are BOTH\n' +
-        'flying AND facing (and may disagree, as in the distraction rounds),\n' +
+        'flying and facing (and may disagree, as in the distraction rounds),\n' +
         'while the border keeps switching which question to answer.\n\n' +
         'Answer ONLY the question the border asks for, and ignore the other,\n' +
         'even when they point in opposite directions.\n\n' +
@@ -916,7 +916,7 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
     // movement-first (the stage is identical for everyone), so the copy names the
     // order outright, unlike the paradigm-agnostic S8.
     const S7 =
-        'STEP 9 of 10 — TWO answers on every trial.\n\n' +
+        'TWO answers on every trial.\n\n' +
         'Every trial now asks BOTH questions, one shortly after the other,\n' +
         'and you give two answers, in this order:\n\n' +
         `  1) ${cpColorTask('FLYING', 'mov')} first.   ${cpKeyPhrase(keyMaps.mov)}.\n` +
@@ -1428,7 +1428,7 @@ function cpFinalStageInstructions(keyMaps, finalStage, scheme) {
     // distractor") was learned in S2-S6 and is shown again in this stage's cartoon.
     void finalStage;
     return (
-        'STEP 10 of 10 — putting it all together.\n\n' +
+        'Putting it all together.\n\n' +
         'Now you put everything together. You may meet some of the situations\n' +
         'you trained on, and some you have not — but the rule never changes:\n\n' +
         cpBorderLegend(keyMaps, scheme) +

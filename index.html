@@ -96,6 +96,16 @@
                 min-height: 1.2em;
             }
 
+            #block-progress {
+                width: 600px;
+                margin: 0 auto 8px;
+                text-align: center;
+                font-size: 0.85em;
+                letter-spacing: 1px;
+                color: #7f8bb0;
+                font-variant-numeric: tabular-nums;
+            }
+
             #canvas-container {
                 width: 600px;
                 height: 600px;
@@ -336,9 +346,15 @@
 
         <div id="session-status"></div>
 
+        <!-- Continuous "Block X of N" progress readout, updated per block by
+             session.js (setBlockProgress). Sits above the canvas so it stays
+             visible during trials, instruction screens, and breaks; hidden
+             outside a running session. -->
+        <div id="block-progress" hidden></div>
+
         <div id="canvas-container" tabindex="-1">
             <div class="instructions-overlay">
-                <div class="instructions-content">Select a demo and press Start</div>
+                <div class="instructions-content"></div>
             </div>
         </div>
 
@@ -427,6 +443,13 @@
             // would not be linkable to a Prolific submission.
             const DEV_PARTICIPANT_ID = 'DEV';
 
+            // Prolific completion code — PLACEHOLDER. Paste the code from the study's
+            // Prolific dashboard (Data collection → completion). While it is null the
+            // debrief shows a manual "Return to Prolific" button but does NOT auto-
+            // redirect, so a build shipped without the real code cannot strand
+            // participants on a dead completion URL.
+            const CP_COMPLETION_CODE = null;
+
             function readParticipantMode() {
                 const params = new URLSearchParams(window.location.search);
                 const paradigm = params.get('paradigm');
@@ -482,12 +505,20 @@
                     CP_TEST_BLOCKS_PER_SESSION,
                 );
 
+                // Prolific's other two identifiers, substituted by Taskflow alongside
+                // PROLIFIC_PID. Named prolific* to avoid colliding with sessionId
+                // above, which is our internal session-definition id, not Prolific's.
+                const prolificStudyId = params.get('STUDY_ID') || null;
+                const prolificSessionId = params.get('SESSION_ID') || null;
+
                 return {
                     paradigm,
                     condition,
                     testOnly,
                     sessionId,
                     participantId,
+                    prolificStudyId,
+                    prolificSessionId,
                     sequenceIds,
                 };
             }
@@ -795,10 +826,22 @@
                     // Stimulus type: bird sprites by default; ?stimulus=fish for fish; ?stimulus=abstract for circles/triangles.
                     const stimulus =
                         new URLSearchParams(window.location.search).get('stimulus') || 'bird';
+                    // Per-screen idle timeout: participants get the default (overridable
+                    // with ?instrTimeout=<seconds> for piloting), dev runs disable it (0)
+                    // so a dev can read screens without being aborted.
+                    const instrTimeoutParam = new URLSearchParams(window.location.search).get(
+                        'instrTimeout',
+                    );
+                    const instructionTimeoutMs = window.DEV_MODE
+                        ? 0
+                        : instrTimeoutParam != null
+                          ? Math.max(0, Number(instrTimeoutParam) * 1000)
+                          : Session.DEFAULT_INSTRUCTION_TIMEOUT_MS;
                     await Session.runSession(sessionDef, container, {
                         stimulus,
                         abridged: abridgedCb.checked,
                         scheme,
+                        instructionTimeoutMs,
                         // Participant metadata for progressive data upload (data_store.js).
                         // These come from the parsed participant URL. On the demo-dropdown
                         // path participantMode is null, so all three are undefined and
@@ -808,6 +851,13 @@
                         paradigm: participantMode?.paradigm,
                         condition: participantMode?.condition,
                         prolificPid: participantMode?.participantId,
+                        studyId: participantMode?.prolificStudyId,
+                        sessionId: participantMode?.prolificSessionId,
+                        // Completion code from the Prolific dashboard. Leave null
+                        // until the study is created: showDebrief only turns on the
+                        // automatic redirect once a real code is present, so an
+                        // unconfigured build never sends anyone to a dead URL.
+                        completionCode: CP_COMPLETION_CODE || undefined,
                     });
                 } catch (e) {
                     console.error('Session error:', e);
@@ -847,7 +897,8 @@
             //    (its Continue button effectively starts the run — no Start button).
             //  - otherwise (no params, not a bad URL): the nearly blank page.
             if (window.DEV_MODE) {
-                // nothing to auto-do; the dev drives the toolbar.
+                document.querySelector('.instructions-content').textContent =
+                    'Select a demo and press Start';
             } else if (participantMode) {
                 launchSession();
             } else if (!paramError) {

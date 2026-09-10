@@ -11,6 +11,31 @@ const Session = (() => {
     let isRunning = false;
     let canvasContainer = null;
 
+    // Idle-abort budget for a single instruction screen. Set per session from
+    // options.instructionTimeoutMs (index.html hands participants DEFAULT; dev and
+    // test runs pass 0 = disabled). Populated once in runSession, read by runBlock.
+    // abortInfo records why a session ended early.
+    //
+    // A screen left idle past the budget is a strike, not an immediate abort
+    // (Sebastian, 09-04 l.115: "just advance it"). Only TRAINING screens count,
+    // and only MAX_INSTRUCTION_TIMEOUTS of them ends the session — a participant
+    // who reached the test phase keeps all their data no matter how long they idle
+    // a test screen. Separately, a participant who maxes out the trial cap without
+    // meeting criterion on MAX_TRAINING_STAGE_FAILURES training stages is aborted
+    // too (09-04 l.117; #12): failing two easy stages is a non-engagement signal,
+    // and the point is to stop paying for unusable data.
+    const DEFAULT_INSTRUCTION_TIMEOUT_MS = 120000; // 2 minutes per screen
+    const MAX_INSTRUCTION_TIMEOUTS = 3;
+    const MAX_TRAINING_STAGE_FAILURES = 2;
+    let instructionTimeoutMs = 0;
+    let instructionTimeouts = 0; // training screens left idle so far this session
+    let trainingStageFailures = 0; // training stages maxed out without passing
+    let abortInfo = null;
+
+    // Total blockDefs in the running session, so the block-progress readout can
+    // show "Block X of N" continuously across training and test. Set in runSession.
+    let sessionBlockCount = 0;
+
     // Master switch for the client-side CSV download. Real participants upload to
     // Firestore block by block (data_store.js), so the download is a developer
     // convenience only — enabled in developer mode (dev_mode.js), off for
@@ -130,8 +155,12 @@ const Session = (() => {
 
     /**
      * Show an instruction/break screen and wait for a keypress to continue.
+     * Resolves 'continue' on a keypress. If timeoutMs > 0 and the screen is left
+     * open that long with no keypress, resolves 'timeout' instead — the caller
+     * (runBlock) then aborts the session. timeoutMs 0 keeps the old behavior
+     * (press-any-key only), which is what dev and headless test runs pass.
      */
-    function showInstructions(text, demo = null) {
+    function showInstructions(text, demo = null, timeoutMs = 0) {
         return new Promise((resolve) => {
             const overlay = document.createElement('div');
             overlay.className = 'instructions-overlay';
@@ -154,16 +183,125 @@ const Session = (() => {
             }
             canvasContainer.appendChild(overlay);
 
-            const handler = () => {
+            let done = false;
+            let timer = null;
+            const finish = (status) => {
+                if (done) return; // a keypress and the timeout can race
+                done = true;
+                if (timer) clearTimeout(timer);
                 document.removeEventListener('keydown', handler);
                 // The cartoon owns an rAF loop and timers nothing else stops.
                 if (running) running.stop();
                 overlay.remove();
-                resolve();
+                resolve(status);
             };
+            const handler = () => finish('continue');
+            // Arm the idle timeout BEFORE the keypress listener so that under the
+            // headless test's flattened clock (all setTimeout delays -> 0) the timer
+            // fires first and the timeout path is reachable; with a real clock the
+            // 3-minute timer simply outlives any prompt keypress.
+            if (timeoutMs > 0) {
+                timer = setTimeout(() => finish('timeout'), timeoutMs);
+            }
             // Small delay to avoid catching the key that dismissed the previous screen
             setTimeout(() => document.addEventListener('keydown', handler), 200);
         });
+    }
+
+    /**
+     * Terminal screen shown when a session is aborted (e.g. an instruction screen
+     * left open too long). Unlike showDebrief it offers NO Prolific completion
+     * redirect — the participant was not marked complete and returns the study in
+     * Prolific. Informational only; resolves immediately.
+     */
+    function showAbort(containerEl, info = {}) {
+        if (typeof document === 'undefined' || !containerEl) return Promise.resolve();
+        containerEl.classList.add('consent-mode');
+        const overlay = document.createElement('div');
+        overlay.className = 'consent-overlay';
+        let reasonLine;
+        if (info.reason === 'instruction_timeout') {
+            reasonLine =
+                'This session was closed because instruction screens were left open too long without a response.';
+        } else if (info.reason === 'training_failure') {
+            reasonLine =
+                'This session was closed during the practice stages. The task did not seem to be working out this time, so we have ended the session early.';
+        } else {
+            reasonLine = 'This session was closed early.';
+        }
+        overlay.innerHTML = `
+      <div class="consent-header">
+        <h2>Session ended</h2>
+      </div>
+      <div class="consent-body">
+        <p>${reasonLine}</p>
+        <p>You have <strong>not</strong> been marked as complete. Please return to
+        Prolific and return the study — you will not be penalized. If you believe
+        this was a mistake, contact the researchers through Prolific.</p>
+      </div>
+    `;
+        containerEl.appendChild(overlay);
+        return Promise.resolve();
+    }
+
+    /**
+     * Update the "Block X of N" progress readout above the canvas. Numbered
+     * continuously across training and test so a participant sees steady progress
+     * (blockOrder runs 1..sessionBlockCount). Pass no order to hide it (consent,
+     * debrief, abort). No-op when the element or DOM is absent (headless tests).
+     */
+    function setBlockProgress(blockOrder) {
+        if (typeof document === 'undefined' || !document.getElementById) return;
+        const el = document.getElementById('block-progress');
+        if (!el) return;
+        if (blockOrder && sessionBlockCount) {
+            el.textContent = `Block ${blockOrder} of ${sessionBlockCount}`;
+            el.hidden = false;
+        } else {
+            el.textContent = '';
+            el.hidden = true;
+        }
+    }
+
+    /**
+     * True for a phone/tablet — a device with no fine pointer (mouse or trackpad).
+     * Prolific's device restriction is advisory only, so a touch user can still
+     * open the study; their RT data would be unusable. Pointer type is the reliable
+     * proxy (a physical keyboard cannot be feature-detected). (any-pointer: fine)
+     * matches if ANY attached pointer is fine, so a touchscreen laptop — which also
+     * has a trackpad — still passes. Returns false when it cannot tell (headless).
+     */
+    function isUnsupportedDevice() {
+        if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+            return false;
+        }
+        return !window.matchMedia('(any-pointer: fine)').matches;
+    }
+
+    /**
+     * Terminal screen shown when the device is unsupported. Like showAbort it is a
+     * dead end with no completion redirect — the participant returns the study.
+     */
+    function showDeviceBlock(containerEl) {
+        if (typeof document === 'undefined' || !containerEl) return Promise.resolve();
+        containerEl.classList.add('consent-mode');
+        const overlay = document.createElement('div');
+        overlay.className = 'consent-overlay';
+        overlay.innerHTML = `
+      <div class="consent-header">
+        <h2>Desktop or laptop required</h2>
+      </div>
+      <div class="consent-body">
+        <p>This study needs a <strong>desktop or laptop computer</strong> with a
+        physical keyboard and a mouse or trackpad. It cannot run on a phone or
+        tablet — the task measures fast, precise key presses.</p>
+        <p>Please <strong>return your submission</strong> on Prolific (you will not
+        be penalized). If you can, you are welcome to take the study again on a
+        computer.</p>
+      </div>
+    `;
+        containerEl.appendChild(overlay);
+        return Promise.resolve();
     }
 
     function showConsent(containerEl, options = {}) {
@@ -218,6 +356,18 @@ const Session = (() => {
         const prolificUrl =
             options.prolificUrl ||
             `https://app.prolific.com/submissions/complete?cc=${completionCode}`;
+        // Only a real, configured code turns on the automatic redirect. Without one
+        // (dev runs, or the code not yet pasted from the Prolific dashboard) we show
+        // the manual button and never navigate — auto-redirecting on the placeholder
+        // code would strand every participant on a dead Prolific URL. Automatic
+        // redirect is what prevents NOCODE submissions from participants who never
+        // click through.
+        const hasRealCode = !!(options.completionCode || options.prolificUrl);
+        const isDev = typeof window !== 'undefined' && !!window.DEV_MODE;
+        const autoRedirect = hasRealCode && !isDev;
+        // Delay so the debrief text and completion code are actually seen before the
+        // page navigates away.
+        const redirectDelayMs = options.redirectDelayMs ?? 8000;
 
         overlay.innerHTML = `
       <div class="consent-header">
@@ -232,6 +382,13 @@ const Session = (() => {
           <p style="margin-bottom: 4px; font-weight: bold; color: #a0c4ff;">Your Prolific Completion Code:</p>
           <code style="font-size: 1.3em; letter-spacing: 2px; color: #fff;">${completionCode}</code>
         </div>
+        ${
+            autoRedirect
+                ? `<p id="debrief-redirect-note" style="margin-top: 12px; text-align: center; color: #a0c4ff;">
+             Returning you to Prolific automatically… if nothing happens, use the button below.
+           </p>`
+                : ''
+        }
       </div>
       <div class="consent-footer">
         <div style="display: flex; gap: 12px;">
@@ -240,8 +397,8 @@ const Session = (() => {
                   ? `<button id="debrief-export-btn" style="background: #1a3c1a; border-color: #3a6b3a;">Download Data (CSV)</button>`
                   : ''
           }
-          <a href="${prolificUrl}" target="_blank" rel="noopener noreferrer" style="text-decoration: none;">
-            <button style="background: #0f3460; border-color: #4488ff;">Complete on Prolific →</button>
+          <a href="${prolificUrl}" rel="noopener noreferrer" style="text-decoration: none;">
+            <button style="background: #0f3460; border-color: #4488ff;">Return to Prolific →</button>
           </a>
         </div>
       </div>
@@ -256,6 +413,13 @@ const Session = (() => {
         const exportBtn = overlay.querySelector('#debrief-export-btn');
         if (CSV_EXPORT_ENABLED && exportBtn) {
             exportBtn.addEventListener('click', () => exportCSV());
+        }
+
+        // Automatic same-window redirect for a real participant. The final block was
+        // already uploaded per block (data_store.js), so nothing is pending here; the
+        // manual link above is the fallback if the browser blocks the navigation.
+        if (autoRedirect && typeof window !== 'undefined') {
+            setTimeout(() => window.location.assign(prolificUrl), redirectDelayMs);
         }
 
         return Promise.resolve();
@@ -312,7 +476,13 @@ const Session = (() => {
             const renderCountdown = () => {
                 const remMs = BREAK_CAP_MS - (performance.now() - startedAt);
                 const remSec = Math.max(0, Math.ceil(remMs / 1000));
-                if (countdown) countdown.textContent = `Break: ${remSec} s remaining.`;
+                if (countdown) {
+                    countdown.textContent = `Break: ${remSec} s remaining.`;
+                    // Draw the eye as the auto-advance approaches.
+                    const urgent = remSec <= 10;
+                    countdown.style.color = urgent ? '#ff5555' : '';
+                    countdown.style.fontWeight = urgent ? 'bold' : '';
+                }
                 if (remMs <= 0) finish(); // cap reached — auto-advance
             };
             renderCountdown();
@@ -501,6 +671,7 @@ const Session = (() => {
         // combinations run to completion and export a full CSV, so an
         // un-guarded one costs a whole session's data.
         assertValidBlockConfig(blockConfig);
+        setBlockProgress(blockOrder);
         const numTrials = blockDef.isTraining ? TRAINING_CAP : blockDef.numTrials;
         // A stage may ask for its own advancement threshold — PRP's S8 uses 12/16
         // (see training_stages.js for why). Resolved once here and handed to both
@@ -583,7 +754,29 @@ const Session = (() => {
         }
 
         if (instructions) {
-            await showInstructions(instructions, demo);
+            const status = await showInstructions(instructions, demo, instructionTimeoutMs);
+            if (status === 'timeout' && blockDef.isTraining) {
+                // A training screen left idle is a strike. On the third, abort:
+                // record why and stop the run (isRunning=false makes runSession skip
+                // this block's break/upload and the final debrief and show the abort
+                // screen instead — no trials ran, so nothing to log). Before the
+                // third, fall through and start the block anyway ("just advance it").
+                instructionTimeouts += 1;
+                if (instructionTimeouts >= MAX_INSTRUCTION_TIMEOUTS) {
+                    abortInfo = {
+                        reason: 'instruction_timeout',
+                        stage: blockDef.stage ?? null,
+                        blockId: blockConfig.blockId ?? null,
+                        blockOrder,
+                        timeouts: instructionTimeouts,
+                    };
+                    isRunning = false;
+                    return;
+                }
+            }
+            // A test-phase timeout (status === 'timeout' && !isTraining) is not a
+            // strike and never aborts — it just advances into the block, keeping the
+            // data of a participant who already made it to the test phase.
         }
 
         // The instruction screen breaks the trial rhythm, so the first trial of
@@ -776,6 +969,10 @@ const Session = (() => {
                     (blockDef.stage === 'S2' || blockDef.stage === 'S3') &&
                     !summary.criterionMet &&
                     blockOutcomes.length >= numTrials,
+                // Any training stage the participant maxed out without meeting
+                // criterion. runSession counts these across the whole training
+                // sequence and aborts on the second (MAX_TRAINING_STAGE_FAILURES).
+                stageFailed: !summary.criterionMet && blockOutcomes.length >= numTrials,
             };
         }
     }
@@ -861,6 +1058,26 @@ const Session = (() => {
      */
     async function runSession(sessionDef, containerEl, options = {}) {
         canvasContainer = containerEl;
+        // Desktop/keyboard gate, before consent. Refuse a real participant run on a
+        // touch-only device (dev is on a desktop; headless tests pass no window, so
+        // isUnsupportedDevice returns false). options.skipDeviceCheck overrides it
+        // for the rare case of piloting on an unusual device.
+        if (
+            !options.skipDeviceCheck &&
+            typeof window !== 'undefined' &&
+            !window.DEV_MODE &&
+            isUnsupportedDevice()
+        ) {
+            await showDeviceBlock(containerEl);
+            return;
+        }
+        // Per-screen idle budget. index.html passes DEFAULT for participants and 0
+        // for dev; tests omit it entirely (falsy -> 0 = disabled).
+        instructionTimeoutMs = Number(options.instructionTimeoutMs) || 0;
+        instructionTimeouts = 0;
+        trainingStageFailures = 0;
+        abortInfo = null;
+        sessionBlockCount = sessionDef.length;
         await showConsent(canvasContainer, options);
 
         // Progressive data upload is enabled only for a real participant run: the
@@ -921,11 +1138,32 @@ const Session = (() => {
             const blockStartIdx = allTrialData.length;
             const blockDef = sessionDef[b];
             const blockResult = await runBlock(blockDef, b + 1);
+            // An idle-timeout abort inside runBlock: stop before this block's break
+            // and upload (no trials ran) and fall through to the abort screen below.
+            if (abortInfo) break;
             if (blockDef.runQuest) {
                 questCoherences[blockDef.blockConfig.startTask] = blockResult;
                 overwriteCoherence(sessionDef, questCoherences, b + 1);
             } else if (blockDef.isTraining && blockResult) {
                 trainingLog.push(blockResult);
+                // Training-failure abort: two maxed-out-without-passing stages ends
+                // the session. Unlike the timeout abort this block's trials DID run,
+                // so we set isRunning=false (which skips the break below) but let the
+                // saveBlock at the end of this iteration upload the stage's data
+                // before the loop breaks on the next `!isRunning` check.
+                if (blockResult.stageFailed) {
+                    trainingStageFailures += 1;
+                    if (trainingStageFailures >= MAX_TRAINING_STAGE_FAILURES) {
+                        abortInfo = {
+                            reason: 'training_failure',
+                            stage: blockDef.stage ?? null,
+                            blockId: blockDef.blockConfig?.blockId ?? null,
+                            blockOrder: b + 1,
+                            failures: trainingStageFailures,
+                        };
+                        isRunning = false;
+                    }
+                }
             }
 
             // Capped inter-block break: placed (a) between test blocks and (b) at the
@@ -968,7 +1206,21 @@ const Session = (() => {
             }
         }
 
-        if (isRunning) {
+        setBlockProgress(null); // no block number on the terminal screens
+
+        if (abortInfo) {
+            // Persist the abort so a partial Firestore record shows the idle
+            // exclusion (non-fatal if the write fails — the participant still sees
+            // the abort screen). Then the terminal screen, NOT the completion redirect.
+            if (uploadActive && window.dataStore.abortSession) {
+                try {
+                    await window.dataStore.abortSession(abortInfo);
+                } catch (e) {
+                    console.warn('Data upload: abortSession failed.', e);
+                }
+            }
+            await showAbort(canvasContainer, abortInfo);
+        } else if (isRunning) {
             isRunning = false;
             await showDebrief(canvasContainer, options);
             enableExport();
@@ -983,6 +1235,13 @@ const Session = (() => {
      * Update status display during a block.
      */
     function updateStatus(blockId, trialNum, totalTrials, blockOrder) {
+        // The per-trial "Trial X/Total" readout is a developer aid only. A
+        // participant must not see it: a number that ticks every trial invites
+        // eye-darting away from the stimulus mid-task. (#block-progress "Block X of
+        // N" stays for everyone — it updates once per block, not per trial.) The
+        // #session-status element itself is left in place so index.html can still
+        // write error messages into it.
+        if (typeof window === 'undefined' || !window.DEV_MODE) return;
         const statusEl = document.getElementById('session-status');
         if (statusEl) {
             statusEl.textContent = `Block ${blockOrder}: ${blockId} — Trial ${trialNum}/${totalTrials}`;
@@ -1081,5 +1340,7 @@ const Session = (() => {
         showDebrief,
         getData: () => allTrialData,
         getTrainingLog: () => trainingLog,
+        getAbortInfo: () => abortInfo,
+        DEFAULT_INSTRUCTION_TIMEOUT_MS,
     };
 })();

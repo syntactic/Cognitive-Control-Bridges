@@ -1656,7 +1656,7 @@ for (const [id, expected] of Object.entries(CP_EXPECTED)) {
 const s8Texts = Object.keys(CP_EXPECTED).map((id) => stageOf(id, 'S8').instructions);
 assert(new Set(s8Texts).size === 1, 'every paradigm shows the SAME S8 instruction text');
 assert(
-    s8Texts.every((t) => /putting it all together/.test(t)),
+    s8Texts.every((t) => /putting it all together/i.test(t)),
     "S8 copy is the unified 'combine everything' screen",
 );
 assert(
@@ -1882,8 +1882,8 @@ for (const id of Object.keys(CP_EXPECTED)) {
     const s3c = stageOf(id, 'S3c').instructions;
     assert(/colored border/i.test(s3c), `${id}/S3c: introduces the colored border`);
     assert(
-        /BEFORE the birds/.test(s3c),
-        `${id}/S3c: states that the border appears just BEFORE the birds`,
+        /before the birds/i.test(s3c),
+        `${id}/S3c: states that the border appears just before the birds`,
     );
     // S4 is now about switching, not the cue. It must say the task can switch, and
     // must not re-introduce the border as a new thing.
@@ -2771,18 +2771,15 @@ async function main() {
     // `feedback: false`, so the shipped sessions had no speed-accuracy signal of any
     // kind. This test runs the real thing end to end.
     //
-    // Real training stages carry a ~500 ms ITI, and a wrong-throughout-training run
-    // Training blocks run with feedback ON and test blocks with it OFF, and
-    // buildSEConfig passes that through — so the SE stub can tell which phase it is
-    // in without counting trials. Wrong all through training, right all through test.
-    seResponder = (seParams, config) => {
-        const isCorrect = !config.feedback;
-        return {
-            keyPresses: [
-                { eventType: 'keydown', key: isCorrect ? 'd' : 'x', time: 900, isCorrect },
-            ],
-        };
-    };
+    // Correct throughout so training PASSES and the session reaches the test phase.
+    // (This used to answer wrong all through training to prove training rows are
+    // excluded from the break summary, but a wrong-throughout run now aborts on the
+    // second failed training stage — the point of this test is the between-test
+    // breaks, and training exclusion is covered by its own section above.) The
+    // single-response answer leaves S7 (the two-response PRP stage) as the one
+    // stageFailed, which is under the two-failure abort threshold, so the session
+    // still completes.
+    seResponder = RESPOND_CORRECT;
 
     screenContainer = makeElement();
     await withFastClock(() =>
@@ -2801,7 +2798,7 @@ async function main() {
     );
     assert(
         /100% correct/.test(breakScreens[0]),
-        'and it reports only test performance — every training trial was wrong',
+        'and it reports test performance (100% correct across the test blocks)',
     );
     assert(/ms per answer/.test(breakScreens[0]), 'with a mean RT');
 
@@ -2836,6 +2833,133 @@ async function main() {
             .filter((b) => b.phase !== 'training').length;
         assert(breakOpportunities >= 1, `${id}: at least one break falls between two test blocks`);
     }
+
+    // ============================================================
+    // Idle-abort: an instruction screen left open too long ends the session
+    // ============================================================
+    // Under withFastClock every setTimeout delay collapses to 0. showInstructions
+    // arms the timeout timer before the keypress listener, so with a positive budget
+    // the timeout fires first and the abort path is exercised deterministically.
+    // (Passing no budget, as every other runSession test does, leaves it disabled.)
+
+    section('runSession — an instruction screen left open too long aborts the session');
+
+    // A training stage that also shows an instruction screen, so it can time out.
+    // Under the fast clock every screen times out (see the note above).
+    const timeoutStage = (stage) => ({
+        blockConfig: { ...TRAINING_BLOCK_CONFIG },
+        isTraining: true,
+        phase: 'training',
+        stage,
+        instructions: `${stage} — press a key to begin.`,
+    });
+
+    // One timeout is a strike, not an abort: the block advances and runs.
+    seResponder = RESPOND_CORRECT;
+    await Session.runSession([timeoutStage('S2')], container, {
+        stimulus: 'abstract',
+        instructionTimeoutMs: 180000,
+    });
+    assert(Session.getAbortInfo() === null, 'a single training timeout does not abort');
+    assert(Session.getData().length === 16, 'a single timeout advances into the block, which runs');
+    assert(Session.getTrainingLog().length === 1, 'the advanced stage is still logged');
+
+    // The third training timeout aborts.
+    seResponder = RESPOND_CORRECT;
+    await Session.runSession(
+        [timeoutStage('S2'), timeoutStage('S3'), timeoutStage('S3a')],
+        container,
+        {
+            stimulus: 'abstract',
+            instructionTimeoutMs: 180000,
+        },
+    );
+    const abort = Session.getAbortInfo();
+    assert(abort !== null, 'three training timeouts record an abort');
+    assert(abort.reason === 'instruction_timeout', 'abort reason is the idle timeout');
+    assert(abort.timeouts === 3, 'abort records the third strike');
+    assert(abort.stage === 'S3a', 'abort records the stage that struck out');
+    assert(abort.blockOrder === 3, 'abort records the block order');
+    assert(Session.getData().length === 32, 'the first two stages advanced and ran (16 each)');
+    assert(Session.getTrainingLog().length === 2, 'only the two advanced stages are logged');
+
+    section('runSession — a test-phase screen timeout never aborts');
+
+    // isTraining:false: a timeout here is not a strike and keeps the data.
+    seResponder = RESPOND_CORRECT;
+    await Session.runSession(
+        [
+            {
+                blockConfig: { ...TRAINING_BLOCK_CONFIG },
+                isTraining: false,
+                phase: 'test',
+                numTrials: 2,
+                instructions: 'test block — press a key to begin.',
+            },
+        ],
+        container,
+        { stimulus: 'abstract', instructionTimeoutMs: 180000 },
+    );
+    assert(Session.getAbortInfo() === null, 'a test-phase timeout does not abort');
+    assert(Session.getData().length === 2, 'the test block runs and its data is kept');
+
+    section('runSession — a completed session does not record an abort');
+
+    seResponder = RESPOND_CORRECT;
+    await Session.runSession([trainingBlockDef('S2')], container, { stimulus: 'abstract' });
+    assert(Session.getAbortInfo() === null, 'abortInfo resets to null on a clean run');
+
+    section('runSession — failing two training stages aborts the session');
+
+    // No timeout budget: screens dismiss on the mock keypress. Incorrect responses
+    // never meet criterion, so each stage runs to the cap and is a stageFailed.
+    seResponder = RESPOND_INCORRECT;
+    await Session.runSession([trainingBlockDef('S2'), trainingBlockDef('S3')], container, {
+        stimulus: 'abstract',
+    });
+    const failAbort = Session.getAbortInfo();
+    const failLog = Session.getTrainingLog();
+    assert(failAbort !== null, 'two failed training stages record an abort');
+    assert(failAbort.reason === 'training_failure', 'abort reason is the training failure');
+    assert(failAbort.failures === 2, 'abort records the second failure');
+    assert(failAbort.blockOrder === 2, 'abort records the block order of the second failure');
+    assert(
+        failLog.length === 2 && failLog.every((s) => s.stageFailed),
+        'both stages are stageFailed',
+    );
+
+    section('runSession — an idle abort is logged to the data store');
+
+    // Mock the upload shim so uploadActive is true (needs the participant triplet).
+    const abortCalls = [];
+    const savedDataStore = global.window.dataStore;
+    global.window.dataStore = {
+        startSession: async () => {},
+        saveBlock: async () => abortCalls.push('saveBlock'),
+        abortSession: async (info) => abortCalls.push(info),
+    };
+    seResponder = RESPOND_CORRECT;
+    await Session.runSession(
+        [timeoutStage('S2'), timeoutStage('S3'), timeoutStage('S3a')],
+        container,
+        {
+            stimulus: 'abstract',
+            instructionTimeoutMs: 180000,
+            paradigm: 'cp_stroop',
+            condition: 'A',
+            prolificPid: 'test_pid',
+        },
+    );
+    global.window.dataStore = savedDataStore;
+    const abortInfoCalls = abortCalls.filter((c) => c !== 'saveBlock');
+    assert(
+        abortInfoCalls.length === 1 && abortInfoCalls[0].reason === 'instruction_timeout',
+        'abortSession is called once with the timeout reason',
+    );
+    assert(
+        abortCalls.filter((c) => c === 'saveBlock').length === 2,
+        'the two advanced stages upload; the struck-out stage (no trials) does not',
+    );
 
     // ============================================================
     // Each test block reads its OWN pool CSV, whole
