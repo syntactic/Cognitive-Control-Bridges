@@ -747,7 +747,7 @@
                     }));
                 }
 
-                if (abridgedCb.checked) {
+                if (isAbridged()) {
                     // Criterion training stages carry no numTrials — runBlock caps
                     // them at TRAINING_CAP and stops on the advancement criterion —
                     // so leave those alone. Scaling undefined produced NaN, which
@@ -759,7 +759,29 @@
                     );
                 }
 
+                // Optional ?blocks=N URL parameter for rapid smoke testing.
+                const blocksParam = new URLSearchParams(window.location.search).get('blocks');
+                const maxBlocks = blocksParam != null ? parseInt(blocksParam, 10) : null;
+                if (maxBlocks && maxBlocks > 0) {
+                    if (participantMode?.testOnly) {
+                        blocks = blocks.slice(0, maxBlocks);
+                    } else {
+                        const training = blocks.filter((b) => b.isTraining);
+                        const test = blocks.filter((b) => !b.isTraining).slice(0, maxBlocks);
+                        blocks = training.concat(test);
+                    }
+                }
+
                 return blocks;
+            }
+
+            function isAbridged() {
+                const params = new URLSearchParams(window.location.search);
+                const abridgedParam = params.get('abridged');
+                if (abridgedParam != null) {
+                    return abridgedParam === 'true' || abridgedParam === '1';
+                }
+                return window.DEV_MODE ? abridgedCb.checked : false;
             }
 
             // Launch a session. Called by the dev Start button, and auto-invoked on
@@ -837,7 +859,7 @@
                           : Session.DEFAULT_INSTRUCTION_TIMEOUT_MS;
                     await Session.runSession(sessionDef, container, {
                         stimulus,
-                        abridged: abridgedCb.checked,
+                        abridged: isAbridged(),
                         scheme,
                         instructionTimeoutMs,
                         // Participant metadata for progressive data upload (data_store.js).
