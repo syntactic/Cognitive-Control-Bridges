@@ -209,42 +209,6 @@ const Session = (() => {
     }
 
     /**
-     * Terminal screen shown when a session is aborted (e.g. an instruction screen
-     * left open too long). Unlike showDebrief it offers NO Prolific completion
-     * redirect — the participant was not marked complete and returns the study in
-     * Prolific. Informational only; resolves immediately.
-     */
-    function showAbort(containerEl, info = {}) {
-        if (typeof document === 'undefined' || !containerEl) return Promise.resolve();
-        containerEl.classList.add('consent-mode');
-        const overlay = document.createElement('div');
-        overlay.className = 'consent-overlay';
-        let reasonLine;
-        if (info.reason === 'instruction_timeout') {
-            reasonLine =
-                'This session was closed because instruction screens were left open too long without a response.';
-        } else if (info.reason === 'training_failure') {
-            reasonLine =
-                'This session was closed during the practice stages. The task did not seem to be working out this time, so we have ended the session early.';
-        } else {
-            reasonLine = 'This session was closed early.';
-        }
-        overlay.innerHTML = `
-      <div class="consent-header">
-        <h2>Session ended</h2>
-      </div>
-      <div class="consent-body">
-        <p>${reasonLine}</p>
-        <p>You have <strong>not</strong> been marked as complete. Please return to
-        Prolific and return the study — you will not be penalized. If you believe
-        this was a mistake, contact the researchers through Prolific.</p>
-      </div>
-    `;
-        containerEl.appendChild(overlay);
-        return Promise.resolve();
-    }
-
-    /**
      * Update the "Block X of N" progress readout above the canvas. Numbered
      * continuously across training and test so a participant sees steady progress
      * (blockOrder runs 1..sessionBlockCount). Pass no order to hide it (consent,
@@ -279,8 +243,11 @@ const Session = (() => {
     }
 
     /**
-     * Terminal screen shown when the device is unsupported. Like showAbort it is a
-     * dead end with no completion redirect — the participant returns the study.
+     * Terminal screen shown when the device is unsupported. A dead end with no
+     * completion redirect — a phone/tablet user cannot do the task at all, so they
+     * return the study in Prolific rather than being paid for unusable data. (This
+     * is distinct from an early exit mid-session, which now routes to the normal
+     * debrief and is paid; see the end of runSession.)
      */
     function showDeviceBlock(containerEl) {
         if (typeof document === 'undefined' || !containerEl) return Promise.resolve();
@@ -367,7 +334,7 @@ const Session = (() => {
         const autoRedirect = hasRealCode && !isDev;
         // Delay so the debrief text and completion code are actually seen before the
         // page navigates away.
-        const redirectDelayMs = options.redirectDelayMs ?? 8000;
+        const redirectDelayMs = options.redirectDelayMs ?? 10000;
 
         overlay.innerHTML = `
       <div class="consent-header">
@@ -381,6 +348,10 @@ const Session = (() => {
         <div style="margin-top: 16px; padding: 12px; background: #16213e; border: 1px solid #333; border-radius: 6px; text-align: center;">
           <p style="margin-bottom: 4px; font-weight: bold; color: #a0c4ff;">Your Prolific Completion Code:</p>
           <code style="font-size: 1.3em; letter-spacing: 2px; color: #fff;">${completionCode}</code>
+          <p style="margin: 8px 0 0; font-size: 0.88em; color: #aaa;">
+            Questions or issues? Contact the study team at
+            <a href="mailto:cognitivecontrolparadigms@gmail.com" style="color: #a0c4ff;">cognitivecontrolparadigms@gmail.com</a>
+          </p>
         </div>
         ${
             autoRedirect
@@ -1208,19 +1179,24 @@ const Session = (() => {
 
         setBlockProgress(null); // no block number on the terminal screens
 
-        if (abortInfo) {
-            // Persist the abort so a partial Firestore record shows the idle
-            // exclusion (non-fatal if the write fails — the participant still sees
-            // the abort screen). Then the terminal screen, NOT the completion redirect.
-            if (uploadActive && window.dataStore.abortSession) {
-                try {
-                    await window.dataStore.abortSession(abortInfo);
-                } catch (e) {
-                    console.warn('Data upload: abortSession failed.', e);
-                }
+        if (abortInfo && uploadActive && window.dataStore.abortSession) {
+            // Persist the early exit so the Firestore record marks a non-completer
+            // for the completion-rate analysis (non-fatal if the write fails). The
+            // participant is NOT shown a failure screen — see below.
+            try {
+                await window.dataStore.abortSession(abortInfo);
+            } catch (e) {
+                console.warn('Data upload: abortSession failed.', e);
             }
-            await showAbort(canvasContainer, abortInfo);
-        } else if (isRunning) {
+        }
+        // Show the debrief on a completed OR an early-exited session, but not on a
+        // bare external stopSession() (a dev control: isRunning false, no abort).
+        // Per Sebastian (09-10 l.64-68) an early-exited participant is treated as a
+        // completer for payment: the same debrief, the same completion code, no
+        // failure screen — so they receive the flat reward and are not made to feel
+        // penalized, and we avoid maintaining a special-case abort screen. The abort
+        // is still recorded above, so attrition is measurable without punishing anyone.
+        if (abortInfo || isRunning) {
             isRunning = false;
             await showDebrief(canvasContainer, options);
             enableExport();

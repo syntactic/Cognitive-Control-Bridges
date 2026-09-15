@@ -97,9 +97,11 @@ const CP_DEFAULTS = {
     // Response regime, all three set explicitly (none implies another, and
     // engine.js defaults earlyResolve to false):
     //   earlyResolve — end the trial on the response rather than run the full
-    //     2000 ms, so the regime doesn't change at the training->test boundary. On
-    //     a dual-task trial SE resolves only once both go signals settle
-    //     (src/trial.js resolveEarly), so PRP still collects both responses.
+    //     window. On a dual-task trial SE resolves only once both go signals settle
+    //     (src/trial.js resolveEarly), so PRP still collects both responses. The
+    //     test window here is 2000 ms; training runs longer (2500 ms, see
+    //     training_stages.js) so naive participants aren't timed out while learning,
+    //     stepping down to test speed at the training->test boundary (Sebastian, 09-10).
     //   acceptFirstResponse — the first press is the response. Required alongside
     //     earlyResolve: SE gates on `earlyResolve && (isCorrect ||
     //     acceptFirstResponse)`, so earlyResolve alone resolves only on a correct

@@ -69,7 +69,7 @@ node_modules/
 .dataconnect
 
 # Firebase service-account key (SECRET — never commit) and local Firestore exports
-serviceAccountKey.json
+serviceAccountKey*.json
 firestore_export.json
 data/exports/
 session_*.csv

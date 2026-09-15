@@ -30,8 +30,12 @@
 // call rather than a design directive are flagged INFERRED.
 
 const TRAINING_STAGE_DEFAULTS = {
-    stimulusDuration: 2000,
-    responseWindow: 2000,
+    // Training runs slower than the test blocks (CP_DEFAULTS, 2000 ms) so a naive
+    // participant has room to learn the mappings without being timed out — the
+    // filter should catch non-engagement, not first-time slowness (Sebastian,
+    // 09-10 l.52/76). The test phase speeds back up to 2000 ms.
+    stimulusDuration: 2500,
+    responseWindow: 2500,
     iti: { type: 'uniform', value: 500, params: [400, 600] },
 
     // INFERRED. S4's CSI must be positive so the cue acts as an advance signal,
@@ -292,8 +296,11 @@ function buildSharedTrainingStages(spec) {
 // no paradigm constant and not wired into any SESSION array.
 
 const PARADIGM_FINAL_STAGE_DEFAULTS = {
-    stimulusDuration: 2000,
-    responseWindow: 2000,
+    // Still a training stage (S7/S8), so it keeps training's slower 2500 ms window
+    // rather than the 2000 ms test speed (Sebastian, 09-10 l.52). The step down to
+    // test speed happens at the training->test boundary, not within training.
+    stimulusDuration: 2500,
+    responseWindow: 2500,
     iti: { type: 'uniform', value: 500, params: [400, 600] },
     feedback: true, // on for all of training including S8, off in the test block
     // Both response-regime flags, always together. See assertValidBlockConfig.

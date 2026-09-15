@@ -4,7 +4,7 @@
         "ignore": [
             "firebase.json",
             "**/.*",
-            "node_modules/**/!(*bundle.js)",
+            "node_modules/!(super-experiment)/**",
             "sweetpea/**",
             "*.py",
             "__pycache__/**"

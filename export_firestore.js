@@ -6,30 +6,19 @@
 // Both serviceAccountKey.json and exported data files are gitignored.
 //
 // Usage:
-//   node export_firestore.js                     # Export complete sessions only (default)
+//   node export_firestore.js                     # Auto-detects prod or dev service account
+//   node export_firestore.js --prod              # Explicitly use EU prod key (serviceAccountKey_prod.json)
+//   node export_firestore.js --dev               # Explicitly use US dev key (serviceAccountKey_dev.json)
+//   node export_firestore.js --key <path>        # Use custom key path (or via FIREBASE_KEY env var)
 //   node export_firestore.js --all               # Export all sessions with trials (including dev runs)
 //   node export_firestore.js --pid <id>          # Filter by specific participant ID
 //   node export_firestore.js --no-combined       # Skip generating combined_trials.csv
 //   node export_firestore.js --out-dir ./exports # Custom output directory (default: data/exports)
 
-const { initializeApp, cert } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
 const fs = require('fs');
 const path = require('path');
-
-const KEY_PATH = process.env.FIREBASE_KEY || './serviceAccountKey.json';
-
-if (!fs.existsSync(KEY_PATH)) {
-    console.error(
-        `\nERROR: Service account key not found at ${KEY_PATH}.\n` +
-            'Download it from Firebase Console -> Project Settings -> Service Accounts -> "Generate new private key",\n' +
-            'and save it as serviceAccountKey.json in the repository root.\n',
-    );
-    process.exit(1);
-}
-
-initializeApp({ credential: cert(require(path.resolve(KEY_PATH))) });
-const db = getFirestore();
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
 
 // Standard column schema across all single-canvas and dual-canvas experimental paradigms
 // Mirrors the flat per-trial record uploaded by saveBlock() (session.js), plus the
@@ -106,6 +95,55 @@ function trialsToCSV(trials) {
 }
 
 /**
+ * Resolves the service account key file path based on environment flags,
+ * explicit path options, or automatic discovery in the repository root.
+ */
+function resolveKeyPath(options) {
+    if (options.key) return options.key;
+    if (process.env.FIREBASE_KEY) return process.env.FIREBASE_KEY;
+
+    if (options.env === 'prod') {
+        const prodCandidates = [
+            './serviceAccountKey_prod.json',
+            './serviceAccountKey.prod.json',
+            './serviceAccountKey-prod.json',
+        ];
+        for (const p of prodCandidates) {
+            if (fs.existsSync(p)) return p;
+        }
+        return './serviceAccountKey_prod.json';
+    }
+
+    if (options.env === 'dev') {
+        const devCandidates = [
+            './serviceAccountKey_dev.json',
+            './serviceAccountKey.dev.json',
+            './serviceAccountKey-dev.json',
+            './serviceAccountKey.json',
+        ];
+        for (const p of devCandidates) {
+            if (fs.existsSync(p)) return p;
+        }
+        return './serviceAccountKey_dev.json';
+    }
+
+    // Auto-discovery order: prod key -> general key -> dev key
+    const defaultCandidates = [
+        './serviceAccountKey_prod.json',
+        './serviceAccountKey.prod.json',
+        './serviceAccountKey-prod.json',
+        './serviceAccountKey.json',
+        './serviceAccountKey_dev.json',
+        './serviceAccountKey.dev.json',
+        './serviceAccountKey-dev.json',
+    ];
+    for (const p of defaultCandidates) {
+        if (fs.existsSync(p)) return p;
+    }
+    return './serviceAccountKey.json';
+}
+
+/**
  * Parses CLI flags to configure export scope and file destination.
  */
 function parseArgs() {
@@ -115,10 +153,18 @@ function parseArgs() {
         combined: true,
         pid: null,
         outDir: './data/exports',
+        env: null,
+        key: null,
     };
 
     for (let i = 0; i < args.length; i++) {
-        if (args[i] === '--all') {
+        if (args[i] === '--prod') {
+            options.env = 'prod';
+        } else if (args[i] === '--dev') {
+            options.env = 'dev';
+        } else if (args[i] === '--key' && i + 1 < args.length) {
+            options.key = args[++i];
+        } else if (args[i] === '--all') {
             options.all = true;
         } else if (args[i] === '--complete-only') {
             options.all = false;
@@ -135,6 +181,9 @@ function parseArgs() {
 Usage: node export_firestore.js [options]
 
 Options:
+  --prod            Export from EU production database (serviceAccountKey_prod.json)
+  --dev             Export from US development database (serviceAccountKey_dev.json)
+  --key <path>      Explicit path to a service account JSON key file
   --complete-only   Export only complete sessions that reached the test phase (default)
   --all             Export all sessions with data (including incomplete & dev runs)
   --pid <id>        Filter sessions by participant ID
@@ -151,9 +200,29 @@ Options:
 
 async function main() {
     const options = parseArgs();
+    const keyPath = resolveKeyPath(options);
+
+    if (!fs.existsSync(keyPath)) {
+        console.error(
+            `\nERROR: Service account key not found at ${keyPath}.\n` +
+                'To export from the EU production database (cognitive-control-paradigms):\n' +
+                '  Download the key from Firebase Console -> Project Settings -> Service Accounts -> "Generate new private key",\n' +
+                '  and save it as serviceAccountKey_prod.json (or serviceAccountKey.json) in the repository root.\n' +
+                'To export from the US dev database (canonical-paradigms-dev):\n' +
+                '  Save it as serviceAccountKey_dev.json in the repository root and run with --dev.\n',
+        );
+        process.exit(1);
+    }
+
+    const keyData = JSON.parse(fs.readFileSync(path.resolve(keyPath), 'utf8'));
+    initializeApp({ credential: cert(keyData) });
+    const db = getFirestore();
+
+    console.log(`\nConnected to Firestore project: ${keyData.project_id} (using ${path.basename(keyPath)})`);
+
     fs.mkdirSync(options.outDir, { recursive: true });
 
-    console.log('\nFetching session records from Firestore...');
+    console.log('Fetching session records from Firestore...');
     const sessionsSnap = await db.collection('sessions').get();
     const allSessions = [];
 
