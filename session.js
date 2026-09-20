@@ -455,17 +455,54 @@ const Session = (() => {
      * (managed by createBreakController), preventing accidental skips.
      * At the 60s cap, the break auto-advances.
      */
-    function showBreak(bodyText) {
+    /**
+     * Bar chart of test-block accuracies, oldest to newest. The three best blocks get
+     * gold/silver/bronze; the rest a neutral bar. Rank is within this participant's own
+     * blocks, never against anyone else. Empty string for no scores (the training->test
+     * seam break, before any test block has run).
+     */
+    function renderScoreChart(scores) {
+        if (!scores || scores.length === 0) return '';
+        const medals = new Array(scores.length).fill('other');
+        scores
+            .map((s, i) => ({ i, acc: s.accuracy }))
+            .sort((a, b) => b.acc - a.acc)
+            .slice(0, 3)
+            .forEach(({ i }, rank) => {
+                medals[i] = ['gold', 'silver', 'bronze'][rank];
+            });
+        const MAX_H = 110; // px for a perfect block
+        const bars = scores
+            .map((s, i) => {
+                const pct = Math.round(s.accuracy * 100);
+                const h = Math.max(4, Math.round(s.accuracy * MAX_H));
+                return (
+                    '<div class="score-col">' +
+                    `<div class="score-pct">${pct}%</div>` +
+                    `<div class="score-bar score-bar-${medals[i]}" style="height:${h}px"></div>` +
+                    `<div class="score-num">${i + 1}</div>` +
+                    '</div>'
+                );
+            })
+            .join('');
+        return `<div class="score-chart">${bars}</div>`;
+    }
+
+    function showBreak(bodyText, opts = {}) {
+        const { scores = null, final = false } = opts;
         return new Promise((resolve) => {
             const overlay = document.createElement('div');
             overlay.className = 'instructions-overlay';
-            const idlePrompt = `Press ${BREAK_ADVANCE_KEY} if you want to continue now.`;
+            const idlePrompt = final
+                ? `Press ${BREAK_ADVANCE_KEY} to finish.`
+                : `Press ${BREAK_ADVANCE_KEY} if you want to continue now.`;
             const armedPrompt = `Press ${BREAK_ADVANCE_KEY} again to confirm.`;
             // Built as an innerHTML string so the full screen (including summary)
             // is observable in headless testing. Live countdown updates happen via querySelector.
             overlay.innerHTML =
                 '<div class="instructions-content">' +
                 bodyText.replace(/\n/g, '<br>') +
+                renderScoreChart(scores) +
                 '<div class="break-countdown" style="margin-top:16px; font-variant-numeric:tabular-nums;"></div>' +
                 `<div class="break-prompt" style="margin-top:12px; color:#c0c0c0;">${idlePrompt}</div>` +
                 '</div>';
@@ -500,7 +537,7 @@ const Session = (() => {
                 const remMs = BREAK_CAP_MS - (performance.now() - startedAt);
                 const remSec = Math.max(0, Math.ceil(remMs / 1000));
                 if (countdown) {
-                    countdown.textContent = `Break: ${remSec} s remaining.`;
+                    countdown.textContent = `${final ? 'Finishing' : 'Break'}: ${remSec} s remaining.`;
                     // Draw the eye as the auto-advance approaches.
                     const urgent = remSec <= 10;
                     countdown.style.color = urgent ? '#ff5555' : '';
@@ -1188,6 +1225,9 @@ const Session = (() => {
         // summary. "Since the last break", not "this block": when a break is
         // skipped the next summary spans everything accumulated since.
         let summaryAnchor = 0;
+        // One accuracy summary per finished test block, oldest first, for the running-score
+        // chart on the break screens (and the final screen). Training blocks never enter it.
+        const testBlockScores = [];
         for (let b = 0; b < sessionDef.length; b++) {
             if (!isRunning) break;
             // runBlock returns a Quest coherence for Quest blocks and a training
@@ -1241,8 +1281,12 @@ const Session = (() => {
                     const sinceBreak = allTrialData
                         .slice(summaryAnchor)
                         .filter((row) => row.phase !== 'training');
-                    const summaryLine = formatBreakSummary(summarizeBlockPerformance(sinceBreak));
+                    const summary = summarizeBlockPerformance(sinceBreak);
+                    const summaryLine = formatBreakSummary(summary);
                     summaryAnchor = allTrialData.length;
+                    // A test->test break follows exactly one test block, so its summary is
+                    // that block's score. The seam break has no test rows yet (null summary).
+                    if (betweenTests && summary) testBlockScores.push(summary);
                     const heading = seam
                         ? 'Training complete — the test blocks begin next.'
                         : 'Block complete.';
@@ -1250,6 +1294,7 @@ const Session = (() => {
                         `${heading} \n\n` +
                             (summaryLine ? `${summaryLine} \n\n` : '') +
                             'Take a break — up to one minute.',
+                        { scores: testBlockScores },
                     );
                 }
             }
@@ -1286,6 +1331,24 @@ const Session = (() => {
         // is still recorded above, so attrition is measurable without punishing anyone.
         if (abortInfo || isRunning) {
             isRunning = false;
+            // Final running-score screen before the debrief. The last test block never
+            // triggers a break (no block follows it), so add its score here and show the
+            // full chart — the highest-motivation moment to end on. Skipped when a run
+            // never reached the test (aborted or training-only), where there's no score.
+            if (!abortInfo) {
+                const finalRows = allTrialData
+                    .slice(summaryAnchor)
+                    .filter((row) => row.phase !== 'training');
+                const finalSummary = summarizeBlockPerformance(finalRows);
+                if (finalSummary) testBlockScores.push(finalSummary);
+                if (testBlockScores.length > 0) {
+                    await showBreak(
+                        "That's the last block — thank you.\n\n" +
+                            'Here is how you did across the test blocks.',
+                        { scores: testBlockScores, final: true },
+                    );
+                }
+            }
             await showDebrief(canvasContainer, options);
             enableExport();
         }

@@ -297,6 +297,50 @@
                 image-rendering: pixelated;
             }
 
+            /* Running-score chart on the break and final screens (session.js
+           renderScoreChart). One bar per finished test block, oldest at left; the three
+           best get medal colors, the rest a neutral bar. */
+            .score-chart {
+                display: flex;
+                align-items: flex-end;
+                justify-content: center;
+                gap: 14px;
+                margin: 18px 0;
+                min-height: 130px;
+            }
+            .score-col {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: flex-end;
+            }
+            .score-col .score-pct {
+                font-size: 0.8em;
+                color: #c0c0c0;
+                margin-bottom: 4px;
+            }
+            .score-col .score-bar {
+                width: 34px;
+                border-radius: 4px 4px 0 0;
+            }
+            .score-col .score-num {
+                font-size: 0.8em;
+                color: #888;
+                margin-top: 6px;
+            }
+            .score-bar-gold {
+                background: #ffd54a;
+            }
+            .score-bar-silver {
+                background: #cfd3d6;
+            }
+            .score-bar-bronze {
+                background: #cd7f32;
+            }
+            .score-bar-other {
+                background: #4a6a8a;
+            }
+
             .info {
                 margin-top: 16px;
                 padding: 0 20px;
