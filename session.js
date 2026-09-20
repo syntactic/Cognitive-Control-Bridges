@@ -32,6 +32,17 @@ const Session = (() => {
     let trainingStageFailures = 0; // training stages maxed out without passing
     let abortInfo = null;
 
+    // Adaptive training hints: after HINT_STREAK single-task trials with the same mapping
+    // error, show the correct keys for HINT_HOLD_MS between trials, then hold off for
+    // HINT_COOLDOWN trials so a struggling participant isn't shown it every trial. Training
+    // only. See classifyMappingError (session_helpers.js) for how an error is named.
+    const HINT_STREAK = 3;
+    const HINT_COOLDOWN = 4;
+    const HINT_HOLD_MS = 2500;
+    // Direction (deg) -> arrow for the hint's key legend. 0=right, 180=left, 90=up,
+    // 270=down (canvas Y is inverted).
+    const DIR_ARROWS = { 0: '→', 90: '↑', 180: '←', 270: '↓' };
+
     // Total blockDefs in the running session, so the block-progress readout can
     // show "Block X of N" continuously across training and test. Set in runSession.
     let sessionBlockCount = 0;
@@ -205,6 +216,47 @@ const Session = (() => {
             }
             // Small delay to avoid catching the key that dismissed the previous screen
             setTimeout(() => document.addEventListener('keydown', handler), 200);
+        });
+    }
+
+    /**
+     * Show a between-trial training hint over the cleared canvas and remove it after
+     * `durationMs` with no keypress. `correctMap` is the {direction: key} map for the trial's
+     * task; each entry becomes an arrow + keycap row. 'wrong-set' names the hand and sits on
+     * that hand's side; 'reversal' centers.
+     */
+    function showTrainingHint(kind, correctMap, side, durationMs) {
+        return new Promise((resolve) => {
+            if (!canvasContainer || typeof document.createElement !== 'function') {
+                resolve();
+                return;
+            }
+            let rows;
+            try {
+                rows = Object.entries(correctMap)
+                    .map(([dir, key]) => {
+                        const arrow = DIR_ARROWS[dir] ?? '';
+                        return (
+                            `<div class="hint-row"><span class="hint-arrow">${arrow}</span>` +
+                            `<img class="hint-key" src="${demoKeycap(key).src}" alt="${key}"></div>`
+                        );
+                    })
+                    .join('');
+            } catch (e) {
+                // demoKeycap throws on a key with no art; skip the hint, not the trial.
+                resolve();
+                return;
+            }
+            const title =
+                kind === 'wrong-set' ? `Use your ${side} hand` : 'Match each key to its direction';
+            const hint = document.createElement('div');
+            hint.className = 'training-hint' + (kind === 'wrong-set' ? ` training-hint-${side}` : '');
+            hint.innerHTML = `<div class="hint-title">${title}</div>${rows}`;
+            canvasContainer.appendChild(hint);
+            setTimeout(() => {
+                hint.remove();
+                resolve();
+            }, durationMs);
         });
     }
 
@@ -769,6 +821,10 @@ const Session = (() => {
         let prevResponseTime = null;
         let trialData;
         let blockOutcomes = [];
+        // Running counts of consecutive mapping errors, for the adaptive training hints.
+        let wrongSetStreak = 0;
+        let reversalStreak = 0;
+        let hintCooldown = 0;
         for (
             let i = 0;
             i < trials.length &&
@@ -780,6 +836,9 @@ const Session = (() => {
             updateStatus(blockConfig.blockId, i + 1, trials.length, blockOrder);
             const task_1 = trials[i].meta.t1_task;
             const task_2 = trials[i].meta.t2_task;
+            // The single-task SE config this trial used, for mapping-error detection.
+            // Stays null on the dual/alternating paths, which have no single "task".
+            let usedSeConfig = null;
 
             // Resolve SE param objects: dual-canvas has leftSeParams/rightSeParams,
             // all other paradigms have a single seParams.
@@ -878,11 +937,40 @@ const Session = (() => {
                         blockConfig.cueBorderStyle,
                     );
                 }
+                usedSeConfig = trialSeConfig;
                 trialData = await runTrial(trials[i], trialSeConfig, prevResponseTime);
             }
 
             if (blockDef.isTraining) {
                 blockOutcomes.push(isTrialCorrectForAdvancement(trialData));
+            }
+
+            // Adaptive hint: track runs of the same single-task mapping error and, once one
+            // reaches HINT_STREAK, show the correct keys before the next trial. usedSeConfig
+            // is null off the single-canvas path, so dual/alternating blocks never hint.
+            if (blockDef.isTraining && usedSeConfig) {
+                const errType = classifyMappingError(trialData, usedSeConfig);
+                wrongSetStreak = errType === 'wrong-set' ? wrongSetStreak + 1 : 0;
+                reversalStreak = errType === 'reversal' ? reversalStreak + 1 : 0;
+
+                if (hintCooldown > 0) {
+                    hintCooldown--;
+                } else if (wrongSetStreak >= HINT_STREAK || reversalStreak >= HINT_STREAK) {
+                    const kind = wrongSetStreak >= HINT_STREAK ? 'wrong-set' : 'reversal';
+                    const correctMap =
+                        task_1 === 'mov'
+                            ? usedSeConfig.movementKeyMap
+                            : usedSeConfig.orientationKeyMap;
+                    const side =
+                        demoKeycap(Object.values(correctMap)[0]).set === 'wasd' ? 'left' : 'right';
+                    await showTrainingHint(kind, correctMap, side, HINT_HOLD_MS);
+                    // The hint ran during what would have been the ITI, so re-anchor: its
+                    // dwell shouldn't be billed to the next trial's achieved ITI.
+                    itiAnchor = null;
+                    hintCooldown = HINT_COOLDOWN;
+                    wrongSetStreak = 0;
+                    reversalStreak = 0;
+                }
             }
             trialData.blockOrder = blockOrder;
             trialData.isPractice = blockDef.isPractice || false;

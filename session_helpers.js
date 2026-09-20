@@ -339,6 +339,54 @@ function buildKeyTaskMap(seConfig, trial) {
     return { task1Keys, task2Keys };
 }
 
+/**
+ * Look at a finished single-task trial and name the mapping error it shows, so a training
+ * hint can respond to it. Returns:
+ *   'wrong-set' - the first press used the other hand's keys.
+ *   'reversal'  - the right hand, but the opposite direction to the target.
+ *   null        - correct, unreadable, or not a case a hint should touch.
+ *
+ * Reads the first press after stimulus onset (training resolves on the first press, so that
+ * press is the response). Only fires on disjoint key maps, where hand and direction are
+ * separable. Reversal is withheld on incongruent bivalent trials: there an opposite press
+ * matches the distractor, so it can't be told apart from tracking the wrong feature.
+ */
+function classifyMappingError(trialData, seConfig) {
+    const task = trialData.t1_task;
+    if (task !== 'mov' && task !== 'or') return null;
+    if (trialData.paradigm === 'dual-task') return null;
+
+    const movMap = seConfig.movementKeyMap || {};
+    const orMap = seConfig.orientationKeyMap || {};
+    const movKeys = Object.values(movMap);
+    const orKeys = Object.values(orMap);
+    const disjoint = movKeys.length && orKeys.length && !movKeys.some((k) => orKeys.includes(k));
+    if (!disjoint) return null;
+
+    const correctMap = task === 'mov' ? movMap : orMap;
+    const correctKeys = Object.values(correctMap);
+    const otherKeys = task === 'mov' ? orKeys : movKeys;
+    const targetKey = correctMap[trialData.t1_target_dir];
+
+    let presses;
+    try {
+        presses = JSON.parse(trialData.rawKeyPresses || '[]');
+    } catch {
+        return null;
+    }
+    const onset = trialData.t1_stim_onset ?? 0;
+    const first = presses.find((kp) => kp.time >= onset);
+    if (!first) return null;
+
+    if (otherKeys.includes(first.key)) return 'wrong-set';
+
+    if (correctKeys.includes(first.key) && first.key !== targetKey) {
+        const distractor = trialData.t1_distractor_dir;
+        if (distractor == null || distractor === trialData.t1_target_dir) return 'reversal';
+    }
+    return null;
+}
+
 // ============================================================
 // Response extraction
 // ============================================================

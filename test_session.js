@@ -627,6 +627,75 @@ const keyMap3 = buildKeyTaskMap(identicalSEConfig, movTrial);
 assert(keyMap3 === null, 'identical RSO: returns null');
 
 // ============================================================
+// classifyMappingError tests (the training-hint detector)
+// ============================================================
+
+section('classifyMappingError — names the error a hint should respond to');
+
+// disjoint maps: mov = a(180)/d(0), or = j(180)/l(0). Trial fields are flat, as
+// runTrial merges them. Presses land after the 500 ms onset unless stated.
+const mkTrial = (over) => ({
+    t1_task: 'mov',
+    t1_target_dir: 0, // correct mov key is 'd'
+    t1_distractor_dir: null,
+    t1_stim_onset: 500,
+    paradigm: 'single-task',
+    rawKeyPresses: '[]',
+    ...over,
+});
+const presses = (arr) =>
+    JSON.stringify(arr.map(([key, time]) => ({ key, time, isCorrect: false })));
+
+assert(
+    classifyMappingError(
+        mkTrial({ t1_task: 'or', t1_target_dir: 0, rawKeyPresses: presses([['a', 900]]) }),
+        disjointSEConfig,
+    ) === 'wrong-set',
+    'other hand keys -> wrong-set',
+);
+assert(
+    classifyMappingError(mkTrial({ rawKeyPresses: presses([['a', 900]]) }), disjointSEConfig) ===
+        'reversal',
+    'right hand, opposite direction, no distractor -> reversal',
+);
+assert(
+    classifyMappingError(
+        mkTrial({ t1_distractor_dir: 0, rawKeyPresses: presses([['a', 900]]) }),
+        disjointSEConfig,
+    ) === 'reversal',
+    'congruent distractor still counts as reversal',
+);
+assert(
+    classifyMappingError(
+        mkTrial({ t1_distractor_dir: 180, rawKeyPresses: presses([['a', 900]]) }),
+        disjointSEConfig,
+    ) === null,
+    'incongruent distractor suppresses reversal (could be distractor-tracking)',
+);
+assert(
+    classifyMappingError(mkTrial({ rawKeyPresses: presses([['d', 900]]) }), disjointSEConfig) ===
+        null,
+    'correct key -> null',
+);
+assert(
+    classifyMappingError(mkTrial({ rawKeyPresses: presses([['a', 100]]) }), disjointSEConfig) ===
+        null,
+    'a press before onset is ignored',
+);
+assert(
+    classifyMappingError(
+        mkTrial({ paradigm: 'dual-task', rawKeyPresses: presses([['a', 900]]) }),
+        disjointSEConfig,
+    ) === null,
+    'dual-task trials are out of scope',
+);
+assert(
+    classifyMappingError(mkTrial({ rawKeyPresses: presses([['a', 900]]) }), identicalSEConfig) ===
+        null,
+    'identical maps: hand and direction are inseparable -> null',
+);
+
+// ============================================================
 // extractResponse tests (the single-canvas response extractor)
 // ============================================================
 
