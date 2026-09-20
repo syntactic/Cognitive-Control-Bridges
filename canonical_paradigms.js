@@ -1736,9 +1736,8 @@ function cpBuildStroopTrainingSession(condition = 'A', scheme) {
             csi: cpStroop.csi,
             coherence: cpStroop.coherence,
             task: targetTask,
-            // The rehearsal runs PARADIGM_FINAL_STAGE_DEFAULTS' stroopTrials (16,
-            // no new content). 16 is a placeholder length, so no numTrials override
-            // is invented here.
+            // Criterion-gated like every other paradigm-final stage: caps at
+            // TRAINING_CAP and early-stops on the shared 14/16 window.
         },
     });
 }
@@ -1764,7 +1763,7 @@ function cpBuildStroopCrossedTrainingSession(condition = 'A', scheme) {
             coherence: cpStroopCrossed.coherence,
             levelFactors: cpStroopCrossed.levelFactors,
             task: targetTask,
-            // Same placeholder 16-trial default as cp_stroop above.
+            // Criterion-gated like cp_stroop above (caps at TRAINING_CAP, 14/16).
         },
     });
 }

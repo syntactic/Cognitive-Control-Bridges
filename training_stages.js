@@ -308,9 +308,6 @@ const PARADIGM_FINAL_STAGE_DEFAULTS = {
     acceptFirstResponse: true,
     mapping: 'parallel',
     blockIdPrefix: 'train',
-    // The Stroop rehearsal is 16 trials with no new content and no criterion
-    // (not an isTraining stage).
-    stroopTrials: 16,
     // Stochastic, not Factorial: a criterion stage stops once its rolling window
     // is met, which would truncate a crossed design's cells anyway.
     sequenceType: 'Random',
@@ -420,9 +417,11 @@ function buildParadigmFinalStage(spec) {
     }
 
     if (cfg.kind === 'stroop') {
-        // Short rehearsal at exact test parameters (16 trials, no new content).
-        // No criterion — S6 already ran these stimuli under conflict — so
-        // isTraining is false and runBlock won't cap or early-stop it.
+        // Criterion-gated like 'switching' and 'prp'. S6 is bivalent switching; the
+        // Stroop test is single-task under conflict (crossed Stroop also adds a
+        // distractor-coherence crossing S6 never shows), so it isn't the same task.
+        // Ungated, at-chance participants reached the test. isTraining caps at
+        // TRAINING_CAP and early-stops on the shared 14/16; numTrials would be dead.
         if (cfg.task !== 'mov' && cfg.task !== 'or') {
             throw new Error(
                 "buildParadigmFinalStage: kind 'stroop' requires spec.task ('mov'|'or'), " +
@@ -436,7 +435,7 @@ function buildParadigmFinalStage(spec) {
                 startTask: cfg.task,
                 task1: cfg.task,
             },
-            { isTraining: false, numTrials: cfg.numTrials ?? cfg.stroopTrials },
+            { isTraining: true },
         );
     }
 

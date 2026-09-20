@@ -877,7 +877,7 @@ assert(
 assert(s8Switch.blockConfig.coherenceRamp === undefined, 'S8 never ramps — S2-S4 did that');
 assert(s8Switch.blockConfig.soaSchedule === undefined, 'a switching stage has no SOA schedule');
 
-section('buildParadigmFinalStage — rehearsal (Stroop)');
+section('buildParadigmFinalStage — final stage (Stroop)');
 
 const s8Stroop = buildParadigmFinalStage({
     ...S8_BASE,
@@ -888,22 +888,29 @@ const s8Stroop = buildParadigmFinalStage({
     blockIdPrefix: 'stroop_train',
 });
 
-assert(s8Stroop.isTraining === false, 'the Stroop rehearsal carries NO criterion');
-assert(s8Stroop.numTrials === 16, 'it is a fixed 16-trial block');
-assert(s8Stroop.blockConfig.switchRate === 0, 'no switching in a Stroop rehearsal');
+assert(s8Stroop.isTraining === true, 'the Stroop final stage is criterion-gated');
+assert(
+    s8Stroop.numTrials === undefined,
+    'no fixed trial count — runBlock caps it at TRAINING_CAP and early-stops',
+);
+assert(
+    s8Stroop.advancementThreshold === undefined,
+    'inherits the shared 14/16 (no per-stage override, unlike PRP)',
+);
+assert(s8Stroop.blockConfig.switchRate === 0, 'no switching in the Stroop final stage');
 assert(
     s8Stroop.blockConfig.task1 === 'mov' && s8Stroop.blockConfig.startTask === 'mov',
     'the target dimension is fixed for the whole stage',
 );
 assert(
     s8Stroop.blockConfig.levelFactors.target.length === 3,
-    "the test block's level factors pass through, so the rehearsal spans them",
+    "the test block's level factors pass through, so the stage spans them",
 );
 assert(s8Stroop.blockConfig.blockId === 'stroop_train_S8', 'blockIdPrefix override applies');
 assert(
     buildParadigmFinalStage({ ...S8_BASE, kind: 'stroop', task: 'or', numTrials: 24 }).numTrials ===
-        24,
-    'the rehearsal trial count is overridable',
+        undefined,
+    'a numTrials override is ignored now that the stage is gated (runBlock forces the cap)',
 );
 
 section('buildParadigmFinalStage — PRP');
@@ -1132,9 +1139,16 @@ for (const [id, expected] of Object.entries(CP_EXPECTED)) {
         );
         assert(s8.advancementThreshold === undefined, `${id}: S8 keeps the shared 14/16 default`);
     } else {
-        assert(s8.isTraining === false, `${id}: the Stroop rehearsal carries no criterion`);
-        assert(s8.numTrials === 16, `${id}: it is the 16-trial placeholder length`);
-        assert(s8.blockConfig.switchRate === 0, `${id}: no switching in a Stroop rehearsal`);
+        assert(s8.isTraining === true, `${id}: the Stroop final stage is criterion-gated`);
+        assert(
+            s8.numTrials === undefined,
+            `${id}: no fixed length — runBlock caps at TRAINING_CAP`,
+        );
+        assert(
+            s8.advancementThreshold === undefined,
+            `${id}: Stroop S8 keeps the shared 14/16 default`,
+        );
+        assert(s8.blockConfig.switchRate === 0, `${id}: no switching in the Stroop final stage`);
     }
     assert(
         s8.blockConfig.csi === testSession[0].blockConfig.csi,
