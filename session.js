@@ -33,7 +33,7 @@ const Session = (() => {
     let abortInfo = null;
 
     // Adaptive training hints: after HINT_STREAK single-task trials with the same mapping
-    // error, show the correct keys for HINT_HOLD_MS between trials, then hold off for
+    // error, show a corrective hint for HINT_HOLD_MS between trials, then hold off for
     // HINT_COOLDOWN trials so a struggling participant isn't shown it every trial. Training
     // only. See classifyMappingError (session_helpers.js) for how an error is named.
     const HINT_STREAK = 3;
@@ -223,9 +223,12 @@ const Session = (() => {
      * Show a between-trial training hint over the cleared canvas and remove it after
      * `durationMs` with no keypress. `correctMap` is the {direction: key} map for the trial's
      * task; each entry becomes an arrow + keycap row. 'wrong-set' names the hand and sits on
-     * that hand's side; 'reversal' centers.
+     * that hand's side; 'reversal' and 'distractor' center. 'distractor' names the feature to
+     * answer, not a direction: the keys are already right, so it reminds the participant which
+     * feature is the target ('mov' = flying, 'or' = facing) and to ignore the other. `task`
+     * ('mov'/'or') is only read for the 'distractor' wording.
      */
-    function showTrainingHint(kind, correctMap, side, durationMs) {
+    function showTrainingHint(kind, correctMap, side, durationMs, task) {
         return new Promise((resolve) => {
             if (!canvasContainer || typeof document.createElement !== 'function') {
                 resolve();
@@ -247,10 +250,21 @@ const Session = (() => {
                 resolve();
                 return;
             }
-            const title =
-                kind === 'wrong-set' ? `Use your ${side} hand` : 'Match each key to its direction';
+            let title;
+            if (kind === 'wrong-set') {
+                title = `Use your ${side} hand`;
+            } else if (kind === 'distractor') {
+                // Name the target feature the participant should answer. The words match the
+                // instruction copy: movement = "flying", orientation = "facing".
+                const target = task === 'mov' ? 'flying' : 'facing';
+                const other = task === 'mov' ? 'facing' : 'flying';
+                title = `Answer which way the birds are ${target}, not ${other}`;
+            } else {
+                title = 'Match each key to its direction';
+            }
             const hint = document.createElement('div');
-            hint.className = 'training-hint' + (kind === 'wrong-set' ? ` training-hint-${side}` : '');
+            hint.className =
+                'training-hint' + (kind === 'wrong-set' ? ` training-hint-${side}` : '');
             hint.innerHTML = `<div class="hint-title">${title}</div>${rows}`;
             canvasContainer.appendChild(hint);
             setTimeout(() => {
@@ -861,6 +875,7 @@ const Session = (() => {
         // Running counts of consecutive mapping errors, for the adaptive training hints.
         let wrongSetStreak = 0;
         let reversalStreak = 0;
+        let distractorStreak = 0;
         let hintCooldown = 0;
         for (
             let i = 0;
@@ -989,24 +1004,35 @@ const Session = (() => {
                 const errType = classifyMappingError(trialData, usedSeConfig);
                 wrongSetStreak = errType === 'wrong-set' ? wrongSetStreak + 1 : 0;
                 reversalStreak = errType === 'reversal' ? reversalStreak + 1 : 0;
+                distractorStreak = errType === 'distractor' ? distractorStreak + 1 : 0;
 
                 if (hintCooldown > 0) {
                     hintCooldown--;
-                } else if (wrongSetStreak >= HINT_STREAK || reversalStreak >= HINT_STREAK) {
-                    const kind = wrongSetStreak >= HINT_STREAK ? 'wrong-set' : 'reversal';
+                } else if (
+                    wrongSetStreak >= HINT_STREAK ||
+                    reversalStreak >= HINT_STREAK ||
+                    distractorStreak >= HINT_STREAK
+                ) {
+                    const kind =
+                        wrongSetStreak >= HINT_STREAK
+                            ? 'wrong-set'
+                            : reversalStreak >= HINT_STREAK
+                              ? 'reversal'
+                              : 'distractor';
                     const correctMap =
                         task_1 === 'mov'
                             ? usedSeConfig.movementKeyMap
                             : usedSeConfig.orientationKeyMap;
                     const side =
                         demoKeycap(Object.values(correctMap)[0]).set === 'wasd' ? 'left' : 'right';
-                    await showTrainingHint(kind, correctMap, side, HINT_HOLD_MS);
+                    await showTrainingHint(kind, correctMap, side, HINT_HOLD_MS, task_1);
                     // The hint ran during what would have been the ITI, so re-anchor: its
                     // dwell shouldn't be billed to the next trial's achieved ITI.
                     itiAnchor = null;
                     hintCooldown = HINT_COOLDOWN;
                     wrongSetStreak = 0;
                     reversalStreak = 0;
+                    distractorStreak = 0;
                 }
             }
             trialData.blockOrder = blockOrder;

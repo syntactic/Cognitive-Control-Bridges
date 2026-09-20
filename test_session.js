@@ -669,8 +669,20 @@ assert(
     classifyMappingError(
         mkTrial({ t1_distractor_dir: 180, rawKeyPresses: presses([['a', 900]]) }),
         disjointSEConfig,
-    ) === null,
-    'incongruent distractor suppresses reversal (could be distractor-tracking)',
+    ) === 'distractor',
+    'incongruent, press matches distractor direction -> distractor (not reversal)',
+);
+assert(
+    classifyMappingError(
+        mkTrial({
+            t1_task: 'or',
+            t1_target_dir: 0, // correct or key is 'l'
+            t1_distractor_dir: 180,
+            rawKeyPresses: presses([['j', 900]]), // j = or 180 = distractor direction
+        }),
+        disjointSEConfig,
+    ) === 'distractor',
+    'distractor-tracking on the other task -> distractor',
 );
 assert(
     classifyMappingError(mkTrial({ rawKeyPresses: presses([['d', 900]]) }), disjointSEConfig) ===

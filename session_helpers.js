@@ -342,14 +342,18 @@ function buildKeyTaskMap(seConfig, trial) {
 /**
  * Look at a finished single-task trial and name the mapping error it shows, so a training
  * hint can respond to it. Returns:
- *   'wrong-set' - the first press used the other hand's keys.
- *   'reversal'  - the right hand, but the opposite direction to the target.
- *   null        - correct, unreadable, or not a case a hint should touch.
+ *   'wrong-set'  - the first press used the other hand's keys.
+ *   'reversal'   - the right hand, but the opposite direction to the target, on a trial
+ *                  where that press can't be the distractor (univalent or congruent).
+ *   'distractor' - the right hand, but the direction the distractor points, on an
+ *                  incongruent trial: the participant answered the wrong feature.
+ *   null         - correct, unreadable, or not a case a hint should touch.
  *
  * Reads the first press after stimulus onset (training resolves on the first press, so that
  * press is the response). Only fires on disjoint key maps, where hand and direction are
- * separable. Reversal is withheld on incongruent bivalent trials: there an opposite press
- * matches the distractor, so it can't be told apart from tracking the wrong feature.
+ * separable. 'reversal' and 'distractor' are complementary and mutually exclusive per trial:
+ * an opposite press is read as a flipped mapping only when it can't be the distractor, and as
+ * distractor-tracking only when it matches the distractor's direction on an incongruent trial.
  */
 function classifyMappingError(trialData, seConfig) {
     const task = trialData.t1_task;
@@ -382,7 +386,11 @@ function classifyMappingError(trialData, seConfig) {
 
     if (correctKeys.includes(first.key) && first.key !== targetKey) {
         const distractor = trialData.t1_distractor_dir;
+        // Univalent or congruent: an opposite press can only be a flipped mapping.
         if (distractor == null || distractor === trialData.t1_target_dir) return 'reversal';
+        // Incongruent: the press is the key the distractor's direction maps to in the cued
+        // task's own map, so the participant tracked the wrong feature rather than the keys.
+        if (first.key === correctMap[distractor]) return 'distractor';
     }
     return null;
 }
