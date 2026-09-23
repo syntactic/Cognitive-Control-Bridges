@@ -1655,7 +1655,7 @@ for (const [id, expected] of Object.entries(CP_EXPECTED)) {
         copy.every((text) => /Press any key to begin/.test(text)),
         `${id}: every screen ends with how to continue`,
     );
-    // With S7 gone these screens are the only gate; they must not have grown one.
+    // The old comprehension check was dropped; no screen may reintroduce one.
     assert(
         !/quiz|question 1|correct answer|type the/i.test(all),
         `${id}: no comprehension gate was smuggled back in`,
@@ -1681,6 +1681,41 @@ assert(
     s8Texts.every((t) => /answer the question it asks for/.test(t)),
     'S8 copy states the one rule that covers every paradigm',
 );
+
+section('canonical sessions — S7 follows the condition, states a rule');
+
+// S7 runs the condition's T1 task in every paradigm, so a cp_prp participant
+// meets the same order in S7, S8 and the test blocks (in the pilot a condition-B
+// participant trained movement-first in S7 and kept that order through the test).
+// The copy states the order as a rule, so it stays identical for everyone.
+for (const scheme of [undefined, CP_SCHEMES.fourcue]) {
+    const schemeName = scheme ? 'fourcue' : 'disjoint';
+    const s7Texts = [];
+    for (const id of Object.keys(CP_EXPECTED)) {
+        for (const [condition, t1] of [
+            ['A', 'mov'],
+            ['B', 'or'],
+        ]) {
+            const s7 = cpTrainingSessionFor(id, condition, scheme).find((b) => b.stage === 'S7');
+            const tag = `${schemeName}/${id}/${condition}`;
+            assert(s7.blockConfig.task1 === t1, `${tag}: S7's T1 task is '${t1}'`);
+            const first = s7.demo.segments[0];
+            assert(
+                first.border === s7.blockConfig.task1 && first.keyTask === s7.blockConfig.task1,
+                `${tag}: S7 cartoon opens on the stage's T1 task`,
+            );
+            s7Texts.push(s7.instructions);
+        }
+    }
+    assert(
+        new Set(s7Texts).size === 1,
+        `${schemeName}: S7 instruction text is byte-identical across paradigms and conditions`,
+    );
+    assert(
+        /border appeared FIRST/.test(s7Texts[0]) && !/FLYING first|FACING first/.test(s7Texts[0]),
+        `${schemeName}: S7 copy states the order rule and names no task as first`,
+    );
+}
 
 section('canonical sessions — instruction-screen demos');
 

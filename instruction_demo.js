@@ -440,19 +440,29 @@ function createInstructionDemo(spec, sprites) {
         }
         if (border) {
             // Proportional to SE's 30 px border on its 600 px canvas. A PRP trial
-            // has TWO cues on screen at once (SE distinguishes them by dashes vs
-            // dots); the cartoon nests them instead, which reads better at 150 px.
+            // has TWO cues on screen at once. Two full borders nest, as SE's
+            // concentric solid borders do. Two half-borders on opposite sides sit
+            // at the same inset, so together they close one square with two
+            // coloured halves, as on the real canvas.
             const lw = Math.round(canvas.width * 0.05);
             const cues = Array.isArray(border) ? border : [border];
             const positional = spec.cueMode === 'hue+position';
             const halfW = canvas.width / 2;
-            ctx.lineWidth = lw;
-            cues.forEach((cue, i) => {
-                const inset = lw / 2 + i * lw;
-                ctx.strokeStyle = DEMO_CUE_COLORS[cue];
-                const side = positional
+            const sideOf = (cue) =>
+                positional
                     ? (activeCueSides[cue] ?? (spec.cueSides && spec.cueSides[cue]) ?? null)
                     : null;
+            const sides = cues.map(sideOf);
+            ctx.lineWidth = lw;
+            cues.forEach((cue, i) => {
+                const side = sides[i];
+                // Nest only inside earlier cues that overlap this one: the same
+                // half, or a full border.
+                const depth = sides
+                    .slice(0, i)
+                    .filter((s) => s === null || side === null || s === side).length;
+                const inset = lw / 2 + depth * lw;
+                ctx.strokeStyle = DEMO_CUE_COLORS[cue];
                 if (side === 'left') {
                     // Open 3-sided bracket on the left: top half, left vertical, bottom half
                     ctx.beginPath();

@@ -32,10 +32,11 @@ const Session = (() => {
     let trainingStageFailures = 0; // training stages maxed out without passing
     let abortInfo = null;
 
-    // Adaptive training hints: after HINT_STREAK single-task trials with the same mapping
-    // error, show a corrective hint for HINT_HOLD_MS between trials, then hold off for
-    // HINT_COOLDOWN trials so a struggling participant isn't shown it every trial. Training
-    // only. See classifyMappingError (session_helpers.js) for how an error is named.
+    // Adaptive training hints: after HINT_STREAK trials in a row with the same error (a
+    // single-task mapping error, or a reversed answer order on a PRP trial), show a
+    // corrective hint for HINT_HOLD_MS between trials, then hold off for HINT_COOLDOWN
+    // trials so a struggling participant isn't shown it every trial. Training only. See
+    // classifyMappingError (session_helpers.js) for how an error is named.
     const HINT_STREAK = 3;
     const HINT_COOLDOWN = 4;
     const HINT_HOLD_MS = 2500;
@@ -226,7 +227,9 @@ const Session = (() => {
      * that hand's side; 'reversal' and 'distractor' center. 'distractor' names the feature to
      * answer, not a direction: the keys are already right, so it reminds the participant which
      * feature is the target ('mov' = flying, 'or' = facing) and to ignore the other. `task`
-     * ('mov'/'or') is only read for the 'distractor' wording.
+     * ('mov'/'or') is only read for the 'distractor' wording. 'order' shows no keys: the
+     * participant has both mappings right and only needs the order rule. Its wording is the
+     * S7 screen's, which names no task, so it reads the same in every condition.
      */
     function showTrainingHint(kind, correctMap, side, durationMs, task) {
         return new Promise((resolve) => {
@@ -234,24 +237,28 @@ const Session = (() => {
                 resolve();
                 return;
             }
-            let rows;
+            let rows = '';
             try {
-                rows = Object.entries(correctMap)
-                    .map(([dir, key]) => {
-                        const arrow = DIR_ARROWS[dir] ?? '';
-                        return (
-                            `<div class="hint-row"><span class="hint-arrow">${arrow}</span>` +
-                            `<img class="hint-key" src="${demoKeycap(key).src}" alt="${key}"></div>`
-                        );
-                    })
-                    .join('');
+                if (kind !== 'order') {
+                    rows = Object.entries(correctMap)
+                        .map(([dir, key]) => {
+                            const arrow = DIR_ARROWS[dir] ?? '';
+                            return (
+                                `<div class="hint-row"><span class="hint-arrow">${arrow}</span>` +
+                                `<img class="hint-key" src="${demoKeycap(key).src}" alt="${key}"></div>`
+                            );
+                        })
+                        .join('');
+                }
             } catch (e) {
                 // demoKeycap throws on a key with no art; skip the hint, not the trial.
                 resolve();
                 return;
             }
             let title;
-            if (kind === 'wrong-set') {
+            if (kind === 'order') {
+                title = 'Answer the question whose border appeared first, then the other one';
+            } else if (kind === 'wrong-set') {
                 title = `Use your ${side} hand`;
             } else if (kind === 'distractor') {
                 // Name the target feature the participant should answer. The words match the
@@ -876,6 +883,7 @@ const Session = (() => {
         let wrongSetStreak = 0;
         let reversalStreak = 0;
         let distractorStreak = 0;
+        let orderStreak = 0;
         let hintCooldown = 0;
         for (
             let i = 0;
@@ -997,28 +1005,32 @@ const Session = (() => {
                 blockOutcomes.push(isTrialCorrectForAdvancement(trialData));
             }
 
-            // Adaptive hint: track runs of the same single-task mapping error and, once one
-            // reaches HINT_STREAK, show the correct keys before the next trial. usedSeConfig
-            // is null off the single-canvas path, so dual/alternating blocks never hint.
+            // Adaptive hint: track runs of the same error and, once one reaches HINT_STREAK,
+            // show a hint before the next trial. usedSeConfig is null off the single-canvas
+            // path, so dual-canvas and alternating blocks never hint.
             if (blockDef.isTraining && usedSeConfig) {
                 const errType = classifyMappingError(trialData, usedSeConfig);
                 wrongSetStreak = errType === 'wrong-set' ? wrongSetStreak + 1 : 0;
                 reversalStreak = errType === 'reversal' ? reversalStreak + 1 : 0;
                 distractorStreak = errType === 'distractor' ? distractorStreak + 1 : 0;
+                orderStreak = errType === 'order' ? orderStreak + 1 : 0;
 
                 if (hintCooldown > 0) {
                     hintCooldown--;
                 } else if (
                     wrongSetStreak >= HINT_STREAK ||
                     reversalStreak >= HINT_STREAK ||
-                    distractorStreak >= HINT_STREAK
+                    distractorStreak >= HINT_STREAK ||
+                    orderStreak >= HINT_STREAK
                 ) {
                     const kind =
                         wrongSetStreak >= HINT_STREAK
                             ? 'wrong-set'
                             : reversalStreak >= HINT_STREAK
                               ? 'reversal'
-                              : 'distractor';
+                              : distractorStreak >= HINT_STREAK
+                                ? 'distractor'
+                                : 'order';
                     const correctMap =
                         task_1 === 'mov'
                             ? usedSeConfig.movementKeyMap
@@ -1033,6 +1045,7 @@ const Session = (() => {
                     wrongSetStreak = 0;
                     reversalStreak = 0;
                     distractorStreak = 0;
+                    orderStreak = 0;
                 }
             }
             trialData.blockOrder = blockOrder;

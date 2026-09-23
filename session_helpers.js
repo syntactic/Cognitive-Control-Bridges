@@ -340,8 +340,10 @@ function buildKeyTaskMap(seConfig, trial) {
 }
 
 /**
- * Look at a finished single-task trial and name the mapping error it shows, so a training
- * hint can respond to it. Returns:
+ * Look at a finished training trial and name the error it shows, so a training hint can
+ * respond to it. Returns:
+ *   'order'      - dual-task only: both tasks answered, T2 first. Reversals are not
+ *                  blocked by the criterion, so the hint is the only corrective.
  *   'wrong-set'  - the first press used the other hand's keys.
  *   'reversal'   - the right hand, but the opposite direction to the target, on a trial
  *                  where that press can't be the distractor (univalent or congruent).
@@ -349,16 +351,18 @@ function buildKeyTaskMap(seConfig, trial) {
  *                  incongruent trial: the participant answered the wrong feature.
  *   null         - correct, unreadable, or not a case a hint should touch.
  *
- * Reads the first press after stimulus onset (training resolves on the first press, so that
- * press is the response). Only fires on disjoint key maps, where hand and direction are
- * separable. 'reversal' and 'distractor' are complementary and mutually exclusive per trial:
- * an opposite press is read as a flipped mapping only when it can't be the distractor, and as
- * distractor-tracking only when it matches the distractor's direction on an incongruent trial.
+ * On a single-task trial, reads the first press after stimulus onset (training resolves on
+ * the first press, so that press is the response). A dual-task trial is judged only on its
+ * response order. Only fires on disjoint key maps, where hand and direction are separable
+ * and a reversal can be seen at all: with identical maps the extractor assigns presses to
+ * T1 and T2 by order, so it never reports 'T2-first'. 'reversal' and 'distractor' are
+ * complementary and mutually exclusive per trial: an opposite press is read as a flipped
+ * mapping only when it can't be the distractor, and as distractor-tracking only when it
+ * matches the distractor's direction on an incongruent trial.
  */
 function classifyMappingError(trialData, seConfig) {
     const task = trialData.t1_task;
     if (task !== 'mov' && task !== 'or') return null;
-    if (trialData.paradigm === 'dual-task') return null;
 
     const movMap = seConfig.movementKeyMap || {};
     const orMap = seConfig.orientationKeyMap || {};
@@ -366,6 +370,12 @@ function classifyMappingError(trialData, seConfig) {
     const orKeys = Object.values(orMap);
     const disjoint = movKeys.length && orKeys.length && !movKeys.some((k) => orKeys.includes(k));
     if (!disjoint) return null;
+
+    // A dual-task trial has two presses to classify, and a wrong key on either is already
+    // scored by the criterion. Only the order goes uncounted there.
+    if (trialData.paradigm === 'dual-task') {
+        return trialData.responseOrder === 'T2-first' ? 'order' : null;
+    }
 
     const correctMap = task === 'mov' ? movMap : orMap;
     const correctKeys = Object.values(correctMap);

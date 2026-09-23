@@ -694,12 +694,35 @@ assert(
         null,
     'a press before onset is ignored',
 );
+const dualTrial = (over) =>
+    mkTrial({ paradigm: 'dual-task', t2_task: 'or', responseOrder: 'T1-first', ...over });
+assert(
+    classifyMappingError(dualTrial({ responseOrder: 'T2-first' }), disjointSEConfig) === 'order',
+    'dual-task, T2 answered first -> order',
+);
 assert(
     classifyMappingError(
-        mkTrial({ paradigm: 'dual-task', rawKeyPresses: presses([['a', 900]]) }),
+        dualTrial({ responseOrder: 'T2-first', t1_task: 'or', t2_task: 'mov' }),
         disjointSEConfig,
-    ) === null,
-    'dual-task trials are out of scope',
+    ) === 'order',
+    'dual-task reversal is caught whichever task is T1',
+);
+assert(
+    classifyMappingError(dualTrial({}), disjointSEConfig) === null,
+    'dual-task, answered in order -> null',
+);
+assert(
+    classifyMappingError(dualTrial({ responseOrder: null }), disjointSEConfig) === null,
+    'dual-task with a missed response has no order -> null',
+);
+assert(
+    classifyMappingError(dualTrial({ rawKeyPresses: presses([['a', 900]]) }), disjointSEConfig) ===
+        null,
+    'dual-task: a wrong key is left to the criterion, not read as a single-task mapping error',
+);
+assert(
+    classifyMappingError(dualTrial({ responseOrder: 'T2-first' }), identicalSEConfig) === null,
+    'dual-task with identical maps: order is not observable -> null',
 );
 assert(
     classifyMappingError(mkTrial({ rawKeyPresses: presses([['a', 900]]) }), identicalSEConfig) ===
