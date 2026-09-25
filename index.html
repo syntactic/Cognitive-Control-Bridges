@@ -247,6 +247,42 @@
                 flex: none;
             }
 
+            /* Keyboard check before the first block (session.js showKeyCheck). */
+            .keycheck-row {
+                display: flex;
+                justify-content: center;
+                gap: 64px;
+                margin: 28px 0 20px;
+            }
+            .keycheck-group {
+                display: flex;
+                gap: 12px;
+            }
+            .keycheck-cap {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 56px;
+                height: 56px;
+                border: 2px solid #4a4a6a;
+                border-radius: 8px;
+                background: #16213e;
+                color: #e0e0e0;
+                font-size: 1.5em;
+                font-weight: bold;
+                transition:
+                    background 0.15s,
+                    border-color 0.15s;
+            }
+            .keycheck-cap.keycheck-ok {
+                background: #1a4d2e;
+                border-color: #4caf50;
+            }
+            .keycheck-note {
+                min-height: 1.4em;
+                color: #ffd54a;
+            }
+
             /* Between-trial training hint (session.js showTrainingHint). A small panel
            over the cleared canvas that auto-dismisses; centered for a direction
            reversal, pushed to one side for a wrong-hand error. pointer-events: none so
@@ -537,8 +573,9 @@
             // would not be linkable to a Prolific submission.
             const DEV_PARTICIPANT_ID = 'DEV';
 
-            // Prolific completion code
-            const CP_COMPLETION_CODE = 'CEI1B24X';
+            // Prolific completion code, encoded (decodeCompletionCode in session_helpers.js).
+            // Regenerate with encodeCompletionCode('<code>') after changing it in Prolific.
+            const CP_COMPLETION_CODE_ENCODED = 'WDQyQjFJRUM=';
 
             function readParticipantMode() {
                 const params = new URLSearchParams(window.location.search);
@@ -967,11 +1004,11 @@
                         prolificPid: participantMode?.participantId,
                         studyId: participantMode?.prolificStudyId,
                         sessionId: participantMode?.prolificSessionId,
-                        // Completion code from the Prolific dashboard. Leave null
-                        // until the study is created: showDebrief only turns on the
+                        // Completion code from the Prolific dashboard. An empty encoded
+                        // value decodes to undefined, and showDebrief only turns on the
                         // automatic redirect once a real code is present, so an
                         // unconfigured build never sends anyone to a dead URL.
-                        completionCode: CP_COMPLETION_CODE || undefined,
+                        completionCode: decodeCompletionCode(CP_COMPLETION_CODE_ENCODED),
                     });
                 } catch (e) {
                     console.error('Session error:', e);

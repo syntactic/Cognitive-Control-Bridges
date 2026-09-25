@@ -1617,6 +1617,74 @@ section('deriveTargetCoherenceFields');
     );
 }
 
+section('normalizeResponseKey — accepts what the SE timeline accepts');
+
+const WSIK = new Set(['w', 's', 'i', 'k']);
+assert(normalizeResponseKey({ key: 'w', code: 'KeyW' }, WSIK) === 'w', 'plain key');
+assert(normalizeResponseKey({ key: 'W', code: 'KeyW' }, WSIK) === 'w', 'Caps Lock');
+assert(
+    normalizeResponseKey({ key: 'ц', code: 'KeyW' }, WSIK) === 'w',
+    'Cyrillic falls back to code',
+);
+assert(normalizeResponseKey({ key: 'w', code: 'KeyZ' }, WSIK) === 'w', 'AZERTY label wins');
+assert(normalizeResponseKey({ key: 'z', code: 'KeyZ' }, WSIK) === null, 'non-response key');
+assert(normalizeResponseKey({ key: 'Enter', code: 'Enter' }, WSIK) === null, 'Enter');
+assert(
+    normalizeResponseKey({ key: 'CapsLock', code: 'CapsLock' }, WSIK) === null,
+    'CapsLock itself',
+);
+assert(normalizeResponseKey({}, WSIK) === null, 'empty event');
+assert(
+    normalizeResponseKey({ key: 'e', code: 'KeyW' }, WSIK) === null,
+    'a Latin label keeps its meaning',
+);
+assert(
+    normalizeResponseKey({ key: '∑', code: 'KeyW', altKey: true }, WSIK) === null,
+    'no position fallback with a modifier held',
+);
+
+section('sessionResponseKeys — every response key a session uses, grouped by hand');
+
+const vertical = {
+    mov: { 90: 'w', 270: 's' },
+    or: { 90: 'i', 270: 'k' },
+};
+const keySession = [
+    { blockConfig: { keyMaps: vertical } },
+    { blockConfig: { keyMaps: { mov: { 90: 'w', 270: 's' }, or: { 90: '!', 270: '!' } } } },
+    { blockConfig: {} },
+];
+const keysUsed = sessionResponseKeys(keySession);
+assert(
+    JSON.stringify(keysUsed) === JSON.stringify(['w', 's', 'i', 'k']),
+    `vertical maps give w, s, i, k in up/down order per hand (got ${JSON.stringify(keysUsed)})`,
+);
+const horizontalKeys = sessionResponseKeys([
+    { blockConfig: { keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } } } },
+]);
+assert(
+    JSON.stringify(horizontalKeys) === JSON.stringify(['a', 'd', 'j', 'l']),
+    `horizontal maps give a, d, j, l in left/right order (got ${JSON.stringify(horizontalKeys)})`,
+);
+assert(sessionResponseKeys([]).length === 0, 'no blocks, no keys');
+
+section('decodeCompletionCode — the deployed code is not stored in plain text');
+
+// Read the constant from index.html so the plain code never appears in a served file.
+const indexHtml = fs.readFileSync('./index.html', 'utf8');
+const encodedMatch = indexHtml.match(/CP_COMPLETION_CODE_ENCODED\s*=\s*'([^']+)'/);
+assert(encodedMatch, 'index.html defines CP_COMPLETION_CODE_ENCODED');
+if (encodedMatch) {
+    const decoded = decodeCompletionCode(encodedMatch[1]);
+    assert(/^[A-Z0-9]{6,10}$/.test(decoded), 'decodes to a Prolific-shaped code');
+    assert(!indexHtml.includes(decoded), 'index.html never contains the decoded code');
+    assert(
+        decodeCompletionCode(encodeCompletionCode(decoded)) === decoded,
+        'encode and decode round-trip',
+    );
+}
+assert(decodeCompletionCode('') === undefined, 'an empty value decodes to undefined');
+
 // ============================================================
 // Summary
 // ============================================================

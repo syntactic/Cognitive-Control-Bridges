@@ -1,5 +1,10 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
 import {
+    initializeAppCheck,
+    ReCaptchaEnterpriseProvider,
+    getToken,
+} from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app-check.js';
+import {
     getAuth,
     signInAnonymously,
 } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
@@ -34,6 +39,12 @@ const DEV_FIREBASE_CONFIG = {
     storageBucket: 'canonical-paradigms-dev.firebasestorage.app',
     messagingSenderId: '826914087397',
     appId: '1:826914087397:web:8a7f9e774376b5b1e5cf0c',
+    // reCAPTCHA Enterprise site key registered for this project's App Check; null
+    // turns App Check off.
+    recaptchaSiteKey: null,
+    // Flip together with the console's enforcement switch. While false, a failed
+    // check is recorded on the session doc and the run continues.
+    appCheckEnforced: false,
 };
 
 // EU prod database (EU region, GDPR). Real participant runs on the prod host land
@@ -45,6 +56,8 @@ const PROD_FIREBASE_CONFIG = {
     storageBucket: 'cognitive-control-paradigms.firebasestorage.app',
     messagingSenderId: '348836487217',
     appId: '1:348836487217:web:2068f57d361e10cd6b7510',
+    recaptchaSiteKey: '6LdQos4tAAAAADGD-x7anR1DU_1zkR9v_-RJGsOo',
+    appCheckEnforced: false,
 };
 
 // Pick the database from the deployment host. The prod host writes to EU prod by
@@ -69,7 +82,24 @@ const { config: firebaseConfig, env: firebaseEnv } = selectFirebaseConfig();
 console.log(`[data_store] Firebase target: ${firebaseEnv} (${firebaseConfig.projectId}).`);
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+const { recaptchaSiteKey, appCheckEnforced, ...firebaseOptions } = firebaseConfig;
+const app = initializeApp(firebaseOptions);
+
+// App Check must start before Firestore or Auth so every request carries a token.
+// reCAPTCHA Enterprise scores the browser without showing a puzzle. On localhost the
+// SDK logs a debug token instead; register it under App Check > Manage debug tokens
+// to test against an enforcing project.
+let appCheck = null;
+let appCheckStatus = 'off'; // 'off' | 'ok' | 'failed', written to the session doc
+if (recaptchaSiteKey) {
+    if (['localhost', '127.0.0.1'].includes(location.hostname)) {
+        self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    }
+    appCheck = initializeAppCheck(app, {
+        provider: new ReCaptchaEnterpriseProvider(recaptchaSiteKey),
+        isTokenAutoRefreshEnabled: true,
+    });
+}
 const db = getFirestore(app);
 const auth = getAuth(app);
 
@@ -95,6 +125,7 @@ async function startSession(meta) {
         paradigm: meta.paradigm,
         condition: meta.condition,
         schema_version: 1,
+        app_check: appCheckStatus,
         started_at: serverTimestamp(),
     });
 }
@@ -127,4 +158,31 @@ async function abortSession(info = {}) {
     );
 }
 
-window.dataStore = { startSession, saveBlock, abortSession };
+// Whether this browser may run the study; called before consent. Under enforcement a
+// browser without a token has every write rejected, so it is turned away up front.
+// Without enforcement its writes still land, so the failure is only recorded, and
+// app_check on the session doc shows how many participants enforcement would cost.
+async function verifyBrowser(timeoutMs = 10000) {
+    if (!appCheck) return true;
+    const ok = await hasAppCheckToken(timeoutMs);
+    appCheckStatus = ok ? 'ok' : 'failed';
+    return ok || !appCheckEnforced;
+}
+
+async function hasAppCheckToken(timeoutMs) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('App Check timed out')), timeoutMs);
+    });
+    try {
+        await Promise.race([getToken(appCheck, false), timeout]);
+        return true;
+    } catch (e) {
+        console.warn('App Check: no token for this browser.', e);
+        return false;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+window.dataStore = { startSession, saveBlock, abortSession, verifyBrowser };

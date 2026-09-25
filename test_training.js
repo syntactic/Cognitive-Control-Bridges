@@ -1717,6 +1717,41 @@ for (const scheme of [undefined, CP_SCHEMES.fourcue]) {
     );
 }
 
+section('canonical sessions — S7 gets the longest window, S8 stays one step from test');
+
+// S7 gets 250 ms more than the rest of training for the RT2 bottleneck. S8 rehearses
+// the test and must not be slower than the rest of training; test blocks keep 2000 ms.
+for (const scheme of [undefined, CP_SCHEMES.fourcue]) {
+    const schemeName = scheme ? 'fourcue' : 'disjoint';
+    for (const id of Object.keys(CP_EXPECTED)) {
+        for (const condition of ['A', 'B']) {
+            const tag = `${schemeName}/${id}/${condition}`;
+            const session = cpTrainingSessionFor(id, condition, scheme);
+            const byStage = Object.fromEntries(
+                session.filter((b) => b.stage).map((b) => [b.stage, b.blockConfig]),
+            );
+            assert(
+                byStage.S7.responseWindow === 2750 && byStage.S7.stimulusDuration === 2750,
+                `${tag}: S7 runs a 2750 ms stimulus and response window`,
+            );
+            assert(
+                byStage.S8.responseWindow === 2500 && byStage.S8.stimulusDuration === 2500,
+                `${tag}: S8 keeps 2500 ms`,
+            );
+            const others = ['S2', 'S3', 'S3a', 'S3b', 'S3c', 'S3d', 'S4', 'S6'];
+            assert(
+                others.every((s) => byStage[s].responseWindow === 2500),
+                `${tag}: S2-S6 keep 2500 ms`,
+            );
+            const test = session.filter((b) => !b.stage);
+            assert(
+                test.length > 0 && test.every((b) => b.blockConfig.responseWindow === 2000),
+                `${tag}: test blocks keep 2000 ms`,
+            );
+        }
+    }
+}
+
 section('canonical sessions — instruction-screen demos');
 
 // The animated cartoon (instruction_demo.js) is generated from the same key maps
@@ -3009,6 +3044,57 @@ async function main() {
         abortCalls.filter((c) => c === 'saveBlock').length === 2,
         'the two advanced stages upload; the struck-out stage (no trials) does not',
     );
+
+    section('runSession — the browser gate before consent');
+
+    // A participant run that cannot save data stops before the task. Whether a failed
+    // App Check blocks is the store's decision; runSession only follows it.
+    const gateRun = async (store, extra = {}) => {
+        const calls = { verify: 0, start: 0, trials: 0 };
+        seResponder = (...args) => {
+            calls.trials += 1;
+            return RESPOND_CORRECT(...args);
+        };
+        global.window.dataStore = store && {
+            verifyBrowser: async () => {
+                calls.verify += 1;
+                return store.allow;
+            },
+            startSession: async () => {
+                calls.start += 1;
+            },
+            saveBlock: async () => {},
+            abortSession: async () => {},
+        };
+        await Session.runSession([trainingBlockDef('S2')], container, {
+            stimulus: 'abstract',
+            paradigm: 'cp_stroop',
+            condition: 'A',
+            prolificPid: 'test_pid',
+            dataStoreWaitMs: 20,
+            ...extra,
+        });
+        global.window.dataStore = savedDataStore;
+        return calls;
+    };
+
+    let gate = await gateRun({ allow: true });
+    assert(
+        gate.verify === 1 && gate.start === 1 && gate.trials > 0,
+        'a verified browser runs and uploads',
+    );
+
+    gate = await gateRun({ allow: false });
+    assert(gate.verify === 1 && gate.trials === 0, 'a browser the store refuses runs no trials');
+
+    gate = await gateRun(null);
+    assert(gate.trials === 0, 'a participant run whose data store never loads runs no trials');
+    assert(Session.getAbortInfo() === null, 'a refused run records no abort');
+
+    global.window.DEV_MODE = true;
+    gate = await gateRun({ allow: false });
+    delete global.window.DEV_MODE;
+    assert(gate.verify === 0 && gate.trials > 0, 'dev mode skips the browser check');
 
     // ============================================================
     // Each test block reads its OWN pool CSV, whole

@@ -1610,6 +1610,11 @@ function cpBuildTrainingSession(spec) {
         coherence: cpPRP.coherence,
         t1Task: spec.s7T1Task,
         soaLevels: CP_PRP_SOA_LEVELS,
+        // 250 ms longer than the rest of training. RT2 carries the dual-task
+        // bottleneck, and in the first pilot S7 was the only stage whose RT2 tail
+        // reached 2500 ms. S8 rehearses the test and stays at 2500.
+        stimulusDuration: 2750,
+        responseWindow: 2750,
         blockIdPrefix: spec.blockIdPrefix,
         instructions: instructions.S7,
         demo: demos.S7,

@@ -282,6 +282,84 @@ const Session = (() => {
     }
 
     /**
+     * Keyboard check before the first block: each response key must be pressed once,
+     * and its keycap turns green when it registers. In the first pilot two runs logged
+     * 36 misses in a row with no key recorded, which looks like a layout or focus
+     * problem rather than a participant who stopped. Presses go through
+     * normalizeResponseKey, so the check passes only if a trial would accept the keys.
+     * Resolves 'continue' once every key has registered, or 'timeout' after `timeoutMs`
+     * (0 waits indefinitely, as in dev and headless runs).
+     */
+    function showKeyCheck(keys, timeoutMs = 0) {
+        return new Promise((resolve) => {
+            if (!canvasContainer || typeof document.createElement !== 'function' || !keys.length) {
+                resolve('continue');
+                return;
+            }
+            const overlay = document.createElement('div');
+            if (typeof overlay.querySelector !== 'function') {
+                resolve('continue');
+                return;
+            }
+            const half = Math.ceil(keys.length / 2);
+            const cap = (key) =>
+                `<span class="keycheck-cap" data-key="${key}">${key.toUpperCase()}</span>`;
+            overlay.className = 'instructions-overlay';
+            overlay.innerHTML = `
+      <div class="instructions-content keycheck">
+        <h2>Keyboard check</h2>
+        <p>Press each of these keys once. Each one turns green when it works.</p>
+        <div class="keycheck-row">
+          <div class="keycheck-group">${keys.slice(0, half).map(cap).join('')}</div>
+          <div class="keycheck-group">${keys.slice(half).map(cap).join('')}</div>
+        </div>
+        <p class="keycheck-note" aria-live="polite"></p>
+      </div>`;
+            canvasContainer.appendChild(overlay);
+
+            const valid = new Set(keys);
+            const seen = new Set();
+            const note = overlay.querySelector('.keycheck-note');
+            let timer = null;
+            let done = false;
+            const finish = (status) => {
+                if (done) return;
+                done = true;
+                if (timer) clearTimeout(timer);
+                document.removeEventListener('keydown', handler);
+                overlay.remove();
+                resolve(status);
+            };
+            const handler = (event) => {
+                const key = normalizeResponseKey(event, valid);
+                if (key === null) {
+                    // Modifier and lock keys on their own say nothing about the layout.
+                    if (event.key && event.key.length === 1) {
+                        note.textContent =
+                            "That key isn't one of these. If none of them turn green, " +
+                            'check that your keyboard is set to an English layout.';
+                    }
+                    return;
+                }
+                if (seen.has(key)) return;
+                seen.add(key);
+                overlay.querySelector(`[data-key="${key}"]`).classList.add('keycheck-ok');
+                note.textContent = '';
+                if (seen.size === valid.size) {
+                    note.textContent = 'All keys work.';
+                    document.removeEventListener('keydown', handler);
+                    setTimeout(() => finish('continue'), 800);
+                }
+            };
+            if (timeoutMs > 0) {
+                timer = setTimeout(() => finish('timeout'), timeoutMs);
+            }
+            // Same guard as showInstructions: don't take the key that closed the last screen.
+            setTimeout(() => document.addEventListener('keydown', handler), 200);
+        });
+    }
+
+    /**
      * Update the "Block X of N" progress readout above the canvas. Numbered
      * continuously across training and test so a participant sees steady progress
      * (blockOrder runs 1..sessionBlockCount). Pass no order to hide it (consent,
@@ -342,6 +420,52 @@ const Session = (() => {
     `;
         containerEl.appendChild(overlay);
         return Promise.resolve();
+    }
+
+    /**
+     * Terminal screen for a participant run that cannot save data: the data store never
+     * loaded ('unavailable', e.g. an ad blocker on gstatic) or refused the browser under
+     * an enforced App Check ('unverified').
+     */
+    function showBrowserBlock(containerEl, reason) {
+        if (typeof document === 'undefined' || !containerEl) return Promise.resolve();
+        containerEl.classList.add('consent-mode');
+        const overlay = document.createElement('div');
+        overlay.className = 'consent-overlay';
+        overlay.innerHTML = `
+      <div class="consent-header">
+        <h2>${reason === 'unavailable' ? "This page couldn't finish loading" : "We couldn't verify your browser"}</h2>
+      </div>
+      <div class="consent-body">
+        <p>${
+            reason === 'unavailable'
+                ? 'The part of the study that saves your answers did not load in ' +
+                  'this browser, so nothing you did would be recorded. An ad blocker ' +
+                  'or a strict privacy extension is the usual cause.'
+                : 'This study runs an automatic check to keep automated programs out, ' +
+                  'and it did not pass in this browser. This can happen behind a VPN ' +
+                  'or with strict privacy or tracker-blocking extensions.'
+        }</p>
+        <p>Please <strong>return your submission</strong> on Prolific (you will not
+        be penalized). You are welcome to try again in a different browser or with
+        those extensions turned off.</p>
+      </div>
+    `;
+        containerEl.appendChild(overlay);
+        return Promise.resolve();
+    }
+
+    /**
+     * data_store.js is a module and runs after the classic scripts, so a run launched
+     * on page load can get here first. Returns null if the store is not up within
+     * `timeoutMs`.
+     */
+    async function waitForDataStore(timeoutMs) {
+        const start = Date.now();
+        while (!window.dataStore && Date.now() - start < timeoutMs) {
+            await new Promise((r) => setTimeout(r, 50));
+        }
+        return window.dataStore || null;
     }
 
     function showConsent(containerEl, options = {}) {
@@ -1206,6 +1330,20 @@ const Session = (() => {
             await showDeviceBlock(containerEl);
             return;
         }
+        // Participant runs only, before consent. CSV export is dev-only, so a
+        // participant run without the data store would save nothing. verifyBrowser
+        // decides whether a failed App Check blocks (only under enforcement).
+        if (options.prolificPid && typeof window !== 'undefined' && !window.DEV_MODE) {
+            const store = await waitForDataStore(options.dataStoreWaitMs ?? 10000);
+            if (!store) {
+                await showBrowserBlock(containerEl, 'unavailable');
+                return;
+            }
+            if (store.verifyBrowser && !(await store.verifyBrowser())) {
+                await showBrowserBlock(containerEl, 'unverified');
+                return;
+            }
+        }
         // Per-screen idle budget. index.html passes DEFAULT for participants and 0
         // for dev; tests omit it entirely (falsy -> 0 = disabled).
         instructionTimeoutMs = Number(options.instructionTimeoutMs) || 0;
@@ -1257,6 +1395,14 @@ const Session = (() => {
             await loadSprites(options.stimulus || 'bird');
         } else {
             spriteConfig = null;
+        }
+
+        // After startSession, so a timeout here still reaches the Firestore record. It
+        // ends the run like any other idle exit: abort recorded, ordinary debrief.
+        const keyCheck = await showKeyCheck(sessionResponseKeys(sessionDef), instructionTimeoutMs);
+        if (keyCheck === 'timeout') {
+            abortInfo = { reason: 'key_check_timeout', stage: null, blockId: null, blockOrder: 0 };
+            isRunning = false;
         }
 
         const questCoherences = { mov: 0.4, or: 0.6 }; // starting values, refined by QUEST

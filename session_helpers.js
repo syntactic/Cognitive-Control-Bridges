@@ -239,6 +239,67 @@ function fourcueSingleTaskKeyMaps(task, hand) {
 }
 
 /**
+ * The response key a keydown names, or null: the printed character, lower-cased so
+ * Caps Lock is harmless, and for non-Latin layouts only, the physical key. Mirrors
+ * Timeline.responseKeyOf in the SE fork's src/trial.js so the key check accepts
+ * exactly what a trial does; keep the two in sync.
+ *
+ * @param {{key?: string, code?: string}} event - a keydown event
+ * @param {Set<string>} validKeys - the lower-case response keys
+ * @returns {string|null}
+ */
+function normalizeResponseKey(event, validKeys) {
+    const key = typeof event.key === 'string' ? event.key : '';
+    if (validKeys.has(key)) return key;
+    if (validKeys.has(key.toLowerCase())) return key.toLowerCase();
+    // A Latin label means what it says; a modifier makes the position meaningless.
+    if (/^[a-z]$/i.test(key) || event.altKey || event.ctrlKey || event.metaKey) return null;
+    const physical = /^Key([A-Z])$/.exec(event.code || '');
+    if (physical && validKeys.has(physical[1].toLowerCase())) {
+        return physical[1].toLowerCase();
+    }
+    return null;
+}
+
+/**
+ * Every response key a session uses, for the key check before the first block.
+ * Movement keys first, then orientation keys (one hand each under the disjoint
+ * and four-cue schemes), each ordered up, left, right, down so a vertical pair
+ * reads W-S and a horizontal pair A-D. DUMMY_KEYS' placeholder is skipped.
+ *
+ * @param {Array<{blockConfig?: {keyMaps?: {mov?: object, or?: object}}}>} sessionDef
+ * @returns {string[]}
+ */
+function sessionResponseKeys(sessionDef) {
+    const directionOrder = [90, 180, 0, 270];
+    const keys = [];
+    for (const task of ['mov', 'or']) {
+        for (const blockDef of sessionDef) {
+            const map = blockDef.blockConfig?.keyMaps?.[task];
+            if (!map) continue;
+            const ordered = Object.entries(map).sort(
+                ([a], [b]) => directionOrder.indexOf(Number(a)) - directionOrder.indexOf(Number(b)),
+            );
+            for (const [, key] of ordered) {
+                if (key !== DUMMY_KEYS[0] && !keys.includes(key)) keys.push(key);
+            }
+        }
+    }
+    return keys;
+}
+
+// The Prolific completion code ships reversed and base64-encoded so a search of the
+// page source doesn't find it. It is still visible in devtools at the debrief.
+function encodeCompletionCode(code) {
+    return btoa([...code].reverse().join(''));
+}
+
+function decodeCompletionCode(encoded) {
+    if (!encoded) return undefined;
+    return [...atob(encoded)].reverse().join('');
+}
+
+/**
  * One canvas's SE config: the active task gets `keys`, the other gets DUMMY_KEYS.
  * Shared shape behind buildDualCanvasSEConfigs and buildAlternatingSEConfig.
  *
