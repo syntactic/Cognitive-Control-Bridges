@@ -627,6 +627,110 @@ const keyMap3 = buildKeyTaskMap(identicalSEConfig, movTrial);
 assert(keyMap3 === null, 'identical RSO: returns null');
 
 // ============================================================
+// classifyMappingError tests (the training-hint detector)
+// ============================================================
+
+section('classifyMappingError — names the error a hint should respond to');
+
+// disjoint maps: mov = a(180)/d(0), or = j(180)/l(0). Trial fields are flat, as
+// runTrial merges them. Presses land after the 500 ms onset unless stated.
+const mkTrial = (over) => ({
+    t1_task: 'mov',
+    t1_target_dir: 0, // correct mov key is 'd'
+    t1_distractor_dir: null,
+    t1_stim_onset: 500,
+    paradigm: 'single-task',
+    rawKeyPresses: '[]',
+    ...over,
+});
+const presses = (arr) =>
+    JSON.stringify(arr.map(([key, time]) => ({ key, time, isCorrect: false })));
+
+assert(
+    classifyMappingError(
+        mkTrial({ t1_task: 'or', t1_target_dir: 0, rawKeyPresses: presses([['a', 900]]) }),
+        disjointSEConfig,
+    ) === 'wrong-set',
+    'other hand keys -> wrong-set',
+);
+assert(
+    classifyMappingError(mkTrial({ rawKeyPresses: presses([['a', 900]]) }), disjointSEConfig) ===
+        'reversal',
+    'right hand, opposite direction, no distractor -> reversal',
+);
+assert(
+    classifyMappingError(
+        mkTrial({ t1_distractor_dir: 0, rawKeyPresses: presses([['a', 900]]) }),
+        disjointSEConfig,
+    ) === 'reversal',
+    'congruent distractor still counts as reversal',
+);
+assert(
+    classifyMappingError(
+        mkTrial({ t1_distractor_dir: 180, rawKeyPresses: presses([['a', 900]]) }),
+        disjointSEConfig,
+    ) === 'distractor',
+    'incongruent, press matches distractor direction -> distractor (not reversal)',
+);
+assert(
+    classifyMappingError(
+        mkTrial({
+            t1_task: 'or',
+            t1_target_dir: 0, // correct or key is 'l'
+            t1_distractor_dir: 180,
+            rawKeyPresses: presses([['j', 900]]), // j = or 180 = distractor direction
+        }),
+        disjointSEConfig,
+    ) === 'distractor',
+    'distractor-tracking on the other task -> distractor',
+);
+assert(
+    classifyMappingError(mkTrial({ rawKeyPresses: presses([['d', 900]]) }), disjointSEConfig) ===
+        null,
+    'correct key -> null',
+);
+assert(
+    classifyMappingError(mkTrial({ rawKeyPresses: presses([['a', 100]]) }), disjointSEConfig) ===
+        null,
+    'a press before onset is ignored',
+);
+const dualTrial = (over) =>
+    mkTrial({ paradigm: 'dual-task', t2_task: 'or', responseOrder: 'T1-first', ...over });
+assert(
+    classifyMappingError(dualTrial({ responseOrder: 'T2-first' }), disjointSEConfig) === 'order',
+    'dual-task, T2 answered first -> order',
+);
+assert(
+    classifyMappingError(
+        dualTrial({ responseOrder: 'T2-first', t1_task: 'or', t2_task: 'mov' }),
+        disjointSEConfig,
+    ) === 'order',
+    'dual-task reversal is caught whichever task is T1',
+);
+assert(
+    classifyMappingError(dualTrial({}), disjointSEConfig) === null,
+    'dual-task, answered in order -> null',
+);
+assert(
+    classifyMappingError(dualTrial({ responseOrder: null }), disjointSEConfig) === null,
+    'dual-task with a missed response has no order -> null',
+);
+assert(
+    classifyMappingError(dualTrial({ rawKeyPresses: presses([['a', 900]]) }), disjointSEConfig) ===
+        null,
+    'dual-task: a wrong key is left to the criterion, not read as a single-task mapping error',
+);
+assert(
+    classifyMappingError(dualTrial({ responseOrder: 'T2-first' }), identicalSEConfig) === null,
+    'dual-task with identical maps: order is not observable -> null',
+);
+assert(
+    classifyMappingError(mkTrial({ rawKeyPresses: presses([['a', 900]]) }), identicalSEConfig) ===
+        null,
+    'identical maps: hand and direction are inseparable -> null',
+);
+
+// ============================================================
 // extractResponse tests (the single-canvas response extractor)
 // ============================================================
 
@@ -1512,6 +1616,74 @@ section('deriveTargetCoherenceFields');
         'reads the post-override coherence value (ramp/QUEST write-then-read preserved)',
     );
 }
+
+section('normalizeResponseKey — accepts what the SE timeline accepts');
+
+const WSIK = new Set(['w', 's', 'i', 'k']);
+assert(normalizeResponseKey({ key: 'w', code: 'KeyW' }, WSIK) === 'w', 'plain key');
+assert(normalizeResponseKey({ key: 'W', code: 'KeyW' }, WSIK) === 'w', 'Caps Lock');
+assert(
+    normalizeResponseKey({ key: 'ц', code: 'KeyW' }, WSIK) === 'w',
+    'Cyrillic falls back to code',
+);
+assert(normalizeResponseKey({ key: 'w', code: 'KeyZ' }, WSIK) === 'w', 'AZERTY label wins');
+assert(normalizeResponseKey({ key: 'z', code: 'KeyZ' }, WSIK) === null, 'non-response key');
+assert(normalizeResponseKey({ key: 'Enter', code: 'Enter' }, WSIK) === null, 'Enter');
+assert(
+    normalizeResponseKey({ key: 'CapsLock', code: 'CapsLock' }, WSIK) === null,
+    'CapsLock itself',
+);
+assert(normalizeResponseKey({}, WSIK) === null, 'empty event');
+assert(
+    normalizeResponseKey({ key: 'e', code: 'KeyW' }, WSIK) === null,
+    'a Latin label keeps its meaning',
+);
+assert(
+    normalizeResponseKey({ key: '∑', code: 'KeyW', altKey: true }, WSIK) === null,
+    'no position fallback with a modifier held',
+);
+
+section('sessionResponseKeys — every response key a session uses, grouped by hand');
+
+const vertical = {
+    mov: { 90: 'w', 270: 's' },
+    or: { 90: 'i', 270: 'k' },
+};
+const keySession = [
+    { blockConfig: { keyMaps: vertical } },
+    { blockConfig: { keyMaps: { mov: { 90: 'w', 270: 's' }, or: { 90: '!', 270: '!' } } } },
+    { blockConfig: {} },
+];
+const keysUsed = sessionResponseKeys(keySession);
+assert(
+    JSON.stringify(keysUsed) === JSON.stringify(['w', 's', 'i', 'k']),
+    `vertical maps give w, s, i, k in up/down order per hand (got ${JSON.stringify(keysUsed)})`,
+);
+const horizontalKeys = sessionResponseKeys([
+    { blockConfig: { keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } } } },
+]);
+assert(
+    JSON.stringify(horizontalKeys) === JSON.stringify(['a', 'd', 'j', 'l']),
+    `horizontal maps give a, d, j, l in left/right order (got ${JSON.stringify(horizontalKeys)})`,
+);
+assert(sessionResponseKeys([]).length === 0, 'no blocks, no keys');
+
+section('decodeCompletionCode — the deployed code is not stored in plain text');
+
+// Read the constant from index.html so the plain code never appears in a served file.
+const indexHtml = fs.readFileSync('./index.html', 'utf8');
+const encodedMatch = indexHtml.match(/CP_COMPLETION_CODE_ENCODED\s*=\s*'([^']+)'/);
+assert(encodedMatch, 'index.html defines CP_COMPLETION_CODE_ENCODED');
+if (encodedMatch) {
+    const decoded = decodeCompletionCode(encodedMatch[1]);
+    assert(/^[A-Z0-9]{6,10}$/.test(decoded), 'decodes to a Prolific-shaped code');
+    assert(!indexHtml.includes(decoded), 'index.html never contains the decoded code');
+    assert(
+        decodeCompletionCode(encodeCompletionCode(decoded)) === decoded,
+        'encode and decode round-trip',
+    );
+}
+assert(decodeCompletionCode('') === undefined, 'an empty value decodes to undefined');
 
 // ============================================================
 // Summary

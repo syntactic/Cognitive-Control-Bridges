@@ -332,7 +332,7 @@ function cpApplySweetPea(sessionArray, condition, sequenceIds, scheme) {
         );
     }
     // If the session includes training stages, rebuild them for this condition so
-    // that condition-dependent content (S8 t1Task, Stroop rehearsal task, ramp targets)
+    // that condition-dependent content (S7/S8 t1Task, Stroop rehearsal task, ramp targets)
     // matches the assigned between-subjects condition.
     let baseSession = sessionArray;
     const trainingStage = sessionArray.find((b) => b.phase === 'training');
@@ -914,17 +914,20 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
         '\n\n' +
         'Press any key to begin.';
 
-    // S7: the shared PRP stage — two answers per trial, in a fixed order. Always
-    // movement-first (the stage is identical for everyone), so the copy names the
-    // order outright, unlike the paradigm-agnostic S8.
+    // S7: the shared PRP stage. Which task comes first depends on the condition,
+    // but the copy must be identical for everyone, so it states the order as a
+    // rule instead of naming a task. Onset time is the only thing that marks the
+    // first border: cue and go open together (buildTimingParams), T1's at trial
+    // onset and T2's at the SOA, and every scheme draws both borders solid.
     const S7 =
         'TWO answers on every trial.\n\n' +
-        'Every trial now asks BOTH questions, one shortly after the other,\n' +
-        'and you give two answers, in this order:\n\n' +
-        `  1) ${cpColorTask('FLYING', 'mov')} first.   ${cpKeyPhrase(keyMaps.mov)}.\n` +
-        `  2) ${cpColorTask('FACING', 'or')} second.    ${cpKeyPhrase(keyMaps.or)}.\n\n` +
-        'Answer in that order, even if you work the second one out early.\n' +
-        'The gap between the two starts long and gets shorter as you go.\n\n' +
+        'Every trial now asks BOTH questions. One border appears, then a\n' +
+        'second border shortly after, each asking its own question.\n\n' +
+        'Answer the question whose border appeared FIRST, then the other\n' +
+        'one, even if you work out the second answer early.\n\n' +
+        bothLines +
+        '\n\n' +
+        'The gap between the two borders starts long and gets shorter.\n\n' +
         'Press any key to begin.';
 
     return {
@@ -962,7 +965,10 @@ function cpTrainingInstructions(keyMaps, finalStage, scheme) {
  *
  * @param {{mov: object, or: object}} keyMaps - the paradigm's own key maps
  * @param {object} finalStage - { kind, t1Task?, task? }, matching the S8 spec
- * @returns {{S2..S6: object, S8: object}} demo specs
+ * @param {object} [scheme] - response-set scheme descriptor
+ * @param {'mov'|'or'} s7T1Task - the S7 stage's T1 task, so its cartoon runs in
+ *   the same order as its trials
+ * @returns {{S2..S8: object}} demo specs
  */
 /**
  * Cue rendering metadata, spread onto every demo spec so the cartoon draws the
@@ -992,7 +998,7 @@ function cpDirsOf(keyMap) {
     return CP_DIRECTION_ORDER.filter((d) => d in keyMap);
 }
 
-function cpTrainingDemos(keyMaps, finalStage, scheme) {
+function cpTrainingDemos(keyMaps, finalStage, scheme, s7T1Task) {
     // Angles come from the key maps, not literals, so a vertical-geometry scheme
     // (fourcue: mov {90:'w',270:'s'}, or {90:'i',270:'k'}) draws up/down instead of
     // left/right with no second code path. The keycap graphic is chosen from the
@@ -1250,9 +1256,8 @@ function cpTrainingDemos(keyMaps, finalStage, scheme) {
                       },
                   ],
         }),
-        // S7: the shared PRP cartoon — always movement-first, regardless of the host
-        // paradigm, matching the fixed-order S7 copy and stage.
-        S7: withCue(cpFinalStageDemo(keyMaps, { kind: 'prp', t1Task: 'mov' }, scheme)),
+        // S7: the shared PRP cartoon, in the same task order as the S7 trials.
+        S7: withCue(cpFinalStageDemo(keyMaps, { kind: 'prp', t1Task: s7T1Task }, scheme)),
         S8: withCue(cpFinalStageDemo(keyMaps, finalStage, scheme)),
     };
 }
@@ -1547,7 +1552,12 @@ function cpTestSessionFor(paradigm, condition = 'A', scheme) {
     }
 }
 
-/** Assemble one paradigm's full session: S2-S6, then S8, then its test blocks. */
+/** The condition's T1 task in PRP: A runs movement first, B orientation first. */
+function cpConditionT1Task(condition) {
+    return condition === 'B' ? 'or' : 'mov';
+}
+
+/** Assemble one paradigm's full session: S2-S8, then its test blocks. */
 function cpBuildTrainingSession(spec) {
     const finalStage = spec.finalStage;
     const scheme = spec.scheme;
@@ -1556,7 +1566,7 @@ function cpBuildTrainingSession(spec) {
     // task swaps the cartoon with the sentence describing it — they cannot drift.
     // The demo angles/keys come from spec.keyMaps, so a vertical scheme draws
     // vertically without any scheme branch in the demo builder.
-    const demos = cpTrainingDemos(spec.keyMaps, finalStage, scheme);
+    const demos = cpTrainingDemos(spec.keyMaps, finalStage, scheme, spec.s7T1Task);
     const shared = buildSharedTrainingStages({
         keyMaps: spec.keyMaps,
         rso: spec.rso,
@@ -1578,10 +1588,11 @@ function cpBuildTrainingSession(spec) {
     });
     // S7 — the shared PRP (dual-task) stage every paradigm runs, so dual-tasking
     // is trained for all participants, not just PRP ones. Built via the same
-    // kind:'prp' builder as PRP's own S8, but with the canonical PRP parameters
-    // (cpPRP coherence/CSI, CP_PRP_SOA_LEVELS) and a fixed movement-first order —
-    // identical for everyone. buildParadigmFinalStage always tags its output S8, so
-    // re-tag it as S7.
+    // kind:'prp' builder as PRP's own S8, with the canonical PRP parameters
+    // (cpPRP coherence/CSI, CP_PRP_SOA_LEVELS). T1 is the condition's task in
+    // every paradigm, so S7 is identical across paradigms within a condition and
+    // a cp_prp participant never learns one order here and meets the other at S8.
+    // buildParadigmFinalStage always tags its output S8, so re-tag it as S7.
     //
     // rso is forced to 'disjoint' rather than inherited from spec.rso. Every
     // paradigm's key map is already disjoint (mov = A/D left, or = J/L right), so a
@@ -1597,8 +1608,13 @@ function cpBuildTrainingSession(spec) {
         rso: 'disjoint',
         csi: cpPRP.csi,
         coherence: cpPRP.coherence,
-        t1Task: 'mov',
+        t1Task: spec.s7T1Task,
         soaLevels: CP_PRP_SOA_LEVELS,
+        // 250 ms longer than the rest of training. RT2 carries the dual-task
+        // bottleneck, and in the first pilot S7 was the only stage whose RT2 tail
+        // reached 2500 ms. S8 rehearses the test and stays at 2500.
+        stimulusDuration: 2750,
+        responseWindow: 2750,
         blockIdPrefix: spec.blockIdPrefix,
         instructions: instructions.S7,
         demo: demos.S7,
@@ -1636,9 +1652,10 @@ function cpBuildTrainingSession(spec) {
 }
 
 function cpBuildPrpTrainingSession(condition = 'A', scheme) {
-    const t1Task = condition === 'B' ? 'or' : 'mov';
+    const t1Task = cpConditionT1Task(condition);
     return cpBuildTrainingSession({
         blockIdPrefix: 'prp_train',
+        s7T1Task: t1Task,
         keyMaps: scheme ? scheme.keyMaps : CP_DISJOINT_KEY_MAPS,
         rso: 'disjoint',
         scheme,
@@ -1662,6 +1679,7 @@ function cpBuildPrpTrainingSession(condition = 'A', scheme) {
 function cpBuildTaskSwitchTrainingSession(condition = 'A', scheme) {
     return cpBuildTrainingSession({
         blockIdPrefix: 'ts_train',
+        s7T1Task: cpConditionT1Task(condition),
         keyMaps: scheme ? scheme.keyMaps : CP_DISJOINT_KEY_MAPS,
         rso: 'disjoint',
         scheme,
@@ -1697,6 +1715,7 @@ function cpBuildTaskSwitchAsymTrainingSession(condition = 'A', scheme) {
               };
     return cpBuildTrainingSession({
         blockIdPrefix: 'tsa_train',
+        s7T1Task: cpConditionT1Task(condition),
         keyMaps: scheme ? scheme.keyMaps : CP_DISJOINT_KEY_MAPS,
         rso: 'disjoint',
         scheme,
@@ -1717,6 +1736,7 @@ function cpBuildStroopTrainingSession(condition = 'A', scheme) {
     const targetTask = condition === 'B' ? 'or' : 'mov';
     return cpBuildTrainingSession({
         blockIdPrefix: 'stroop_train',
+        s7T1Task: cpConditionT1Task(condition),
         keyMaps: scheme ? scheme.keyMaps : CP_DISJOINT_KEY_MAPS,
         rso: 'identical',
         scheme,
@@ -1736,9 +1756,8 @@ function cpBuildStroopTrainingSession(condition = 'A', scheme) {
             csi: cpStroop.csi,
             coherence: cpStroop.coherence,
             task: targetTask,
-            // The rehearsal runs PARADIGM_FINAL_STAGE_DEFAULTS' stroopTrials (16,
-            // no new content). 16 is a placeholder length, so no numTrials override
-            // is invented here.
+            // Criterion-gated like every other paradigm-final stage: caps at
+            // TRAINING_CAP and early-stops on the shared 14/16 window.
         },
     });
 }
@@ -1747,6 +1766,7 @@ function cpBuildStroopCrossedTrainingSession(condition = 'A', scheme) {
     const targetTask = condition === 'B' ? 'or' : 'mov';
     return cpBuildTrainingSession({
         blockIdPrefix: 'stroopx_train',
+        s7T1Task: cpConditionT1Task(condition),
         keyMaps: scheme ? scheme.keyMaps : CP_DISJOINT_KEY_MAPS,
         rso: 'identical',
         scheme,
@@ -1764,7 +1784,7 @@ function cpBuildStroopCrossedTrainingSession(condition = 'A', scheme) {
             coherence: cpStroopCrossed.coherence,
             levelFactors: cpStroopCrossed.levelFactors,
             task: targetTask,
-            // Same placeholder 16-trial default as cp_stroop above.
+            // Criterion-gated like cp_stroop above (caps at TRAINING_CAP, 14/16).
         },
     });
 }

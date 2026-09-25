@@ -877,7 +877,7 @@ assert(
 assert(s8Switch.blockConfig.coherenceRamp === undefined, 'S8 never ramps — S2-S4 did that');
 assert(s8Switch.blockConfig.soaSchedule === undefined, 'a switching stage has no SOA schedule');
 
-section('buildParadigmFinalStage — rehearsal (Stroop)');
+section('buildParadigmFinalStage — final stage (Stroop)');
 
 const s8Stroop = buildParadigmFinalStage({
     ...S8_BASE,
@@ -888,22 +888,29 @@ const s8Stroop = buildParadigmFinalStage({
     blockIdPrefix: 'stroop_train',
 });
 
-assert(s8Stroop.isTraining === false, 'the Stroop rehearsal carries NO criterion');
-assert(s8Stroop.numTrials === 16, 'it is a fixed 16-trial block');
-assert(s8Stroop.blockConfig.switchRate === 0, 'no switching in a Stroop rehearsal');
+assert(s8Stroop.isTraining === true, 'the Stroop final stage is criterion-gated');
+assert(
+    s8Stroop.numTrials === undefined,
+    'no fixed trial count — runBlock caps it at TRAINING_CAP and early-stops',
+);
+assert(
+    s8Stroop.advancementThreshold === undefined,
+    'inherits the shared 14/16 (no per-stage override, unlike PRP)',
+);
+assert(s8Stroop.blockConfig.switchRate === 0, 'no switching in the Stroop final stage');
 assert(
     s8Stroop.blockConfig.task1 === 'mov' && s8Stroop.blockConfig.startTask === 'mov',
     'the target dimension is fixed for the whole stage',
 );
 assert(
     s8Stroop.blockConfig.levelFactors.target.length === 3,
-    "the test block's level factors pass through, so the rehearsal spans them",
+    "the test block's level factors pass through, so the stage spans them",
 );
 assert(s8Stroop.blockConfig.blockId === 'stroop_train_S8', 'blockIdPrefix override applies');
 assert(
     buildParadigmFinalStage({ ...S8_BASE, kind: 'stroop', task: 'or', numTrials: 24 }).numTrials ===
-        24,
-    'the rehearsal trial count is overridable',
+        undefined,
+    'a numTrials override is ignored now that the stage is gated (runBlock forces the cap)',
 );
 
 section('buildParadigmFinalStage — PRP');
@@ -1132,9 +1139,16 @@ for (const [id, expected] of Object.entries(CP_EXPECTED)) {
         );
         assert(s8.advancementThreshold === undefined, `${id}: S8 keeps the shared 14/16 default`);
     } else {
-        assert(s8.isTraining === false, `${id}: the Stroop rehearsal carries no criterion`);
-        assert(s8.numTrials === 16, `${id}: it is the 16-trial placeholder length`);
-        assert(s8.blockConfig.switchRate === 0, `${id}: no switching in a Stroop rehearsal`);
+        assert(s8.isTraining === true, `${id}: the Stroop final stage is criterion-gated`);
+        assert(
+            s8.numTrials === undefined,
+            `${id}: no fixed length — runBlock caps at TRAINING_CAP`,
+        );
+        assert(
+            s8.advancementThreshold === undefined,
+            `${id}: Stroop S8 keeps the shared 14/16 default`,
+        );
+        assert(s8.blockConfig.switchRate === 0, `${id}: no switching in the Stroop final stage`);
     }
     assert(
         s8.blockConfig.csi === testSession[0].blockConfig.csi,
@@ -1641,7 +1655,7 @@ for (const [id, expected] of Object.entries(CP_EXPECTED)) {
         copy.every((text) => /Press any key to begin/.test(text)),
         `${id}: every screen ends with how to continue`,
     );
-    // With S7 gone these screens are the only gate; they must not have grown one.
+    // The old comprehension check was dropped; no screen may reintroduce one.
     assert(
         !/quiz|question 1|correct answer|type the/i.test(all),
         `${id}: no comprehension gate was smuggled back in`,
@@ -1667,6 +1681,76 @@ assert(
     s8Texts.every((t) => /answer the question it asks for/.test(t)),
     'S8 copy states the one rule that covers every paradigm',
 );
+
+section('canonical sessions — S7 follows the condition, states a rule');
+
+// S7 runs the condition's T1 task in every paradigm, so a cp_prp participant
+// meets the same order in S7, S8 and the test blocks (in the pilot a condition-B
+// participant trained movement-first in S7 and kept that order through the test).
+// The copy states the order as a rule, so it stays identical for everyone.
+for (const scheme of [undefined, CP_SCHEMES.fourcue]) {
+    const schemeName = scheme ? 'fourcue' : 'disjoint';
+    const s7Texts = [];
+    for (const id of Object.keys(CP_EXPECTED)) {
+        for (const [condition, t1] of [
+            ['A', 'mov'],
+            ['B', 'or'],
+        ]) {
+            const s7 = cpTrainingSessionFor(id, condition, scheme).find((b) => b.stage === 'S7');
+            const tag = `${schemeName}/${id}/${condition}`;
+            assert(s7.blockConfig.task1 === t1, `${tag}: S7's T1 task is '${t1}'`);
+            const first = s7.demo.segments[0];
+            assert(
+                first.border === s7.blockConfig.task1 && first.keyTask === s7.blockConfig.task1,
+                `${tag}: S7 cartoon opens on the stage's T1 task`,
+            );
+            s7Texts.push(s7.instructions);
+        }
+    }
+    assert(
+        new Set(s7Texts).size === 1,
+        `${schemeName}: S7 instruction text is byte-identical across paradigms and conditions`,
+    );
+    assert(
+        /border appeared FIRST/.test(s7Texts[0]) && !/FLYING first|FACING first/.test(s7Texts[0]),
+        `${schemeName}: S7 copy states the order rule and names no task as first`,
+    );
+}
+
+section('canonical sessions — S7 gets the longest window, S8 stays one step from test');
+
+// S7 gets 250 ms more than the rest of training for the RT2 bottleneck. S8 rehearses
+// the test and must not be slower than the rest of training; test blocks keep 2000 ms.
+for (const scheme of [undefined, CP_SCHEMES.fourcue]) {
+    const schemeName = scheme ? 'fourcue' : 'disjoint';
+    for (const id of Object.keys(CP_EXPECTED)) {
+        for (const condition of ['A', 'B']) {
+            const tag = `${schemeName}/${id}/${condition}`;
+            const session = cpTrainingSessionFor(id, condition, scheme);
+            const byStage = Object.fromEntries(
+                session.filter((b) => b.stage).map((b) => [b.stage, b.blockConfig]),
+            );
+            assert(
+                byStage.S7.responseWindow === 2750 && byStage.S7.stimulusDuration === 2750,
+                `${tag}: S7 runs a 2750 ms stimulus and response window`,
+            );
+            assert(
+                byStage.S8.responseWindow === 2500 && byStage.S8.stimulusDuration === 2500,
+                `${tag}: S8 keeps 2500 ms`,
+            );
+            const others = ['S2', 'S3', 'S3a', 'S3b', 'S3c', 'S3d', 'S4', 'S6'];
+            assert(
+                others.every((s) => byStage[s].responseWindow === 2500),
+                `${tag}: S2-S6 keep 2500 ms`,
+            );
+            const test = session.filter((b) => !b.stage);
+            assert(
+                test.length > 0 && test.every((b) => b.blockConfig.responseWindow === 2000),
+                `${tag}: test blocks keep 2000 ms`,
+            );
+        }
+    }
+}
 
 section('canonical sessions — instruction-screen demos');
 
@@ -2960,6 +3044,57 @@ async function main() {
         abortCalls.filter((c) => c === 'saveBlock').length === 2,
         'the two advanced stages upload; the struck-out stage (no trials) does not',
     );
+
+    section('runSession — the browser gate before consent');
+
+    // A participant run that cannot save data stops before the task. Whether a failed
+    // App Check blocks is the store's decision; runSession only follows it.
+    const gateRun = async (store, extra = {}) => {
+        const calls = { verify: 0, start: 0, trials: 0 };
+        seResponder = (...args) => {
+            calls.trials += 1;
+            return RESPOND_CORRECT(...args);
+        };
+        global.window.dataStore = store && {
+            verifyBrowser: async () => {
+                calls.verify += 1;
+                return store.allow;
+            },
+            startSession: async () => {
+                calls.start += 1;
+            },
+            saveBlock: async () => {},
+            abortSession: async () => {},
+        };
+        await Session.runSession([trainingBlockDef('S2')], container, {
+            stimulus: 'abstract',
+            paradigm: 'cp_stroop',
+            condition: 'A',
+            prolificPid: 'test_pid',
+            dataStoreWaitMs: 20,
+            ...extra,
+        });
+        global.window.dataStore = savedDataStore;
+        return calls;
+    };
+
+    let gate = await gateRun({ allow: true });
+    assert(
+        gate.verify === 1 && gate.start === 1 && gate.trials > 0,
+        'a verified browser runs and uploads',
+    );
+
+    gate = await gateRun({ allow: false });
+    assert(gate.verify === 1 && gate.trials === 0, 'a browser the store refuses runs no trials');
+
+    gate = await gateRun(null);
+    assert(gate.trials === 0, 'a participant run whose data store never loads runs no trials');
+    assert(Session.getAbortInfo() === null, 'a refused run records no abort');
+
+    global.window.DEV_MODE = true;
+    gate = await gateRun({ allow: false });
+    delete global.window.DEV_MODE;
+    assert(gate.verify === 0 && gate.trials > 0, 'dev mode skips the browser check');
 
     // ============================================================
     // Each test block reads its OWN pool CSV, whole

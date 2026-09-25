@@ -32,6 +32,18 @@ const Session = (() => {
     let trainingStageFailures = 0; // training stages maxed out without passing
     let abortInfo = null;
 
+    // Adaptive training hints: after HINT_STREAK trials in a row with the same error (a
+    // single-task mapping error, or a reversed answer order on a PRP trial), show a
+    // corrective hint for HINT_HOLD_MS between trials, then hold off for HINT_COOLDOWN
+    // trials so a struggling participant isn't shown it every trial. Training only. See
+    // classifyMappingError (session_helpers.js) for how an error is named.
+    const HINT_STREAK = 3;
+    const HINT_COOLDOWN = 4;
+    const HINT_HOLD_MS = 2500;
+    // Direction (deg) -> arrow for the hint's key legend. 0=right, 180=left, 90=up,
+    // 270=down (canvas Y is inverted).
+    const DIR_ARROWS = { 0: '→', 90: '↑', 180: '←', 270: '↓' };
+
     // Total blockDefs in the running session, so the block-progress readout can
     // show "Block X of N" continuously across training and test. Set in runSession.
     let sessionBlockCount = 0;
@@ -209,6 +221,145 @@ const Session = (() => {
     }
 
     /**
+     * Show a between-trial training hint over the cleared canvas and remove it after
+     * `durationMs` with no keypress. `correctMap` is the {direction: key} map for the trial's
+     * task; each entry becomes an arrow + keycap row. 'wrong-set' names the hand and sits on
+     * that hand's side; 'reversal' and 'distractor' center. 'distractor' names the feature to
+     * answer, not a direction: the keys are already right, so it reminds the participant which
+     * feature is the target ('mov' = flying, 'or' = facing) and to ignore the other. `task`
+     * ('mov'/'or') is only read for the 'distractor' wording. 'order' shows no keys: the
+     * participant has both mappings right and only needs the order rule. Its wording is the
+     * S7 screen's, which names no task, so it reads the same in every condition.
+     */
+    function showTrainingHint(kind, correctMap, side, durationMs, task) {
+        return new Promise((resolve) => {
+            if (!canvasContainer || typeof document.createElement !== 'function') {
+                resolve();
+                return;
+            }
+            let rows = '';
+            try {
+                if (kind !== 'order') {
+                    rows = Object.entries(correctMap)
+                        .map(([dir, key]) => {
+                            const arrow = DIR_ARROWS[dir] ?? '';
+                            return (
+                                `<div class="hint-row"><span class="hint-arrow">${arrow}</span>` +
+                                `<img class="hint-key" src="${demoKeycap(key).src}" alt="${key}"></div>`
+                            );
+                        })
+                        .join('');
+                }
+            } catch (e) {
+                // demoKeycap throws on a key with no art; skip the hint, not the trial.
+                resolve();
+                return;
+            }
+            let title;
+            if (kind === 'order') {
+                title = 'Answer the question whose border appeared first, then the other one';
+            } else if (kind === 'wrong-set') {
+                title = `Use your ${side} hand`;
+            } else if (kind === 'distractor') {
+                // Name the target feature the participant should answer. The words match the
+                // instruction copy: movement = "flying", orientation = "facing".
+                const target = task === 'mov' ? 'flying' : 'facing';
+                const other = task === 'mov' ? 'facing' : 'flying';
+                title = `Answer which way the birds are ${target}, not ${other}`;
+            } else {
+                title = 'Match each key to its direction';
+            }
+            const hint = document.createElement('div');
+            hint.className =
+                'training-hint' + (kind === 'wrong-set' ? ` training-hint-${side}` : '');
+            hint.innerHTML = `<div class="hint-title">${title}</div>${rows}`;
+            canvasContainer.appendChild(hint);
+            setTimeout(() => {
+                hint.remove();
+                resolve();
+            }, durationMs);
+        });
+    }
+
+    /**
+     * Keyboard check before the first block: each response key must be pressed once,
+     * and its keycap turns green when it registers. In the first pilot two runs logged
+     * 36 misses in a row with no key recorded, which looks like a layout or focus
+     * problem rather than a participant who stopped. Presses go through
+     * normalizeResponseKey, so the check passes only if a trial would accept the keys.
+     * Resolves 'continue' once every key has registered, or 'timeout' after `timeoutMs`
+     * (0 waits indefinitely, as in dev and headless runs).
+     */
+    function showKeyCheck(keys, timeoutMs = 0) {
+        return new Promise((resolve) => {
+            if (!canvasContainer || typeof document.createElement !== 'function' || !keys.length) {
+                resolve('continue');
+                return;
+            }
+            const overlay = document.createElement('div');
+            if (typeof overlay.querySelector !== 'function') {
+                resolve('continue');
+                return;
+            }
+            const half = Math.ceil(keys.length / 2);
+            const cap = (key) =>
+                `<span class="keycheck-cap" data-key="${key}">${key.toUpperCase()}</span>`;
+            overlay.className = 'instructions-overlay';
+            overlay.innerHTML = `
+      <div class="instructions-content keycheck">
+        <h2>Keyboard check</h2>
+        <p>Press each of these keys once. Each one turns green when it works.</p>
+        <div class="keycheck-row">
+          <div class="keycheck-group">${keys.slice(0, half).map(cap).join('')}</div>
+          <div class="keycheck-group">${keys.slice(half).map(cap).join('')}</div>
+        </div>
+        <p class="keycheck-note" aria-live="polite"></p>
+      </div>`;
+            canvasContainer.appendChild(overlay);
+
+            const valid = new Set(keys);
+            const seen = new Set();
+            const note = overlay.querySelector('.keycheck-note');
+            let timer = null;
+            let done = false;
+            const finish = (status) => {
+                if (done) return;
+                done = true;
+                if (timer) clearTimeout(timer);
+                document.removeEventListener('keydown', handler);
+                overlay.remove();
+                resolve(status);
+            };
+            const handler = (event) => {
+                const key = normalizeResponseKey(event, valid);
+                if (key === null) {
+                    // Modifier and lock keys on their own say nothing about the layout.
+                    if (event.key && event.key.length === 1) {
+                        note.textContent =
+                            "That key isn't one of these. If none of them turn green, " +
+                            'check that your keyboard is set to an English layout.';
+                    }
+                    return;
+                }
+                if (seen.has(key)) return;
+                seen.add(key);
+                overlay.querySelector(`[data-key="${key}"]`).classList.add('keycheck-ok');
+                note.textContent = '';
+                if (seen.size === valid.size) {
+                    note.textContent = 'All keys work.';
+                    document.removeEventListener('keydown', handler);
+                    setTimeout(() => finish('continue'), 800);
+                }
+            };
+            if (timeoutMs > 0) {
+                timer = setTimeout(() => finish('timeout'), timeoutMs);
+            }
+            // Same guard as showInstructions: don't take the key that closed the last screen.
+            setTimeout(() => document.addEventListener('keydown', handler), 200);
+        });
+    }
+
+    /**
      * Update the "Block X of N" progress readout above the canvas. Numbered
      * continuously across training and test so a participant sees steady progress
      * (blockOrder runs 1..sessionBlockCount). Pass no order to hide it (consent,
@@ -269,6 +420,52 @@ const Session = (() => {
     `;
         containerEl.appendChild(overlay);
         return Promise.resolve();
+    }
+
+    /**
+     * Terminal screen for a participant run that cannot save data: the data store never
+     * loaded ('unavailable', e.g. an ad blocker on gstatic) or refused the browser under
+     * an enforced App Check ('unverified').
+     */
+    function showBrowserBlock(containerEl, reason) {
+        if (typeof document === 'undefined' || !containerEl) return Promise.resolve();
+        containerEl.classList.add('consent-mode');
+        const overlay = document.createElement('div');
+        overlay.className = 'consent-overlay';
+        overlay.innerHTML = `
+      <div class="consent-header">
+        <h2>${reason === 'unavailable' ? "This page couldn't finish loading" : "We couldn't verify your browser"}</h2>
+      </div>
+      <div class="consent-body">
+        <p>${
+            reason === 'unavailable'
+                ? 'The part of the study that saves your answers did not load in ' +
+                  'this browser, so nothing you did would be recorded. An ad blocker ' +
+                  'or a strict privacy extension is the usual cause.'
+                : 'This study runs an automatic check to keep automated programs out, ' +
+                  'and it did not pass in this browser. This can happen behind a VPN ' +
+                  'or with strict privacy or tracker-blocking extensions.'
+        }</p>
+        <p>Please <strong>return your submission</strong> on Prolific (you will not
+        be penalized). You are welcome to try again in a different browser or with
+        those extensions turned off.</p>
+      </div>
+    `;
+        containerEl.appendChild(overlay);
+        return Promise.resolve();
+    }
+
+    /**
+     * data_store.js is a module and runs after the classic scripts, so a run launched
+     * on page load can get here first. Returns null if the store is not up within
+     * `timeoutMs`.
+     */
+    async function waitForDataStore(timeoutMs) {
+        const start = Date.now();
+        while (!window.dataStore && Date.now() - start < timeoutMs) {
+            await new Promise((r) => setTimeout(r, 50));
+        }
+        return window.dataStore || null;
     }
 
     function showConsent(containerEl, options = {}) {
@@ -403,17 +600,54 @@ const Session = (() => {
      * (managed by createBreakController), preventing accidental skips.
      * At the 60s cap, the break auto-advances.
      */
-    function showBreak(bodyText) {
+    /**
+     * Bar chart of test-block accuracies, oldest to newest. The three best blocks get
+     * gold/silver/bronze; the rest a neutral bar. Rank is within this participant's own
+     * blocks, never against anyone else. Empty string for no scores (the training->test
+     * seam break, before any test block has run).
+     */
+    function renderScoreChart(scores) {
+        if (!scores || scores.length === 0) return '';
+        const medals = new Array(scores.length).fill('other');
+        scores
+            .map((s, i) => ({ i, acc: s.accuracy }))
+            .sort((a, b) => b.acc - a.acc)
+            .slice(0, 3)
+            .forEach(({ i }, rank) => {
+                medals[i] = ['gold', 'silver', 'bronze'][rank];
+            });
+        const MAX_H = 110; // px for a perfect block
+        const bars = scores
+            .map((s, i) => {
+                const pct = Math.round(s.accuracy * 100);
+                const h = Math.max(4, Math.round(s.accuracy * MAX_H));
+                return (
+                    '<div class="score-col">' +
+                    `<div class="score-pct">${pct}%</div>` +
+                    `<div class="score-bar score-bar-${medals[i]}" style="height:${h}px"></div>` +
+                    `<div class="score-num">${i + 1}</div>` +
+                    '</div>'
+                );
+            })
+            .join('');
+        return `<div class="score-chart">${bars}</div>`;
+    }
+
+    function showBreak(bodyText, opts = {}) {
+        const { scores = null, final = false } = opts;
         return new Promise((resolve) => {
             const overlay = document.createElement('div');
             overlay.className = 'instructions-overlay';
-            const idlePrompt = `Press ${BREAK_ADVANCE_KEY} if you want to continue now.`;
+            const idlePrompt = final
+                ? `Press ${BREAK_ADVANCE_KEY} to finish.`
+                : `Press ${BREAK_ADVANCE_KEY} if you want to continue now.`;
             const armedPrompt = `Press ${BREAK_ADVANCE_KEY} again to confirm.`;
             // Built as an innerHTML string so the full screen (including summary)
             // is observable in headless testing. Live countdown updates happen via querySelector.
             overlay.innerHTML =
                 '<div class="instructions-content">' +
                 bodyText.replace(/\n/g, '<br>') +
+                renderScoreChart(scores) +
                 '<div class="break-countdown" style="margin-top:16px; font-variant-numeric:tabular-nums;"></div>' +
                 `<div class="break-prompt" style="margin-top:12px; color:#c0c0c0;">${idlePrompt}</div>` +
                 '</div>';
@@ -448,7 +682,7 @@ const Session = (() => {
                 const remMs = BREAK_CAP_MS - (performance.now() - startedAt);
                 const remSec = Math.max(0, Math.ceil(remMs / 1000));
                 if (countdown) {
-                    countdown.textContent = `Break: ${remSec} s remaining.`;
+                    countdown.textContent = `${final ? 'Finishing' : 'Break'}: ${remSec} s remaining.`;
                     // Draw the eye as the auto-advance approaches.
                     const urgent = remSec <= 10;
                     countdown.style.color = urgent ? '#ff5555' : '';
@@ -769,6 +1003,12 @@ const Session = (() => {
         let prevResponseTime = null;
         let trialData;
         let blockOutcomes = [];
+        // Running counts of consecutive mapping errors, for the adaptive training hints.
+        let wrongSetStreak = 0;
+        let reversalStreak = 0;
+        let distractorStreak = 0;
+        let orderStreak = 0;
+        let hintCooldown = 0;
         for (
             let i = 0;
             i < trials.length &&
@@ -780,6 +1020,9 @@ const Session = (() => {
             updateStatus(blockConfig.blockId, i + 1, trials.length, blockOrder);
             const task_1 = trials[i].meta.t1_task;
             const task_2 = trials[i].meta.t2_task;
+            // The single-task SE config this trial used, for mapping-error detection.
+            // Stays null on the dual/alternating paths, which have no single "task".
+            let usedSeConfig = null;
 
             // Resolve SE param objects: dual-canvas has leftSeParams/rightSeParams,
             // all other paradigms have a single seParams.
@@ -878,11 +1121,56 @@ const Session = (() => {
                         blockConfig.cueBorderStyle,
                     );
                 }
+                usedSeConfig = trialSeConfig;
                 trialData = await runTrial(trials[i], trialSeConfig, prevResponseTime);
             }
 
             if (blockDef.isTraining) {
                 blockOutcomes.push(isTrialCorrectForAdvancement(trialData));
+            }
+
+            // Adaptive hint: track runs of the same error and, once one reaches HINT_STREAK,
+            // show a hint before the next trial. usedSeConfig is null off the single-canvas
+            // path, so dual-canvas and alternating blocks never hint.
+            if (blockDef.isTraining && usedSeConfig) {
+                const errType = classifyMappingError(trialData, usedSeConfig);
+                wrongSetStreak = errType === 'wrong-set' ? wrongSetStreak + 1 : 0;
+                reversalStreak = errType === 'reversal' ? reversalStreak + 1 : 0;
+                distractorStreak = errType === 'distractor' ? distractorStreak + 1 : 0;
+                orderStreak = errType === 'order' ? orderStreak + 1 : 0;
+
+                if (hintCooldown > 0) {
+                    hintCooldown--;
+                } else if (
+                    wrongSetStreak >= HINT_STREAK ||
+                    reversalStreak >= HINT_STREAK ||
+                    distractorStreak >= HINT_STREAK ||
+                    orderStreak >= HINT_STREAK
+                ) {
+                    const kind =
+                        wrongSetStreak >= HINT_STREAK
+                            ? 'wrong-set'
+                            : reversalStreak >= HINT_STREAK
+                              ? 'reversal'
+                              : distractorStreak >= HINT_STREAK
+                                ? 'distractor'
+                                : 'order';
+                    const correctMap =
+                        task_1 === 'mov'
+                            ? usedSeConfig.movementKeyMap
+                            : usedSeConfig.orientationKeyMap;
+                    const side =
+                        demoKeycap(Object.values(correctMap)[0]).set === 'wasd' ? 'left' : 'right';
+                    await showTrainingHint(kind, correctMap, side, HINT_HOLD_MS, task_1);
+                    // The hint ran during what would have been the ITI, so re-anchor: its
+                    // dwell shouldn't be billed to the next trial's achieved ITI.
+                    itiAnchor = null;
+                    hintCooldown = HINT_COOLDOWN;
+                    wrongSetStreak = 0;
+                    reversalStreak = 0;
+                    distractorStreak = 0;
+                    orderStreak = 0;
+                }
             }
             trialData.blockOrder = blockOrder;
             trialData.isPractice = blockDef.isPractice || false;
@@ -1042,6 +1330,20 @@ const Session = (() => {
             await showDeviceBlock(containerEl);
             return;
         }
+        // Participant runs only, before consent. CSV export is dev-only, so a
+        // participant run without the data store would save nothing. verifyBrowser
+        // decides whether a failed App Check blocks (only under enforcement).
+        if (options.prolificPid && typeof window !== 'undefined' && !window.DEV_MODE) {
+            const store = await waitForDataStore(options.dataStoreWaitMs ?? 10000);
+            if (!store) {
+                await showBrowserBlock(containerEl, 'unavailable');
+                return;
+            }
+            if (store.verifyBrowser && !(await store.verifyBrowser())) {
+                await showBrowserBlock(containerEl, 'unverified');
+                return;
+            }
+        }
         // Per-screen idle budget. index.html passes DEFAULT for participants and 0
         // for dev; tests omit it entirely (falsy -> 0 = disabled).
         instructionTimeoutMs = Number(options.instructionTimeoutMs) || 0;
@@ -1095,11 +1397,22 @@ const Session = (() => {
             spriteConfig = null;
         }
 
+        // After startSession, so a timeout here still reaches the Firestore record. It
+        // ends the run like any other idle exit: abort recorded, ordinary debrief.
+        const keyCheck = await showKeyCheck(sessionResponseKeys(sessionDef), instructionTimeoutMs);
+        if (keyCheck === 'timeout') {
+            abortInfo = { reason: 'key_check_timeout', stage: null, blockId: null, blockOrder: 0 };
+            isRunning = false;
+        }
+
         const questCoherences = { mov: 0.4, or: 0.6 }; // starting values, refined by QUEST
         // Index into allTrialData of the first trial not yet covered by a break
         // summary. "Since the last break", not "this block": when a break is
         // skipped the next summary spans everything accumulated since.
         let summaryAnchor = 0;
+        // One accuracy summary per finished test block, oldest first, for the running-score
+        // chart on the break screens (and the final screen). Training blocks never enter it.
+        const testBlockScores = [];
         for (let b = 0; b < sessionDef.length; b++) {
             if (!isRunning) break;
             // runBlock returns a Quest coherence for Quest blocks and a training
@@ -1153,8 +1466,12 @@ const Session = (() => {
                     const sinceBreak = allTrialData
                         .slice(summaryAnchor)
                         .filter((row) => row.phase !== 'training');
-                    const summaryLine = formatBreakSummary(summarizeBlockPerformance(sinceBreak));
+                    const summary = summarizeBlockPerformance(sinceBreak);
+                    const summaryLine = formatBreakSummary(summary);
                     summaryAnchor = allTrialData.length;
+                    // A test->test break follows exactly one test block, so its summary is
+                    // that block's score. The seam break has no test rows yet (null summary).
+                    if (betweenTests && summary) testBlockScores.push(summary);
                     const heading = seam
                         ? 'Training complete — the test blocks begin next.'
                         : 'Block complete.';
@@ -1162,6 +1479,7 @@ const Session = (() => {
                         `${heading} \n\n` +
                             (summaryLine ? `${summaryLine} \n\n` : '') +
                             'Take a break — up to one minute.',
+                        { scores: testBlockScores },
                     );
                 }
             }
@@ -1198,6 +1516,24 @@ const Session = (() => {
         // is still recorded above, so attrition is measurable without punishing anyone.
         if (abortInfo || isRunning) {
             isRunning = false;
+            // Final running-score screen before the debrief. The last test block never
+            // triggers a break (no block follows it), so add its score here and show the
+            // full chart — the highest-motivation moment to end on. Skipped when a run
+            // never reached the test (aborted or training-only), where there's no score.
+            if (!abortInfo) {
+                const finalRows = allTrialData
+                    .slice(summaryAnchor)
+                    .filter((row) => row.phase !== 'training');
+                const finalSummary = summarizeBlockPerformance(finalRows);
+                if (finalSummary) testBlockScores.push(finalSummary);
+                if (testBlockScores.length > 0) {
+                    await showBreak(
+                        "That's the last block — thank you.\n\n" +
+                            'Here is how you did across the test blocks.',
+                        { scores: testBlockScores, final: true },
+                    );
+                }
+            }
             await showDebrief(canvasContainer, options);
             enableExport();
         }

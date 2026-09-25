@@ -239,6 +239,67 @@ function fourcueSingleTaskKeyMaps(task, hand) {
 }
 
 /**
+ * The response key a keydown names, or null: the printed character, lower-cased so
+ * Caps Lock is harmless, and for non-Latin layouts only, the physical key. Mirrors
+ * Timeline.responseKeyOf in the SE fork's src/trial.js so the key check accepts
+ * exactly what a trial does; keep the two in sync.
+ *
+ * @param {{key?: string, code?: string}} event - a keydown event
+ * @param {Set<string>} validKeys - the lower-case response keys
+ * @returns {string|null}
+ */
+function normalizeResponseKey(event, validKeys) {
+    const key = typeof event.key === 'string' ? event.key : '';
+    if (validKeys.has(key)) return key;
+    if (validKeys.has(key.toLowerCase())) return key.toLowerCase();
+    // A Latin label means what it says; a modifier makes the position meaningless.
+    if (/^[a-z]$/i.test(key) || event.altKey || event.ctrlKey || event.metaKey) return null;
+    const physical = /^Key([A-Z])$/.exec(event.code || '');
+    if (physical && validKeys.has(physical[1].toLowerCase())) {
+        return physical[1].toLowerCase();
+    }
+    return null;
+}
+
+/**
+ * Every response key a session uses, for the key check before the first block.
+ * Movement keys first, then orientation keys (one hand each under the disjoint
+ * and four-cue schemes), each ordered up, left, right, down so a vertical pair
+ * reads W-S and a horizontal pair A-D. DUMMY_KEYS' placeholder is skipped.
+ *
+ * @param {Array<{blockConfig?: {keyMaps?: {mov?: object, or?: object}}}>} sessionDef
+ * @returns {string[]}
+ */
+function sessionResponseKeys(sessionDef) {
+    const directionOrder = [90, 180, 0, 270];
+    const keys = [];
+    for (const task of ['mov', 'or']) {
+        for (const blockDef of sessionDef) {
+            const map = blockDef.blockConfig?.keyMaps?.[task];
+            if (!map) continue;
+            const ordered = Object.entries(map).sort(
+                ([a], [b]) => directionOrder.indexOf(Number(a)) - directionOrder.indexOf(Number(b)),
+            );
+            for (const [, key] of ordered) {
+                if (key !== DUMMY_KEYS[0] && !keys.includes(key)) keys.push(key);
+            }
+        }
+    }
+    return keys;
+}
+
+// The Prolific completion code ships reversed and base64-encoded so a search of the
+// page source doesn't find it. It is still visible in devtools at the debrief.
+function encodeCompletionCode(code) {
+    return btoa([...code].reverse().join(''));
+}
+
+function decodeCompletionCode(encoded) {
+    if (!encoded) return undefined;
+    return [...atob(encoded)].reverse().join('');
+}
+
+/**
  * One canvas's SE config: the active task gets `keys`, the other gets DUMMY_KEYS.
  * Shared shape behind buildDualCanvasSEConfigs and buildAlternatingSEConfig.
  *
@@ -337,6 +398,72 @@ function buildKeyTaskMap(seConfig, trial) {
     const task1Keys = task1 === 'mov' ? movKeys : orKeys;
     const task2Keys = task1 === 'mov' ? orKeys : movKeys;
     return { task1Keys, task2Keys };
+}
+
+/**
+ * Look at a finished training trial and name the error it shows, so a training hint can
+ * respond to it. Returns:
+ *   'order'      - dual-task only: both tasks answered, T2 first. Reversals are not
+ *                  blocked by the criterion, so the hint is the only corrective.
+ *   'wrong-set'  - the first press used the other hand's keys.
+ *   'reversal'   - the right hand, but the opposite direction to the target, on a trial
+ *                  where that press can't be the distractor (univalent or congruent).
+ *   'distractor' - the right hand, but the direction the distractor points, on an
+ *                  incongruent trial: the participant answered the wrong feature.
+ *   null         - correct, unreadable, or not a case a hint should touch.
+ *
+ * On a single-task trial, reads the first press after stimulus onset (training resolves on
+ * the first press, so that press is the response). A dual-task trial is judged only on its
+ * response order. Only fires on disjoint key maps, where hand and direction are separable
+ * and a reversal can be seen at all: with identical maps the extractor assigns presses to
+ * T1 and T2 by order, so it never reports 'T2-first'. 'reversal' and 'distractor' are
+ * complementary and mutually exclusive per trial: an opposite press is read as a flipped
+ * mapping only when it can't be the distractor, and as distractor-tracking only when it
+ * matches the distractor's direction on an incongruent trial.
+ */
+function classifyMappingError(trialData, seConfig) {
+    const task = trialData.t1_task;
+    if (task !== 'mov' && task !== 'or') return null;
+
+    const movMap = seConfig.movementKeyMap || {};
+    const orMap = seConfig.orientationKeyMap || {};
+    const movKeys = Object.values(movMap);
+    const orKeys = Object.values(orMap);
+    const disjoint = movKeys.length && orKeys.length && !movKeys.some((k) => orKeys.includes(k));
+    if (!disjoint) return null;
+
+    // A dual-task trial has two presses to classify, and a wrong key on either is already
+    // scored by the criterion. Only the order goes uncounted there.
+    if (trialData.paradigm === 'dual-task') {
+        return trialData.responseOrder === 'T2-first' ? 'order' : null;
+    }
+
+    const correctMap = task === 'mov' ? movMap : orMap;
+    const correctKeys = Object.values(correctMap);
+    const otherKeys = task === 'mov' ? orKeys : movKeys;
+    const targetKey = correctMap[trialData.t1_target_dir];
+
+    let presses;
+    try {
+        presses = JSON.parse(trialData.rawKeyPresses || '[]');
+    } catch {
+        return null;
+    }
+    const onset = trialData.t1_stim_onset ?? 0;
+    const first = presses.find((kp) => kp.time >= onset);
+    if (!first) return null;
+
+    if (otherKeys.includes(first.key)) return 'wrong-set';
+
+    if (correctKeys.includes(first.key) && first.key !== targetKey) {
+        const distractor = trialData.t1_distractor_dir;
+        // Univalent or congruent: an opposite press can only be a flipped mapping.
+        if (distractor == null || distractor === trialData.t1_target_dir) return 'reversal';
+        // Incongruent: the press is the key the distractor's direction maps to in the cued
+        // task's own map, so the participant tracked the wrong feature rather than the keys.
+        if (first.key === correctMap[distractor]) return 'distractor';
+    }
+    return null;
 }
 
 // ============================================================

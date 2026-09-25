@@ -247,6 +247,136 @@
                 flex: none;
             }
 
+            /* Keyboard check before the first block (session.js showKeyCheck). */
+            .keycheck-row {
+                display: flex;
+                justify-content: center;
+                gap: 64px;
+                margin: 28px 0 20px;
+            }
+            .keycheck-group {
+                display: flex;
+                gap: 12px;
+            }
+            .keycheck-cap {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 56px;
+                height: 56px;
+                border: 2px solid #4a4a6a;
+                border-radius: 8px;
+                background: #16213e;
+                color: #e0e0e0;
+                font-size: 1.5em;
+                font-weight: bold;
+                transition:
+                    background 0.15s,
+                    border-color 0.15s;
+            }
+            .keycheck-cap.keycheck-ok {
+                background: #1a4d2e;
+                border-color: #4caf50;
+            }
+            .keycheck-note {
+                min-height: 1.4em;
+                color: #ffd54a;
+            }
+
+            /* Between-trial training hint (session.js showTrainingHint). A small panel
+           over the cleared canvas that auto-dismisses; centered for a direction
+           reversal, pushed to one side for a wrong-hand error. pointer-events: none so
+           it can never swallow a keypress. */
+            .training-hint {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(10, 10, 26, 0.92);
+                border: 2px solid #4a4a6a;
+                border-radius: 10px;
+                padding: 16px 20px;
+                z-index: 12;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+                pointer-events: none;
+            }
+            .training-hint-left {
+                left: 24px;
+                transform: translate(0, -50%);
+            }
+            .training-hint-right {
+                left: auto;
+                right: 24px;
+                transform: translate(0, -50%);
+            }
+            .training-hint .hint-title {
+                color: #ffd54a;
+                font-size: 0.95em;
+                text-align: center;
+            }
+            .training-hint .hint-row {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            .training-hint .hint-arrow {
+                color: #e0e0e0;
+                font-size: 1.6em;
+                width: 1.2em;
+                text-align: center;
+            }
+            .training-hint .hint-key {
+                width: 72px;
+                image-rendering: pixelated;
+            }
+
+            /* Running-score chart on the break and final screens (session.js
+           renderScoreChart). One bar per finished test block, oldest at left; the three
+           best get medal colors, the rest a neutral bar. */
+            .score-chart {
+                display: flex;
+                align-items: flex-end;
+                justify-content: center;
+                gap: 14px;
+                margin: 18px 0;
+                min-height: 130px;
+            }
+            .score-col {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: flex-end;
+            }
+            .score-col .score-pct {
+                font-size: 0.8em;
+                color: #c0c0c0;
+                margin-bottom: 4px;
+            }
+            .score-col .score-bar {
+                width: 34px;
+                border-radius: 4px 4px 0 0;
+            }
+            .score-col .score-num {
+                font-size: 0.8em;
+                color: #888;
+                margin-top: 6px;
+            }
+            .score-bar-gold {
+                background: #ffd54a;
+            }
+            .score-bar-silver {
+                background: #cfd3d6;
+            }
+            .score-bar-bronze {
+                background: #cd7f32;
+            }
+            .score-bar-other {
+                background: #4a6a8a;
+            }
+
             .info {
                 margin-top: 16px;
                 padding: 0 20px;
@@ -443,8 +573,9 @@
             // would not be linkable to a Prolific submission.
             const DEV_PARTICIPANT_ID = 'DEV';
 
-            // Prolific completion code
-            const CP_COMPLETION_CODE = 'CEI1B24X';
+            // Prolific completion code, encoded (decodeCompletionCode in session_helpers.js).
+            // Regenerate with encodeCompletionCode('<code>') after changing it in Prolific.
+            const CP_COMPLETION_CODE_ENCODED = 'WDQyQjFJRUM=';
 
             function readParticipantMode() {
                 const params = new URLSearchParams(window.location.search);
@@ -873,11 +1004,11 @@
                         prolificPid: participantMode?.participantId,
                         studyId: participantMode?.prolificStudyId,
                         sessionId: participantMode?.prolificSessionId,
-                        // Completion code from the Prolific dashboard. Leave null
-                        // until the study is created: showDebrief only turns on the
+                        // Completion code from the Prolific dashboard. An empty encoded
+                        // value decodes to undefined, and showDebrief only turns on the
                         // automatic redirect once a real code is present, so an
                         // unconfigured build never sends anyone to a dead URL.
-                        completionCode: CP_COMPLETION_CODE || undefined,
+                        completionCode: decodeCompletionCode(CP_COMPLETION_CODE_ENCODED),
                     });
                 } catch (e) {
                     console.error('Session error:', e);
