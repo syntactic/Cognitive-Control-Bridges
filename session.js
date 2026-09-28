@@ -424,31 +424,25 @@ const Session = (() => {
 
     /**
      * Terminal screen for a participant run that cannot save data: the data store never
-     * loaded ('unavailable', e.g. an ad blocker on gstatic) or refused the browser under
-     * an enforced App Check ('unverified').
+     * loaded (e.g. an ad blocker on gstatic) or refused the browser under an enforced
+     * App Check. Both show the same generic copy so the screen does not reveal which
+     * check failed, or that a bot check exists.
      */
-    function showBrowserBlock(containerEl, reason) {
+    function showBrowserBlock(containerEl) {
         if (typeof document === 'undefined' || !containerEl) return Promise.resolve();
         containerEl.classList.add('consent-mode');
         const overlay = document.createElement('div');
         overlay.className = 'consent-overlay';
         overlay.innerHTML = `
       <div class="consent-header">
-        <h2>${reason === 'unavailable' ? "This page couldn't finish loading" : "We couldn't verify your browser"}</h2>
+        <h2>This study can't run in your browser</h2>
       </div>
       <div class="consent-body">
-        <p>${
-            reason === 'unavailable'
-                ? 'The part of the study that saves your answers did not load in ' +
-                  'this browser, so nothing you did would be recorded. An ad blocker ' +
-                  'or a strict privacy extension is the usual cause.'
-                : 'This study runs an automatic check to keep automated programs out, ' +
-                  'and it did not pass in this browser. This can happen behind a VPN ' +
-                  'or with strict privacy or tracker-blocking extensions.'
-        }</p>
+        <p>Part of the study did not load correctly, so your answers would not be
+        saved. Ad blockers, privacy extensions and VPNs are the usual causes.</p>
         <p>Please <strong>return your submission</strong> on Prolific (you will not
-        be penalized). You are welcome to try again in a different browser or with
-        those extensions turned off.</p>
+        be penalized). You are welcome to try again in a different browser, or with
+        those extensions or your VPN turned off.</p>
       </div>
     `;
         containerEl.appendChild(overlay);
@@ -1336,11 +1330,11 @@ const Session = (() => {
         if (options.prolificPid && typeof window !== 'undefined' && !window.DEV_MODE) {
             const store = await waitForDataStore(options.dataStoreWaitMs ?? 10000);
             if (!store) {
-                await showBrowserBlock(containerEl, 'unavailable');
+                await showBrowserBlock(containerEl);
                 return;
             }
             if (store.verifyBrowser && !(await store.verifyBrowser())) {
-                await showBrowserBlock(containerEl, 'unverified');
+                await showBrowserBlock(containerEl);
                 return;
             }
         }
