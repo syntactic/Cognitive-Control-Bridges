@@ -57,7 +57,7 @@ const PROD_FIREBASE_CONFIG = {
   messagingSenderId: '348836487217',
   appId: '1:348836487217:web:2068f57d361e10cd6b7510',
   recaptchaSiteKey: '6LepQs8tAAAAABj53guoo-eKt58pdXqyy8sddDmw',
-  appCheckEnforced: false,
+  appCheckEnforced: true,
 };
 
 // Pick the database from the deployment host. The prod host writes to EU prod by
