@@ -3231,12 +3231,16 @@ async function main() {
         'and no screen shows the completion code',
     );
 
-    section('runSession — the browser gate before consent');
+    section('runSession — the browser gate around consent');
 
     // A participant run that cannot save data stops before the task. Whether a failed
-    // App Check blocks is the store's decision; runSession only follows it.
+    // App Check blocks is the store's decision; runSession only follows it. The check
+    // itself runs only after the consent screen, which names reCAPTCHA.
+    const consentScreens = () =>
+        container.children.filter((c) => c.className === 'consent-overlay').length;
     const gateRun = async (store, extra = {}) => {
-        const calls = { verify: 0, start: 0, trials: 0 };
+        const calls = { verify: 0, start: 0, trials: 0, consentFirst: false };
+        const consentBefore = consentScreens();
         seResponder = (...args) => {
             calls.trials += 1;
             return RESPOND_CORRECT(...args);
@@ -3244,6 +3248,7 @@ async function main() {
         global.window.dataStore = store && {
             verifyBrowser: async () => {
                 calls.verify += 1;
+                calls.consentFirst = consentScreens() > consentBefore;
                 return store.allow;
             },
             startSession: async () => {
@@ -3269,6 +3274,7 @@ async function main() {
         gate.verify === 1 && gate.start === 1 && gate.trials > 0,
         'a verified browser runs and uploads',
     );
+    assert(gate.consentFirst, 'the browser check runs after the consent screen');
 
     gate = await gateRun({ allow: false });
     assert(gate.verify === 1 && gate.trials === 0, 'a browser the store refuses runs no trials');

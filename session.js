@@ -1341,19 +1341,15 @@ const Session = (() => {
             await showDeviceBlock(containerEl);
             return;
         }
-        // Participant runs only, before consent. CSV export is dev-only, so a
-        // participant run without the data store would save nothing. verifyBrowser
-        // decides whether a failed App Check blocks (only under enforcement).
-        if (options.prolificPid && typeof window !== 'undefined' && !window.DEV_MODE) {
-            const store = await waitForDataStore(options.dataStoreWaitMs ?? 10000);
-            if (!store) {
-                await showBrowserBlock(containerEl);
-                return;
-            }
-            if (store.verifyBrowser && !(await store.verifyBrowser())) {
-                await showBrowserBlock(containerEl);
-                return;
-            }
+        // Participant runs only. CSV export is dev-only, so a participant run without
+        // the data store would save nothing; that is checked before consent. The bot
+        // check (reCAPTCHA via verifyBrowser) runs only after consent, which names it.
+        // verifyBrowser decides whether a failed App Check blocks (only under enforcement).
+        const gated = options.prolificPid && typeof window !== 'undefined' && !window.DEV_MODE;
+        const store = gated ? await waitForDataStore(options.dataStoreWaitMs ?? 10000) : null;
+        if (gated && !store) {
+            await showBrowserBlock(containerEl);
+            return;
         }
         // Per-screen idle budget. index.html passes DEFAULT for participants and 0
         // for dev; tests omit it entirely (falsy -> 0 = disabled).
@@ -1362,6 +1358,10 @@ const Session = (() => {
         abortInfo = null;
         sessionBlockCount = sessionDef.length;
         await showConsent(canvasContainer, options);
+        if (store && store.verifyBrowser && !(await store.verifyBrowser())) {
+            await showBrowserBlock(containerEl);
+            return;
+        }
 
         // Progressive data upload is enabled only for a real participant run: the
         // shim (data_store.js) must have loaded, AND the participant metadata that
