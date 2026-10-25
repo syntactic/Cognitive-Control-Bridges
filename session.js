@@ -33,10 +33,11 @@ const Session = (() => {
     let abortInfo = null;
 
     // Adaptive training hints: after HINT_STREAK trials in a row with the same error (a
-    // single-task mapping error, or a reversed answer order on a PRP trial), show a
-    // corrective hint for HINT_HOLD_MS between trials, then hold off for HINT_COOLDOWN
-    // trials so a struggling participant isn't shown it every trial. Training only. See
-    // classifyMappingError (session_helpers.js) for how an error is named.
+    // single-task mapping error, or on a PRP trial a reversed order, a skipped second
+    // answer, or a second answer copied from the first), show a corrective hint for
+    // HINT_HOLD_MS between trials, then hold off for HINT_COOLDOWN trials so a struggling
+    // participant isn't shown it every trial. Training only. See classifyMappingError
+    // (session_helpers.js) for how an error is named.
     const HINT_STREAK = 3;
     const HINT_COOLDOWN = 4;
     const HINT_HOLD_MS = 2500;
@@ -227,9 +228,10 @@ const Session = (() => {
      * that hand's side; 'reversal' and 'distractor' center. 'distractor' names the feature to
      * answer, not a direction: the keys are already right, so it reminds the participant which
      * feature is the target ('mov' = flying, 'or' = facing) and to ignore the other. `task`
-     * ('mov'/'or') is only read for the 'distractor' wording. 'order' shows no keys: the
-     * participant has both mappings right and only needs the order rule. Its wording is the
-     * S7 screen's, which names no task, so it reads the same in every condition.
+     * ('mov'/'or') is only read for the 'distractor' wording. The dual-task kinds ('order',
+     * 'missing-t2', 'copy-t1') show no keys: the participant has both mappings right and
+     * needs a rule about the two questions. Like the S7 screen, they name no task, so they
+     * read the same in every condition.
      */
     function showTrainingHint(kind, correctMap, side, durationMs, task) {
         return new Promise((resolve) => {
@@ -237,9 +239,12 @@ const Session = (() => {
                 resolve();
                 return;
             }
+            // The dual-task hints are about the two questions, not the keys: both mappings
+            // are already right, so they show no key legend.
+            const dualTaskHint = kind === 'order' || kind === 'missing-t2' || kind === 'copy-t1';
             let rows = '';
             try {
-                if (kind !== 'order') {
+                if (!dualTaskHint) {
                     rows = Object.entries(correctMap)
                         .map(([dir, key]) => {
                             const arrow = DIR_ARROWS[dir] ?? '';
@@ -258,6 +263,10 @@ const Session = (() => {
             let title;
             if (kind === 'order') {
                 title = 'Answer the question whose border appeared first, then the other one';
+            } else if (kind === 'missing-t2') {
+                title = 'Answer both questions — the second one too';
+            } else if (kind === 'copy-t1') {
+                title = 'The second border asks a different question — answer it on its own';
             } else if (kind === 'wrong-set') {
                 title = `Use your ${side} hand`;
             } else if (kind === 'distractor') {
@@ -443,6 +452,31 @@ const Session = (() => {
         <p>Please <strong>return your submission</strong> on Prolific (you will not
         be penalized). You are welcome to try again in a different browser, or with
         those extensions or your VPN turned off.</p>
+      </div>
+    `;
+        containerEl.appendChild(overlay);
+        return Promise.resolve();
+    }
+
+    /**
+     * Terminal screen after a keyboard-check timeout. Unlike a training-failure exit, which
+     * is paid, a participant who never pressed the response keys has done no task, so they
+     * are asked to return the study and are shown no completion code.
+     */
+    function showKeyCheckBlock(containerEl) {
+        if (typeof document === 'undefined' || !containerEl) return Promise.resolve();
+        containerEl.classList.add('consent-mode');
+        const overlay = document.createElement('div');
+        overlay.className = 'consent-overlay';
+        overlay.innerHTML = `
+      <div class="consent-header">
+        <h2>The keyboard check was not completed</h2>
+      </div>
+      <div class="consent-body">
+        <p>The study can only start once each response key has been pressed, and the
+        time for the keyboard check has run out.</p>
+        <p>Please <strong>return your submission</strong> on Prolific (you will not
+        be penalized).</p>
       </div>
     `;
         containerEl.appendChild(overlay);
@@ -997,11 +1031,10 @@ const Session = (() => {
         let prevResponseTime = null;
         let trialData;
         let blockOutcomes = [];
-        // Running counts of consecutive mapping errors, for the adaptive training hints.
-        let wrongSetStreak = 0;
-        let reversalStreak = 0;
-        let distractorStreak = 0;
-        let orderStreak = 0;
+        // The current run of identical errors, for the adaptive training hints. A trial
+        // names at most one error, so only one kind can be on a run at a time.
+        let streakKind = null;
+        let streakLength = 0;
         let hintCooldown = 0;
         for (
             let i = 0;
@@ -1128,42 +1161,32 @@ const Session = (() => {
             // path, so dual-canvas and alternating blocks never hint.
             if (blockDef.isTraining && usedSeConfig) {
                 const errType = classifyMappingError(trialData, usedSeConfig);
-                wrongSetStreak = errType === 'wrong-set' ? wrongSetStreak + 1 : 0;
-                reversalStreak = errType === 'reversal' ? reversalStreak + 1 : 0;
-                distractorStreak = errType === 'distractor' ? distractorStreak + 1 : 0;
-                orderStreak = errType === 'order' ? orderStreak + 1 : 0;
+                if (errType === null) {
+                    streakKind = null;
+                    streakLength = 0;
+                } else if (errType === streakKind) {
+                    streakLength += 1;
+                } else {
+                    streakKind = errType;
+                    streakLength = 1;
+                }
 
                 if (hintCooldown > 0) {
                     hintCooldown--;
-                } else if (
-                    wrongSetStreak >= HINT_STREAK ||
-                    reversalStreak >= HINT_STREAK ||
-                    distractorStreak >= HINT_STREAK ||
-                    orderStreak >= HINT_STREAK
-                ) {
-                    const kind =
-                        wrongSetStreak >= HINT_STREAK
-                            ? 'wrong-set'
-                            : reversalStreak >= HINT_STREAK
-                              ? 'reversal'
-                              : distractorStreak >= HINT_STREAK
-                                ? 'distractor'
-                                : 'order';
+                } else if (streakLength >= HINT_STREAK) {
                     const correctMap =
                         task_1 === 'mov'
                             ? usedSeConfig.movementKeyMap
                             : usedSeConfig.orientationKeyMap;
                     const side =
                         demoKeycap(Object.values(correctMap)[0]).set === 'wasd' ? 'left' : 'right';
-                    await showTrainingHint(kind, correctMap, side, HINT_HOLD_MS, task_1);
+                    await showTrainingHint(streakKind, correctMap, side, HINT_HOLD_MS, task_1);
                     // The hint ran during what would have been the ITI, so re-anchor: its
                     // dwell shouldn't be billed to the next trial's achieved ITI.
                     itiAnchor = null;
                     hintCooldown = HINT_COOLDOWN;
-                    wrongSetStreak = 0;
-                    reversalStreak = 0;
-                    distractorStreak = 0;
-                    orderStreak = 0;
+                    streakKind = null;
+                    streakLength = 0;
                 }
             }
             trialData.blockOrder = blockOrder;
@@ -1391,8 +1414,9 @@ const Session = (() => {
             spriteConfig = null;
         }
 
-        // After startSession, so a timeout here still reaches the Firestore record. It
-        // ends the run like any other idle exit: abort recorded, ordinary debrief.
+        // After startSession, so a timeout here still reaches the Firestore record. The
+        // abort is recorded like any other, but ends on a return-the-study screen rather
+        // than the debrief (see the end of runSession).
         const keyCheck = await showKeyCheck(sessionResponseKeys(sessionDef), instructionTimeoutMs);
         if (keyCheck === 'timeout') {
             abortInfo = { reason: 'key_check_timeout', stage: null, blockId: null, blockOrder: 0 };
@@ -1407,6 +1431,7 @@ const Session = (() => {
         // One accuracy summary per finished test block, oldest first, for the running-score
         // chart on the break screens (and the final screen). Training blocks never enter it.
         const testBlockScores = [];
+        const breakReminder = breakReminderFor(sessionDef);
         for (let b = 0; b < sessionDef.length; b++) {
             if (!isRunning) break;
             // runBlock returns a Quest coherence for Quest blocks and a training
@@ -1472,6 +1497,7 @@ const Session = (() => {
                     await showBreak(
                         `${heading} \n\n` +
                             (summaryLine ? `${summaryLine} \n\n` : '') +
+                            (breakReminder ? `${breakReminder} \n\n` : '') +
                             'Take a break — up to one minute.',
                         { scores: testBlockScores },
                     );
@@ -1501,13 +1527,20 @@ const Session = (() => {
                 console.warn('Data upload: abortSession failed.', e);
             }
         }
+        // A keyboard-check timeout comes before any trial, so there is no task to pay
+        // for: no debrief, no completion code.
+        if (abortInfo && abortInfo.reason === 'key_check_timeout') {
+            isRunning = false;
+            await showKeyCheckBlock(canvasContainer);
+            return;
+        }
         // Show the debrief on a completed OR an early-exited session, but not on a
         // bare external stopSession() (a dev control: isRunning false, no abort).
-        // Per Sebastian (09-10 l.64-68) an early-exited participant is treated as a
-        // completer for payment: the same debrief, the same completion code, no
-        // failure screen — so they receive the flat reward and are not made to feel
-        // penalized, and we avoid maintaining a special-case abort screen. The abort
-        // is still recorded above, so attrition is measurable without punishing anyone.
+        // Per Sebastian (09-10 l.64-68) a participant who exits during the task is
+        // treated as a completer for payment: the same debrief, the same completion
+        // code, no failure screen — so they receive the flat reward and are not made
+        // to feel penalized. The abort is still recorded above, so attrition is
+        // measurable without punishing anyone.
         if (abortInfo || isRunning) {
             isRunning = false;
             // Final running-score screen before the debrief. The last test block never

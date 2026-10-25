@@ -92,6 +92,49 @@
                 image-rendering: pixelated;
                 flex: none;
             }
+            /* Running-score chart on the break and final screens (session.js
+           renderScoreChart). One bar per finished test block, oldest at left; the three
+           best get medal colors, the rest a neutral bar. */
+            .score-chart {
+                display: flex;
+                align-items: flex-end;
+                justify-content: center;
+                gap: 14px;
+                margin: 18px 0;
+                min-height: 130px;
+            }
+            .score-col {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: flex-end;
+            }
+            .score-col .score-pct {
+                font-size: 0.8em;
+                color: #c0c0c0;
+                margin-bottom: 4px;
+            }
+            .score-col .score-bar {
+                width: 34px;
+                border-radius: 4px 4px 0 0;
+            }
+            .score-col .score-num {
+                font-size: 0.8em;
+                color: #888;
+                margin-top: 6px;
+            }
+            .score-bar-gold {
+                background: #ffd54a;
+            }
+            .score-bar-silver {
+                background: #cfd3d6;
+            }
+            .score-bar-bronze {
+                background: #cd7f32;
+            }
+            .score-bar-other {
+                background: #4a6a8a;
+            }
             /* ---- end verbatim ---- */
 
             #report {
@@ -233,8 +276,18 @@
 
             // The capped break screen is generated in runSession (showBreak), not stored on a
             // blockDef, so measure a representative worst case: the longest heading, the
-            // longest summary line, and the countdown + armed-confirm prompt lines that
-            // showBreak appends as its own elements.
+            // longest summary line, the side-cue reminder, the running-score chart as it
+            // stands after test block 4 (the most bars any break shows, all at full height),
+            // and the countdown + armed-confirm prompt lines that showBreak appends as its
+            // own elements. The chart markup mirrors session.js renderScoreChart.
+            const scoreCol = (medal) =>
+                '<div class="score-col"><div class="score-pct">100%</div>' +
+                `<div class="score-bar score-bar-${medal}" style="height:110px"></div>` +
+                '<div class="score-num">1</div></div>';
+            const scoreChart =
+                '<div class="score-chart">' +
+                ['gold', 'silver', 'bronze', 'other'].map(scoreCol).join('') +
+                '</div>';
             const breakScreen =
                 'Training complete — the test blocks begin next.\n\n' +
                 formatBreakSummary({
@@ -244,7 +297,10 @@
                     meanRt: 1234.5,
                 }) +
                 '\n\n' +
-                'Take a break — up to one minute.\n\n' +
+                BREAK_SIDE_CUE_REMINDER +
+                '\n\n' +
+                'Take a break — up to one minute.' +
+                scoreChart +
                 'Break: 60 s remaining.\n\n' +
                 'Press Enter again to confirm.';
             lines.push('\nbreak screen (runSession)');

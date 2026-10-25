@@ -1464,7 +1464,9 @@ const CP_TEST_BLOCK_PREAMBLE =
 // two. Easiest is the safer floor: an S2/S3 cap failure is the pre-registered
 // exclusion rule and must mean "hasn't learned the mapping", not "finds 0.3
 // coherence hard". Full-range exposure is S6's job (it gets each test block's
-// coherence table verbatim).
+// coherence table verbatim). cp_taskswitch_asym's hard task has no easy level in
+// the test, so it ramps to CP_EASY all the same and meets CP_HARD first at S6,
+// as cp_taskswitch's hard trials do.
 //
 // Training also runs bivalent stimuli for all five paradigms, including
 // cp_prp whose test block is univalent — so its S5/S6 use CP_DISTRACTOR. A
@@ -1719,7 +1721,10 @@ function cpBuildTaskSwitchAsymTrainingSession(condition = 'A', scheme) {
         keyMaps: scheme ? scheme.keyMaps : CP_DISJOINT_KEY_MAPS,
         rso: 'disjoint',
         scheme,
-        rampTarget: targetCoherence,
+        // Not targetCoherence (see the judgment-call note above): ramping the hard task
+        // to CP_HARD from S2 cost asym most of its strikes before any switching in both
+        // pilots.
+        rampTarget: { mov: CP_EASY, or: CP_EASY },
         trainingDistractor: CP_DISTRACTOR,
         testCoherence: coherence,
         testSession: cpTestSessionFor('cp_taskswitch_asym', condition, scheme),

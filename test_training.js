@@ -194,6 +194,7 @@ eval(
     CP_SCHEMES,
     DEMO_KEYCAPS,
     INSTRUCTION_DEMO_ANCHOR,
+    BREAK_SIDE_CUE_REMINDER,
 };
 `,
 );
@@ -216,6 +217,7 @@ const {
     CP_SCHEMES,
     DEMO_KEYCAPS,
     INSTRUCTION_DEMO_ANCHOR,
+    BREAK_SIDE_CUE_REMINDER,
 } = globalThis.__T;
 
 // ============================================================
@@ -1399,22 +1401,46 @@ assert(
     'Stroop crossed condition B S8 copy: agnostic — does NOT name a single target task',
 );
 
-// Asym task switching: under condition B, or is easy (0.8) and mov is hard (0.3).
+// Asym task switching trains like cp_taskswitch: both tasks ramp to the easy level
+// (0.8) in S2-S4, and the hard task's 0.3 first appears at S6. Under condition B, mov
+// is the hard task.
 const tsaB = cpBuildTaskSwitchAsymTrainingSession('B');
-const tsaBS2 = tsaB.find((b) => b.stage === 'S2');
-const tsaBS3 = tsaB.find((b) => b.stage === 'S3');
-const tsaBS8 = tsaB.find((b) => b.stage === 'S8');
+const tsaBStage = (stage) => tsaB.find((b) => b.stage === stage);
 assert(
-    tsaBS2.blockConfig.coherence.target === 0.3,
-    'Asym switching condition B S2: mov ramps to hard level (0.3)',
+    tsaBStage('S2').blockConfig.coherence.target === 0.8 &&
+        tsaBStage('S2').blockConfig.coherenceRamp.to === 0.8,
+    'Asym switching condition B S2: mov (the hard task) ramps to the easy level (0.8)',
 );
 assert(
-    tsaBS3.blockConfig.coherence.target === 0.8,
-    'Asym switching condition B S3: or ramps to easy level (0.8)',
+    tsaBStage('S3').blockConfig.coherence.target === 0.8,
+    'Asym switching condition B S3: or ramps to the easy level (0.8)',
 );
 assert(
-    tsaBS8.blockConfig.coherence.target.mov === 0.3 &&
-        tsaBS8.blockConfig.coherence.target.or === 0.8,
+    tsaBStage('S4').blockConfig.coherenceRamp.to.mov === 0.8 &&
+        tsaBStage('S4').blockConfig.coherenceRamp.to.or === 0.8,
+    'Asym switching condition B S4: both tasks ramp to the easy level',
+);
+// S6 and S8 keep the paradigm's test coherence: the condition's easy task at 0.8, its
+// hard task at 0.3 (what the condition's pool CSVs label easy/hard per task).
+for (const condition of ['A', 'B']) {
+    const session = cpBuildTaskSwitchAsymTrainingSession(condition);
+    const hard = condition === 'B' ? 'mov' : 'or';
+    const easy = hard === 'mov' ? 'or' : 'mov';
+    for (const stage of ['S6', 'S8']) {
+        const { target } = session.find((b) => b.stage === stage).blockConfig.coherence;
+        assert(
+            target[hard] === 0.3 && target[easy] === 0.8,
+            `Asym switching condition ${condition} ${stage}: runs the test coherence (${hard} hard)`,
+        );
+    }
+    assert(
+        session.filter((b) => b.phase === 'training').every((b) => !b.sequenceSource),
+        `Asym switching condition ${condition}: training stages are generated live, not from CSVs`,
+    );
+}
+assert(
+    tsaBStage('S8').blockConfig.coherence.target.mov === 0.3 &&
+        tsaBStage('S8').blockConfig.coherence.target.or === 0.8,
     'Asym switching condition B S8: coherence has mov hard and or easy',
 );
 
@@ -1539,11 +1565,12 @@ assert(
     stageOf('cp_stroop_crossed', 'S2').blockConfig.coherenceRamp.to === 0.7,
     'crossed Stroop ramps to the easiest of its three levels',
 );
-// Asymmetric switching has exactly one level per task, so there is no choice.
+// Asymmetric switching's hard task has no easy level in the test, but it ramps to the
+// easy level anyway and meets 0.3 first at S6, as basic switching's hard trials do.
 assert(
     stageOf('cp_taskswitch_asym', 'S2').blockConfig.coherenceRamp.to === 0.8 &&
-        stageOf('cp_taskswitch_asym', 'S3').blockConfig.coherenceRamp.to === 0.3,
-    'asymmetric switching ramps each task to its own fixed test coherence',
+        stageOf('cp_taskswitch_asym', 'S3').blockConfig.coherenceRamp.to === 0.8,
+    'asymmetric switching ramps both tasks to the easy level, like basic switching',
 );
 // S3 is required even for Stroop, at the strength the dimension appears with.
 assert(
@@ -2841,6 +2868,48 @@ async function main() {
         'and no break interrupts the S2→S3 training-to-training seam',
     );
 
+    section('runSession — the side-cue reminder is on every break before a test block');
+
+    // Fixed copy for everyone: the break screen must not vary with performance (T4), so
+    // a run answered correctly throughout and one answered wrongly throughout must show
+    // the same reminder on the same breaks.
+    const reminderSession = (cueMode) => [
+        trainingBlockDef('S2'),
+        ...['rem_a', 'rem_b'].map((blockId) => ({
+            blockConfig: { ...TRAINING_BLOCK_CONFIG, blockId, ...(cueMode ? { cueMode } : {}) },
+            numTrials: 4,
+            phase: 'test',
+            instructions: 'T',
+        })),
+    ];
+    const breakScreensOf = async (responder, cueMode) => {
+        seResponder = responder;
+        const el = makeElement();
+        await Session.runSession(reminderSession(cueMode), el, { stimulus: 'abstract' });
+        return screensOf(el).filter((t) => t.includes('up to one minute'));
+    };
+    const rightBreaks = await breakScreensOf(RESPOND_CORRECT, 'hue+position');
+    const wrongBreaks = await breakScreensOf(RESPOND_INCORRECT, 'hue+position');
+    assert(
+        rightBreaks.length === 2 && rightBreaks.every((t) => t.includes(BREAK_SIDE_CUE_REMINDER)),
+        'the seam break and the test→test break both carry the reminder',
+    );
+    assert(
+        wrongBreaks.length === 2 && wrongBreaks.every((t) => t.includes(BREAK_SIDE_CUE_REMINDER)),
+        'and so does every break of a run answered wrongly throughout',
+    );
+    const hueBreaks = await breakScreensOf(RESPOND_CORRECT, 'hue');
+    assert(
+        hueBreaks.length === 2 && hueBreaks.every((t) => !t.includes(BREAK_SIDE_CUE_REMINDER)),
+        "a whole-border cue has no side, so its breaks don't claim one",
+    );
+    assert(
+        breakReminderFor(cpApplySweetPea(CP_SESSIONS.cp_stroop, 'A', [1, 2, 3, 4, 5])) === null &&
+            breakReminderFor(cpBuildStroopTrainingSession('A', CP_SCHEMES.fourcue_cse)) ===
+                BREAK_SIDE_CUE_REMINDER,
+        'the shipped fourcue_cse session gets the reminder; the disjoint default does not',
+    );
+
     // ============================================================
     // Break summary in a REAL canonical session (review finding C2)
     // ============================================================
@@ -3043,6 +3112,77 @@ async function main() {
     assert(
         abortCalls.filter((c) => c === 'saveBlock').length === 2,
         'the two advanced stages upload; the struck-out stage (no trials) does not',
+    );
+
+    section('runSession — S7 hints when the second question goes unanswered');
+
+    // Only T1's key (condition A: movement, a/d) is ever pressed, so every trial's T2 is
+    // a miss. The hint names no task, so it is the same in both conditions.
+    const s7 = CP_SESSIONS.cp_prp.find((b) => b.stage === 'S7');
+    seResponder = () => ({
+        keyPresses: [{ eventType: 'keydown', key: 'd', time: 900, isCorrect: true }],
+    });
+    const s7Container = makeElement();
+    await Session.runSession([s7], s7Container, { stimulus: 'abstract' });
+    const s7Hints = screensOf(s7Container).filter((t) =>
+        t.includes('Answer both questions — the second one too'),
+    );
+    assert(s7Hints.length > 0, 'the missing-T2 hint is shown');
+    assert(
+        s7Hints.every((t) => !/flying|facing|movement|orientation/i.test(t)),
+        'and names no task',
+    );
+    assert(s7Hints.length < TRAINING_CAP / 4, 'the cooldown keeps it from showing every trial');
+
+    section('runSession — a keyboard-check timeout asks for a return, with no code');
+
+    // The stub element has no querySelector, which makes showKeyCheck pass straight
+    // through. Give it one so the check waits; the stub's keydowns are Enters, which are
+    // not response keys, so the check times out.
+    const realCreateElement = global.document.createElement;
+    global.document.createElement = () => {
+        const el = makeElement();
+        el.querySelector = () => makeElement();
+        return el;
+    };
+    const keyCheckCalls = [];
+    let keyCheckTrials = 0;
+    global.window.dataStore = {
+        startSession: async () => {},
+        saveBlock: async () => keyCheckCalls.push('saveBlock'),
+        abortSession: async (info) => keyCheckCalls.push(info),
+    };
+    seResponder = (...args) => {
+        keyCheckTrials += 1;
+        return RESPOND_CORRECT(...args);
+    };
+    const keyCheckContainer = makeElement();
+    try {
+        await Session.runSession([trainingBlockDef('S2')], keyCheckContainer, {
+            stimulus: 'abstract',
+            instructionTimeoutMs: 20,
+            skipConsent: true,
+            paradigm: 'cp_stroop',
+            condition: 'A',
+            prolificPid: 'test_pid',
+        });
+    } finally {
+        global.document.createElement = realCreateElement;
+        global.window.dataStore = savedDataStore;
+    }
+    const keyCheckScreens = screensOf(keyCheckContainer);
+    assert(
+        keyCheckCalls.length === 1 && keyCheckCalls[0].reason === 'key_check_timeout',
+        'the timeout is still recorded with abortSession',
+    );
+    assert(keyCheckTrials === 0, 'no trials run');
+    assert(
+        /return your submission/.test(keyCheckScreens[keyCheckScreens.length - 1]),
+        'the last screen asks the participant to return the study',
+    );
+    assert(
+        keyCheckScreens.every((t) => !t.includes('Completion Code')),
+        'and no screen shows the completion code',
     );
 
     section('runSession — the browser gate before consent');
