@@ -1779,6 +1779,31 @@ for (const scheme of [undefined, CP_SCHEMES.fourcue]) {
     }
 }
 
+section('canonical sessions — switching paradigms run the shorter ITI in S8 and test');
+
+// Only the switching test blocks and the S8 that rehearses them change; the shared
+// stages and the other paradigms keep 400-600 ms.
+for (const scheme of [undefined, CP_SCHEMES.fourcue]) {
+    for (const id of Object.keys(CP_EXPECTED)) {
+        for (const condition of ['A', 'B']) {
+            const tag = `${scheme ? 'fourcue' : 'disjoint'}/${id}/${condition}`;
+            const switching = id === 'cp_taskswitch' || id === 'cp_taskswitch_asym';
+            const range = (b) => b.blockConfig.iti.params.join('-');
+            const session = cpTrainingSessionFor(id, condition, scheme);
+            const shortItiBlocks = session.filter((b) => !b.stage || b.stage === 'S8');
+            const sharedStages = session.filter((b) => b.stage && b.stage !== 'S8');
+            assert(
+                shortItiBlocks.every((b) => range(b) === (switching ? '200-400' : '400-600')),
+                `${tag}: S8 and test blocks run ${switching ? '200-400' : '400-600'} ms`,
+            );
+            assert(
+                sharedStages.every((b) => range(b) === '400-600'),
+                `${tag}: S2-S7 keep 400-600 ms`,
+            );
+        }
+    }
+}
+
 section('canonical sessions — instruction-screen demos');
 
 // The animated cartoon (instruction_demo.js) is generated from the same key maps
