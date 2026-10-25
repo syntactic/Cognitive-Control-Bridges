@@ -20,16 +20,12 @@ const Session = (() => {
     // (Sebastian, 09-04 l.115: "just advance it"). Only TRAINING screens count,
     // and only MAX_INSTRUCTION_TIMEOUTS of them ends the session — a participant
     // who reached the test phase keeps all their data no matter how long they idle
-    // a test screen. Separately, a participant who maxes out the trial cap without
-    // meeting criterion on MAX_TRAINING_STAGE_FAILURES training stages is aborted
-    // too (09-04 l.117; #12): failing two easy stages is a non-engagement signal,
-    // and the point is to stop paying for unusable data.
+    // a test screen. Failing a training stage never ends the run: Prolific pays a flat
+    // reward either way, so exclusion is decided after the fact (10-16 call).
     const DEFAULT_INSTRUCTION_TIMEOUT_MS = 120000; // 2 minutes per screen
     const MAX_INSTRUCTION_TIMEOUTS = 3;
-    const MAX_TRAINING_STAGE_FAILURES = 2;
     let instructionTimeoutMs = 0;
     let instructionTimeouts = 0; // training screens left idle so far this session
-    let trainingStageFailures = 0; // training stages maxed out without passing
     let abortInfo = null;
 
     // Adaptive training hints: after HINT_STREAK trials in a row with the same error (a
@@ -1245,9 +1241,7 @@ const Session = (() => {
                     (blockDef.stage === 'S2' || blockDef.stage === 'S3') &&
                     !summary.criterionMet &&
                     blockOutcomes.length >= numTrials,
-                // Any training stage the participant maxed out without meeting
-                // criterion. runSession counts these across the whole training
-                // sequence and aborts on the second (MAX_TRAINING_STAGE_FAILURES).
+                // Reached the trial cap without meeting criterion. Recorded only.
                 stageFailed: !summary.criterionMet && blockOutcomes.length >= numTrials,
             };
         }
@@ -1365,7 +1359,6 @@ const Session = (() => {
         // for dev; tests omit it entirely (falsy -> 0 = disabled).
         instructionTimeoutMs = Number(options.instructionTimeoutMs) || 0;
         instructionTimeouts = 0;
-        trainingStageFailures = 0;
         abortInfo = null;
         sessionBlockCount = sessionDef.length;
         await showConsent(canvasContainer, options);
@@ -1449,24 +1442,6 @@ const Session = (() => {
                 overwriteCoherence(sessionDef, questCoherences, b + 1);
             } else if (blockDef.isTraining && blockResult) {
                 trainingLog.push(blockResult);
-                // Training-failure abort: two maxed-out-without-passing stages ends
-                // the session. Unlike the timeout abort this block's trials DID run,
-                // so we set isRunning=false (which skips the break below) but let the
-                // saveBlock at the end of this iteration upload the stage's data
-                // before the loop breaks on the next `!isRunning` check.
-                if (blockResult.stageFailed) {
-                    trainingStageFailures += 1;
-                    if (trainingStageFailures >= MAX_TRAINING_STAGE_FAILURES) {
-                        abortInfo = {
-                            reason: 'training_failure',
-                            stage: blockDef.stage ?? null,
-                            blockId: blockDef.blockConfig?.blockId ?? null,
-                            blockOrder: b + 1,
-                            failures: trainingStageFailures,
-                        };
-                        isRunning = false;
-                    }
-                }
             }
 
             // Capped inter-block break: placed (a) between test blocks and (b) at the
@@ -1504,9 +1479,10 @@ const Session = (() => {
                 }
             }
             const blockRows = allTrialData.slice(blockStartIdx);
+            const stageSummary = blockDef.isTraining && !blockDef.runQuest ? blockResult : null;
             if (uploadActive) {
                 try {
-                    await window.dataStore.saveBlock(b + 1, blockRows);
+                    await window.dataStore.saveBlock(b + 1, blockRows, stageSummary);
                 } catch (e) {
                     // Non-fatal: log and keep running. A later block may still upload,
                     // and the CSV export remains complete regardless.

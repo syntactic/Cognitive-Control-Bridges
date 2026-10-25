@@ -130,12 +130,14 @@ async function startSession(meta) {
   });
 }
 
-async function saveBlock(blockOrder, trials) {
+// stageSummary is a training stage's outcome (criterionMet, stageFailed); null for test blocks.
+async function saveBlock(blockOrder, trials, stageSummary = null) {
   const blockRef = doc(sessionRef, 'blocks', String(blockOrder));
   await setDoc(blockRef, {
     uid,
     block_order: blockOrder,
     trials,
+    ...(stageSummary ? { stage_summary: stageSummary } : {}),
     uploaded_at: serverTimestamp(),
   });
 }

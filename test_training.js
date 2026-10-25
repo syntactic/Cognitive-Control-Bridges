@@ -3062,23 +3062,44 @@ async function main() {
     await Session.runSession([trainingBlockDef('S2')], container, { stimulus: 'abstract' });
     assert(Session.getAbortInfo() === null, 'abortInfo resets to null on a clean run');
 
-    section('runSession — failing two training stages aborts the session');
+    section('runSession — failed training stages are recorded but never end the run');
 
     // No timeout budget: screens dismiss on the mock keypress. Incorrect responses
     // never meet criterion, so each stage runs to the cap and is a stageFailed.
+    const failUploads = [];
+    const failAborts = [];
+    const savedFailStore = global.window.dataStore;
+    global.window.dataStore = {
+        startSession: async () => {},
+        saveBlock: async (order, rows, summary) => failUploads.push({ order, rows, summary }),
+        abortSession: async (info) => failAborts.push(info),
+    };
     seResponder = RESPOND_INCORRECT;
-    await Session.runSession([trainingBlockDef('S2'), trainingBlockDef('S3')], container, {
-        stimulus: 'abstract',
-    });
-    const failAbort = Session.getAbortInfo();
+    await Session.runSession(
+        [trainingBlockDef('S2'), trainingBlockDef('S3'), trainingBlockDef('S3a')],
+        container,
+        {
+            stimulus: 'abstract',
+            paradigm: 'cp_stroop',
+            condition: 'A',
+            prolificPid: 'test_pid',
+        },
+    );
+    global.window.dataStore = savedFailStore;
     const failLog = Session.getTrainingLog();
-    assert(failAbort !== null, 'two failed training stages record an abort');
-    assert(failAbort.reason === 'training_failure', 'abort reason is the training failure');
-    assert(failAbort.failures === 2, 'abort records the second failure');
-    assert(failAbort.blockOrder === 2, 'abort records the block order of the second failure');
+    assert(Session.getAbortInfo() === null, 'three failed stages record no abort');
+    assert(failAborts.length === 0, 'abortSession is never called');
     assert(
-        failLog.length === 2 && failLog.every((s) => s.stageFailed),
-        'both stages are stageFailed',
+        failLog.length === 3 && failLog.every((s) => s.stageFailed),
+        'all three stages run to the cap and are stageFailed',
+    );
+    assert(
+        failUploads.length === 3 && failUploads.every((u) => u.rows.length > 0),
+        'every failed stage uploads its trials',
+    );
+    assert(
+        failUploads.every((u) => u.summary && u.summary.stageFailed && u.summary.stageId),
+        'each upload carries its stage summary',
     );
 
     section('runSession — an idle abort is logged to the data store');
