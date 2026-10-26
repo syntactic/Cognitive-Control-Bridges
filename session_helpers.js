@@ -1126,23 +1126,29 @@ function formatBreakSummary(summary) {
 }
 
 /**
- * Fixed reminder on every break before a test block. In both pilots the participants
- * who fell to chance in single-task Stroop stopped reading the border's side once trial
- * feedback was withdrawn: in Stroop the colour never changes, so the side is all the cue
- * says. It is shown to everyone on every such break, never in response to errors, so the
- * break screen stays free of performance-contingent feedback.
+ * Break reminder for a participant who has stopped reading the border's side. In both
+ * pilots the participants who fell to chance stopped using the side once trial feedback
+ * was withdrawn, answering with the uncued hand on 41-50% of test trials; everyone else
+ * stayed under 10% over the whole test.
  */
 const BREAK_SIDE_CUE_REMINDER = 'Remember: the SIDE of the border tells you which HAND to use.';
+const BREAK_REMINDER_WRONG_HAND_RATE = 0.15;
 
 /**
- * The break reminder for a session, or null. Only a positional cue ('hue+position') puts
- * the border on the response hand's side; under a whole-border cue the line would be false.
+ * The reminder after a test block, or null. Shown only when at least
+ * BREAK_REMINDER_WRONG_HAND_RATE of the block's answered trials used the uncued hand, and
+ * only under a positional cue ('hue+position'): a whole-border cue has no side to read.
  */
-function breakReminderFor(sessionDef) {
+function breakReminderFor(sessionDef, blockRows) {
     const positional = sessionDef.some(
         (blockDef) => blockDef.blockConfig && blockDef.blockConfig.cueMode === 'hue+position',
     );
-    return positional ? BREAK_SIDE_CUE_REMINDER : null;
+    const answered = blockRows.filter((row) => row.accuracy1 && row.accuracy1 !== 'miss');
+    if (!positional || answered.length === 0) return null;
+    const wrongHand = answered.filter((row) => row.mapping_error === 'wrong-set').length;
+    return wrongHand / answered.length >= BREAK_REMINDER_WRONG_HAND_RATE
+        ? BREAK_SIDE_CUE_REMINDER
+        : null;
 }
 
 // ---- Capped, mash-proof inter-block break --------------------------------

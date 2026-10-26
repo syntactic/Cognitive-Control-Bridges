@@ -1152,11 +1152,13 @@ const Session = (() => {
                 blockOutcomes.push(isTrialCorrectForAdvancement(trialData));
             }
 
-            // Adaptive hint: track runs of the same error and, once one reaches HINT_STREAK,
-            // show a hint before the next trial. usedSeConfig is null off the single-canvas
-            // path, so dual-canvas and alternating blocks never hint.
+            // Every single-canvas trial records its error type: the break after a test block
+            // reads it, and in training a run of the same error reaching HINT_STREAK shows a
+            // hint before the next trial. usedSeConfig is null off the single-canvas path,
+            // so dual-canvas and alternating blocks never classify or hint.
+            const errType = usedSeConfig ? classifyMappingError(trialData, usedSeConfig) : null;
+            trialData.mapping_error = errType;
             if (blockDef.isTraining && usedSeConfig) {
-                const errType = classifyMappingError(trialData, usedSeConfig);
                 if (errType === null) {
                     streakKind = null;
                     streakLength = 0;
@@ -1425,7 +1427,6 @@ const Session = (() => {
         // One accuracy summary per finished test block, oldest first, for the running-score
         // chart on the break screens (and the final screen). Training blocks never enter it.
         const testBlockScores = [];
-        const breakReminder = breakReminderFor(sessionDef);
         for (let b = 0; b < sessionDef.length; b++) {
             if (!isRunning) break;
             // runBlock returns a Quest coherence for Quest blocks and a training
@@ -1470,10 +1471,11 @@ const Session = (() => {
                     const heading = seam
                         ? 'Training complete — the test blocks begin next.'
                         : 'Block complete.';
+                    const reminder = betweenTests ? breakReminderFor(sessionDef, sinceBreak) : null;
                     await showBreak(
                         `${heading} \n\n` +
                             (summaryLine ? `${summaryLine} \n\n` : '') +
-                            (breakReminder ? `${breakReminder} \n\n` : '') +
+                            (reminder ? `<strong>${reminder}</strong> \n\n` : '') +
                             'Take a break — up to one minute.',
                         { scores: testBlockScores },
                     );

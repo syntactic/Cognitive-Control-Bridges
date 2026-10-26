@@ -2893,20 +2893,27 @@ async function main() {
         'and no break interrupts the S2→S3 training-to-training seam',
     );
 
-    section('runSession — the side-cue reminder is on every break before a test block');
+    section('runSession — the side-cue reminder follows a test block with common wrong-hand answers');
 
-    // Fixed copy for everyone: the break screen must not vary with performance (T4), so
-    // a run answered correctly throughout and one answered wrongly throughout must show
-    // the same reminder on the same breaks.
+    // Movement on a/d, orientation on j/l: pressing 'l' on a movement trial is the wrong hand.
     const reminderSession = (cueMode) => [
         trainingBlockDef('S2'),
-        ...['rem_a', 'rem_b'].map((blockId) => ({
-            blockConfig: { ...TRAINING_BLOCK_CONFIG, blockId, ...(cueMode ? { cueMode } : {}) },
+        ...['rem_a', 'rem_b', 'rem_c'].map((blockId) => ({
+            blockConfig: {
+                ...TRAINING_BLOCK_CONFIG,
+                blockId,
+                rso: 'disjoint',
+                keyMaps: { mov: { 180: 'a', 0: 'd' }, or: { 180: 'j', 0: 'l' } },
+                ...(cueMode ? { cueMode } : {}),
+            },
             numTrials: 4,
             phase: 'test',
             instructions: 'T',
         })),
     ];
+    const RESPOND_WRONG_HAND = () => ({
+        keyPresses: [{ eventType: 'keydown', key: 'l', time: 900, isCorrect: false }],
+    });
     const breakScreensOf = async (responder, cueMode) => {
         seResponder = responder;
         const el = makeElement();
@@ -2914,25 +2921,49 @@ async function main() {
         return screensOf(el).filter((t) => t.includes('up to one minute'));
     };
     const rightBreaks = await breakScreensOf(RESPOND_CORRECT, 'hue+position');
-    const wrongBreaks = await breakScreensOf(RESPOND_INCORRECT, 'hue+position');
+    const wrongHandBreaks = await breakScreensOf(RESPOND_WRONG_HAND, 'hue+position');
+    const hueBreaks = await breakScreensOf(RESPOND_WRONG_HAND, 'hue');
     assert(
-        rightBreaks.length === 2 && rightBreaks.every((t) => t.includes(BREAK_SIDE_CUE_REMINDER)),
-        'the seam break and the test→test break both carry the reminder',
+        rightBreaks.length === 3 && rightBreaks.every((t) => !t.includes(BREAK_SIDE_CUE_REMINDER)),
+        'a run answered with the cued hand never sees the reminder',
     );
     assert(
-        wrongBreaks.length === 2 && wrongBreaks.every((t) => t.includes(BREAK_SIDE_CUE_REMINDER)),
-        'and so does every break of a run answered wrongly throughout',
+        wrongHandBreaks.length === 3 &&
+            !wrongHandBreaks[0].includes(BREAK_SIDE_CUE_REMINDER) &&
+            wrongHandBreaks
+                .slice(1)
+                .every((t) => t.includes(`<strong>${BREAK_SIDE_CUE_REMINDER}</strong>`)),
+        'wrong-hand answers bring it, in bold, after each test block but not before the first',
     );
-    const hueBreaks = await breakScreensOf(RESPOND_CORRECT, 'hue');
     assert(
-        hueBreaks.length === 2 && hueBreaks.every((t) => !t.includes(BREAK_SIDE_CUE_REMINDER)),
+        hueBreaks.every((t) => !t.includes(BREAK_SIDE_CUE_REMINDER)),
         "a whole-border cue has no side, so its breaks don't claim one",
     );
+
+    const sideCued = cpBuildStroopTrainingSession('A', CP_SCHEMES.fourcue_cse);
+    const rowsWith = (wrong, total) =>
+        Array.from({ length: total }, (_, i) => ({
+            accuracy1: i < wrong ? 'error' : 'correct',
+            mapping_error: i < wrong ? 'wrong-set' : null,
+        }));
     assert(
-        breakReminderFor(cpApplySweetPea(CP_SESSIONS.cp_stroop, 'A', [1, 2, 3, 4, 5])) === null &&
-            breakReminderFor(cpBuildStroopTrainingSession('A', CP_SCHEMES.fourcue_cse)) ===
-                BREAK_SIDE_CUE_REMINDER,
-        'the shipped fourcue_cse session gets the reminder; the disjoint default does not',
+        breakReminderFor(sideCued, rowsWith(15, 100)) === BREAK_SIDE_CUE_REMINDER &&
+            breakReminderFor(sideCued, rowsWith(14, 100)) === null,
+        'the threshold is 15% of answered trials',
+    );
+    assert(
+        breakReminderFor(sideCued, [...rowsWith(15, 50), ...rowsWith(0, 50)]) ===
+            BREAK_SIDE_CUE_REMINDER &&
+            breakReminderFor(sideCued, [
+                ...rowsWith(14, 60),
+                ...Array(40).fill({ accuracy1: 'miss', mapping_error: null }),
+            ]) === BREAK_SIDE_CUE_REMINDER,
+        'misses are left out of the denominator',
+    );
+    assert(
+        breakReminderFor(cpApplySweetPea(CP_SESSIONS.cp_stroop, 'A', [1, 2, 3, 4, 5]), rowsWith(50, 100)) ===
+            null,
+        'the disjoint scheme, which has no side cue, never shows it',
     );
 
     // ============================================================
