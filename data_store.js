@@ -61,8 +61,8 @@ const PROD_FIREBASE_CONFIG = {
     appId: '1:348836487217:web:2068f57d361e10cd6b7510',
     recaptchaSiteKey: '6LepQs8tAAAAABj53guoo-eKt58pdXqyy8sddDmw',
     appCheckEnforced: true,
-    // Off until the dev runs have been reviewed and the consent text names it.
-    pohSiteKey: null,
+    // Same workspace as dev; the env:prod tag keeps prod sessions apart.
+    pohSiteKey: 'pub-dncmwRIIvZW3wgNT4tPE',
 };
 
 // Pick the database from the deployment host. The prod host writes to EU prod by
