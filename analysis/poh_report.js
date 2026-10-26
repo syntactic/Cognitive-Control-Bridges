@@ -2,7 +2,9 @@
 // a poh_session_id. Scores are record only; nothing in the study acts on them.
 //
 // Usage:
-//   POH_SECRET_KEY=... node analysis/poh_report.js --key serviceAccountKey_dev.json [--run <label>]
+//   node --env-file=.env analysis/poh_report.js --key serviceAccountKey_dev.json [--run <label>]
+//
+// POH_SECRET_KEY comes from .env (gitignored), never from the repo.
 //
 // Writes poh_reports.json (full responses) and poh_reports.csv (one row per session:
 // session doc id, run label, risk score, recommended action, and every check reported as
