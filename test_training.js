@@ -3254,6 +3254,10 @@ async function main() {
             startSession: async () => {
                 calls.start += 1;
             },
+            // Records how many sessions existed when the tracker started.
+            startPoh: () => {
+                calls.pohAfterStarts = calls.start;
+            },
             saveBlock: async () => {},
             abortSession: async () => {},
         };
@@ -3275,9 +3279,11 @@ async function main() {
         'a verified browser runs and uploads',
     );
     assert(gate.consentFirst, 'the browser check runs after the consent screen');
+    assert(gate.pohAfterStarts === 1, 'the bot tracker starts once the session doc exists');
 
     gate = await gateRun({ allow: false });
     assert(gate.verify === 1 && gate.trials === 0, 'a browser the store refuses runs no trials');
+    assert(gate.pohAfterStarts === undefined, 'and never starts the bot tracker');
 
     gate = await gateRun(null);
     assert(gate.trials === 0, 'a participant run whose data store never loads runs no trials');

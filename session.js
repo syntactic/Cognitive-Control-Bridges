@@ -1376,6 +1376,7 @@ const Session = (() => {
         if (uploadActive) {
             try {
                 await window.dataStore.startSession(options);
+                window.dataStore.startPoh?.();
             } catch (e) {
                 // A failed session-doc write must not stop the experiment — the
                 // end-of-session CSV download stays as the backstop. Disable further

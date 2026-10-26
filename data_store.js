@@ -46,6 +46,8 @@ const DEV_FIREBASE_CONFIG = {
     // Flip together with the console's enforcement switch. While false, a failed
     // check is recorded on the session doc and the run continues.
     appCheckEnforced: false,
+    // Proof of Human site key (public, like the reCAPTCHA key); null turns it off.
+    pohSiteKey: 'pub-dncmwRIIvZW3wgNT4tPE',
 };
 
 // EU prod database (EU region, GDPR). Real participant runs on the prod host land
@@ -59,6 +61,8 @@ const PROD_FIREBASE_CONFIG = {
     appId: '1:348836487217:web:2068f57d361e10cd6b7510',
     recaptchaSiteKey: '6LepQs8tAAAAABj53guoo-eKt58pdXqyy8sddDmw',
     appCheckEnforced: true,
+    // Off until the dev runs have been reviewed and the consent text names it.
+    pohSiteKey: null,
 };
 
 // Pick the database from the deployment host. The prod host writes to EU prod by
@@ -83,7 +87,7 @@ const { config: firebaseConfig, env: firebaseEnv } = selectFirebaseConfig();
 console.log(`[data_store] Firebase target: ${firebaseEnv} (${firebaseConfig.projectId}).`);
 
 // Initialize Firebase
-const { recaptchaSiteKey, appCheckEnforced, ...firebaseOptions } = firebaseConfig;
+const { recaptchaSiteKey, appCheckEnforced, pohSiteKey, ...firebaseOptions } = firebaseConfig;
 const app = initializeApp(firebaseOptions);
 
 // reCAPTCHA Enterprise reads browser and device signals and sends them to Google, so
@@ -148,6 +152,31 @@ async function startSession(meta) {
     await batch.commit();
 }
 
+// Proof of Human bot scoring, record only: no run is treated differently on its score.
+// Like reCAPTCHA it starts only after consent, and it is given the anonymous uid, never
+// the Prolific ID. Scores are pulled afterwards with the secret key (analysis/poh_report.js).
+// ?pohrun=<label> tags a test run so its sessions can be found together.
+function startPoh() {
+    if (!pohSiteKey || !sessionRef) return;
+    const run = new URLSearchParams(location.search).get('pohrun');
+    window.addEventListener(
+        'poh:ready',
+        () => {
+            const record = { poh_session_id: window.getPOHSessionId?.() ?? null, poh_run: run };
+            setDoc(sessionRef, record, { merge: true }).catch((e) =>
+                console.warn('Proof of Human: session id not recorded.', e),
+            );
+        },
+        { once: true },
+    );
+    const script = document.createElement('script');
+    script.src = 'https://cdn.poh.org/v1/poh.js';
+    script.dataset.siteKey = pohSiteKey;
+    script.dataset.userId = uid;
+    script.dataset.tags = [`env:${firebaseEnv}`, ...(run ? [`run:${run}`] : [])].join(',');
+    document.head.appendChild(script);
+}
+
 // stageSummary is a training stage's outcome (criterionMet, stageFailed); null for test blocks.
 async function saveBlock(blockOrder, trials, stageSummary = null) {
     const blockRef = doc(sessionRef, 'blocks', String(blockOrder));
@@ -206,4 +235,4 @@ async function hasAppCheckToken(timeoutMs) {
     }
 }
 
-window.dataStore = { startSession, saveBlock, abortSession, verifyBrowser };
+window.dataStore = { startSession, startPoh, saveBlock, abortSession, verifyBrowser };
