@@ -75,3 +75,4 @@ data/exports/
 session_*.csv
 poh_reports.json
 poh_reports.csv
+data/backups/
