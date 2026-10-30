@@ -492,6 +492,62 @@ const Session = (() => {
         return window.dataStore || null;
     }
 
+    /**
+     * Everything a run needs from the network before its first trial. Resolves to
+     * { allowed, uploadActive }: allowed is false when the bot check turns the browser
+     * away (only under enforcement); uploadActive is false when there is nothing to
+     * upload to, or the session record could not be written.
+     */
+    async function prepareRun(sessionDef, options, store) {
+        if (store && store.verifyBrowser && !(await store.verifyBrowser())) {
+            return { allowed: false, uploadActive: false };
+        }
+
+        // Upload needs the data store and the participant fields index.html passes on a
+        // participant URL. The demo dropdown has neither, so it never writes to Firestore.
+        let uploadActive = !!(
+            window.dataStore &&
+            options.paradigm &&
+            options.condition &&
+            options.prolificPid
+        );
+        if (uploadActive) {
+            try {
+                await window.dataStore.startSession(options);
+                window.dataStore.startPoh?.();
+            } catch (e) {
+                // A failed session-doc write must not stop the experiment. saveBlock needs
+                // that doc, so upload is switched off for the rest of the run.
+                console.warn('Data upload disabled: startSession failed.', e);
+                uploadActive = false;
+            }
+        }
+
+        // SweetPea sequence CSVs are fetched up front so runBlock can generate trials
+        // synchronously; blocks without a sequenceSource use the interim generator.
+        await preloadSequences(sessionDef, options);
+
+        // init_oobs() reads img.naturalWidth as soon as a block starts, so the sprite
+        // sheets must be loaded before the first trial.
+        if (options.stimulus !== 'abstract') {
+            await loadSprites(options.stimulus || 'bird');
+        } else {
+            spriteConfig = null;
+        }
+        return { allowed: true, uploadActive };
+    }
+
+    // A one-line overlay for the rare case where setup is still loading after the
+    // keyboard check, so the screen doesn't look stuck.
+    function showNote(text) {
+        if (!canvasContainer || typeof document.createElement !== 'function') return null;
+        const overlay = document.createElement('div');
+        overlay.className = 'instructions-overlay';
+        overlay.innerHTML = `<div class="instructions-content">${text}</div>`;
+        canvasContainer.appendChild(overlay);
+        return overlay;
+    }
+
     function showConsent(containerEl, options = {}) {
         if (options.skipConsent || typeof document === 'undefined' || !containerEl) {
             return Promise.resolve();
@@ -1366,60 +1422,34 @@ const Session = (() => {
         abortInfo = null;
         sessionBlockCount = sessionDef.length;
         await showConsent(canvasContainer, options);
-        if (store && store.verifyBrowser && !(await store.verifyBrowser())) {
-            await showBrowserBlock(containerEl);
-            return;
-        }
-
-        // Progressive data upload is enabled only for a real participant run: the
-        // shim (data_store.js) must have loaded, AND the participant metadata that
-        // index.html threads in from participantMode must be present. The demo
-        // dropdown path has neither, so it never writes to Firestore.
-        let uploadActive = !!(
-            window.dataStore &&
-            options.paradigm &&
-            options.condition &&
-            options.prolificPid
-        );
-        if (uploadActive) {
-            try {
-                await window.dataStore.startSession(options);
-                window.dataStore.startPoh?.();
-            } catch (e) {
-                // A failed session-doc write must not stop the experiment — the
-                // end-of-session CSV download stays as the backstop. Disable further
-                // upload attempts, since saveBlock needs the session doc that failed.
-                console.warn('Data upload disabled: startSession failed.', e);
-                uploadActive = false;
-            }
-        }
 
         currentSessionDef = sessionDef;
         allTrialData = [];
         trainingLog = [];
         isRunning = true;
-
         canvasContainer.innerHTML = '';
 
-        // Pre-fetch SweetPea-generated sequence CSVs for any block that declares
-        // a `sequenceSource`. Done up front (runSession is async) so runBlock can
-        // stay synchronous about trial generation. Blocks without a sequenceSource
-        // fall back to the interim generator — nothing here touches them.
-        await preloadSequences(sessionDef, options);
-
-        // Concrete (sprite) stimuli are the default (birds by default; fish also supported; ?stimulus=abstract for circles/triangles).
-        // Load the sprite sheets once, before any trial runs, because init_oobs() reads
-        // img.naturalWidth the moment a block starts.
-        if (options.stimulus !== 'abstract') {
-            await loadSprites(options.stimulus || 'bird');
-        } else {
-            spriteConfig = null;
+        // The bot check, the session record and the stimulus files take a few seconds,
+        // so they load behind the keyboard check instead of in front of a blank screen.
+        // Waiting on network requests doesn't delay the check's key presses.
+        const setup = prepareRun(sessionDef, options, store);
+        let setupDone = false;
+        // A failure counts as done too; it is raised at `await setup` below.
+        setup.then(
+            () => (setupDone = true),
+            () => (setupDone = true),
+        );
+        const keyCheck = await showKeyCheck(sessionResponseKeys(sessionDef), instructionTimeoutMs);
+        const note = setupDone ? null : showNote('Getting the study ready…');
+        const { allowed, uploadActive } = await setup;
+        if (note) note.remove();
+        if (!allowed) {
+            await showBrowserBlock(containerEl);
+            return;
         }
 
-        // After startSession, so a timeout here still reaches the Firestore record. The
-        // abort is recorded like any other, but ends on a return-the-study screen rather
-        // than the debrief (see the end of runSession).
-        const keyCheck = await showKeyCheck(sessionResponseKeys(sessionDef), instructionTimeoutMs);
+        // Recorded after setup, so the abort reaches the session record. It ends on a
+        // return-the-study screen rather than the debrief (see the end of runSession).
         if (keyCheck === 'timeout') {
             abortInfo = { reason: 'key_check_timeout', stage: null, blockId: null, blockOrder: 0 };
             isRunning = false;

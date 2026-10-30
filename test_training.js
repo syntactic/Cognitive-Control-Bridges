@@ -3308,6 +3308,7 @@ async function main() {
             verifyBrowser: async () => {
                 calls.verify += 1;
                 calls.consentFirst = consentScreens() > consentBefore;
+                if (store.delayMs) await new Promise((r) => setTimeout(r, store.delayMs));
                 return store.allow;
             },
             startSession: async () => {
@@ -3343,6 +3344,16 @@ async function main() {
     gate = await gateRun({ allow: false });
     assert(gate.verify === 1 && gate.trials === 0, 'a browser the store refuses runs no trials');
     assert(gate.pohAfterStarts === undefined, 'and never starts the bot tracker');
+
+    // The keyboard check no longer waits for setup: with a slow bot check it is done
+    // first (instantly, under the stub DOM), and the waiting note covers the gap.
+    const notesBefore = screensOf(container).filter((t) => t.includes('Getting the study ready')).length;
+    gate = await gateRun({ allow: true, delayMs: 200 });
+    assert(
+        screensOf(container).filter((t) => t.includes('Getting the study ready')).length ===
+            notesBefore + 1 && gate.trials > 0,
+        'a slow bot check runs behind the keyboard check, then the run starts',
+    );
 
     gate = await gateRun(null);
     assert(gate.trials === 0, 'a participant run whose data store never loads runs no trials');
