@@ -281,10 +281,22 @@ async function main() {
 
     console.log('Fetching session records from Firestore...');
     const sessionsSnap = await db.collection('sessions').get();
+    // Since schema_version 2 the Prolific identifiers live in links/{session id}, not on
+    // the session doc. Joined back here so approval, duplicate checks and --pid work on
+    // both old and new sessions.
+    const linksSnap = await db.collection('links').get();
+    const links = new Map(linksSnap.docs.map((d) => [d.id, d.data()]));
     const allSessions = [];
 
     for (const sessionDoc of sessionsSnap.docs) {
-        const session = { id: sessionDoc.id, ...sessionDoc.data() };
+        const link = links.get(sessionDoc.id) || {};
+        const session = {
+            id: sessionDoc.id,
+            prolific_pid: link.prolific_pid,
+            study_id: link.study_id,
+            session_id: link.session_id,
+            ...sessionDoc.data(),
+        };
         const blocksSnap = await sessionDoc.ref.collection('blocks').get();
         // Blocks are stored as subcollections; sort by block_order to preserve presentation sequence
         session.blocks = blocksSnap.docs

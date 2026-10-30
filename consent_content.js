@@ -19,7 +19,7 @@ more than one thing competes for attention. There are no right or wrong people f
 this task, as we are interested in typical patterns of speed and accuracy.</p>
 
 <h3 style="${CONSENT_HEADING_STYLE}">2. What will you do?</h3>
-<p>The whole session takes about 25–35 minutes and runs entirely in your web
+<p>The whole session takes about 30 minutes and runs entirely in your web
 browser. You will first read short instructions and complete a brief guided practice.
 Then, over several short blocks with self-paced breaks, you will look at simple
 displays of red birds on the screen and respond as quickly and accurately as you can 
@@ -27,11 +27,17 @@ by pressing keys on your keyboard. You need only a desktop or laptop computer wi
 physical keyboard.</p>
 
 <h3 style="${CONSENT_HEADING_STYLE}">3. What data do we collect?</h3>
-<p>We record only what you do in the task: the keys you press, how fast you press
-them, and whether each response was correct. We also store the study condition you
-were assigned to and your Prolific participant ID, which lets us confirm your
-completion and pay you. We do <strong>not</strong> collect your name, and we do not
-collect any demographic information (such as your age or gender) in this study.</p>
+<p>We record what you do in the task: the keys you press, how fast you press them,
+and whether each response was correct, along with the study condition you were assigned
+to. We also take your age from your Prolific profile to describe the study sample. We do
+<strong>not</strong> collect your name or any other personal details.</p>
+<p>To keep automated bots out of the study, two services check the browser you use.
+Google reCAPTCHA evaluates technical information about your browser and device. Proof of
+Human, a bot-detection service, records how you interact with the page while you take
+part: the timing of your key presses, your mouse movements, clicks and scrolling. It also
+records technical information about your browser and device (a device fingerprint) and
+your IP address, and it sets a cookie. Proof of Human does not receive your Prolific ID
+or your name. Both checks start only after you agree below.</p>
 
 <h3 style="${CONSENT_HEADING_STYLE}">4. Are there any risks or benefits?</h3>
 <p>This is an ordinary computer task and carries no risks beyond those of normal screen
@@ -43,23 +49,25 @@ compensation, but you contribute to basic research on human cognition.</p>
 <p>Your participation is entirely voluntary. You may stop at any time by closing the
 browser window, without giving a reason and without any disadvantage. If you stop
 early, the responses saved up to that point are kept unless you ask us to delete them.
-Because your data are stored under your Prolific ID until they are anonymized for
-analysis, you can request deletion by contacting us with that ID at any time before
-the data are anonymized and published; after that, deletion is no longer possible
-because the data can no longer be traced to you.</p>
+While your study record can still be linked to your Prolific ID, you can ask us to
+delete it by writing to us with that ID. Once the link has been deleted and the data are
+anonymized, we can no longer find your record, so it can no longer be deleted.</p>
 
 <h3 style="${CONSENT_HEADING_STYLE}">6. Confidentiality and data protection</h3>
-<p>Your task responses are stored on a secured server located in the European Union 
-and are handled in line with the EU General Data Protection Regulation (GDPR).
-During data collection your records are linked only to your pseudonymous Prolific ID
-and never to your name. For scientific analysis and publication, the Prolific ID is
-removed so that the dataset is anonymous and can no longer be traced to you. Access to
-the data while it is still pseudonymous is limited to the research team named below.
-The anonymized data, and analyses derived from it, may be shared openly for reproducible
-research, for example under an open MIT license. Data are retained for at least 10 years
-in line with good scientific practice. You have the right to access, correct, or request deletion of your
-data while it can still be identified, and to lodge a complaint with a data protection
-supervisory authority.</p>
+<p>Your task responses are stored on a secured server located in the European Union
+and are handled in line with the EU General Data Protection Regulation (GDPR). They are
+stored under a random study code, not under your name or Prolific ID. Your Prolific ID is
+kept separately, with restricted access, only to handle payment and to check data
+quality. That link is then deleted and the remaining data are anonymous.</p>
+<p>Google (reCAPTCHA) and Proof of Human process the bot-check data on their own servers,
+which may be outside the European Union. The Proof of Human score is recorded to help us
+judge data quality. It never leads to an automatic decision about you and does not change
+your payment; any flag is reviewed by a member of the research team.</p>
+<p>The anonymized data, and analyses derived from it, may be shared in a public research
+repository under a Creative Commons Attribution (CC BY 3.0) license. Data are retained for
+at least 10 years in line with good scientific practice. You have the right to access,
+correct, or request deletion of your data while it can still be identified, and to lodge
+a complaint with a data protection supervisory authority.</p>
 
 <h3 style="${CONSENT_HEADING_STYLE}">7. Compensation</h3>
 <p>You are paid through Prolific at the rate stated on the study's Prolific page. If you
@@ -80,12 +88,15 @@ the study team at
       consider it;</li>
   <li>you take part voluntarily and understand that you may stop at any time without
       disadvantage;</li>
-  <li>you agree that your task responses and Prolific ID are stored and analyzed as
-      described, on a secured server in the EU;</li>
+  <li>you agree that your task responses, and your age from your Prolific profile, are
+      stored and analyzed as described, on a secured server in the EU, and that your
+      Prolific ID is kept separately for payment and data-quality checks;</li>
+  <li>you agree that Google reCAPTCHA and Proof of Human check your browser and how you
+      interact with the page, as described in section 3;</li>
   <li>you agree that your data may be published in anonymized form, from which you can
-      no longer be identified, including under an open (MIT) license;</li>
-  <li>you understand that once your data are anonymized for analysis, they can no longer
-      be deleted on request.</li>
+      no longer be identified, under a Creative Commons Attribution (CC BY 3.0) license;</li>
+  <li>you understand that once your data are anonymized, they can no longer be deleted on
+      request.</li>
 </ul>
   `;
 

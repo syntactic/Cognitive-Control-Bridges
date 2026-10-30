@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /sessions/{sessionId} {
+      // Research record: no Prolific identifiers (those go to links/).
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasAll(['paradigm', 'condition', 'schema_version', 'uid'])
+        && !request.resource.data.keys().hasAny(['prolific_pid', 'study_id', 'session_id'])
+        && request.resource.data.paradigm in [
+             'cp_prp', 'cp_taskswitch', 'cp_taskswitch_asym', 'cp_stroop', 'cp_stroop_crossed']
+        && request.resource.data.condition in ['A', 'B']
+        && request.resource.data.schema_version == 2;
+
+      allow update: if request.auth != null
+        && resource.data.uid == request.auth.uid              // the existing owner must be you
+        && request.resource.data.uid == request.auth.uid      // and you can't hand it off
+        && !request.resource.data.keys().hasAny(['prolific_pid', 'study_id', 'session_id']);
+
+      allow read, delete: if false;
+
+      match /blocks/{blockOrder} {
+        allow create: if request.auth != null
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.trials is list
+          && request.resource.data.trials.size() <= 200;
+        allow read, update, delete: if false;   // a block is written once — no update needed
+      }
+    }
+
+    // Prolific identifiers, keyed by session doc id. Clients write their own once, in the
+    // same batch as the session doc, and can never read one back; the team reads them
+    // through the admin export.
+    match /links/{sessionId} {
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/sessions/$(sessionId)).data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(
+             ['uid', 'prolific_pid', 'study_id', 'session_id', 'created_at'])
+        && request.resource.data.prolific_pid is string
+        && request.resource.data.prolific_pid.size() <= 64;
+      allow read, update, delete: if false;
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}

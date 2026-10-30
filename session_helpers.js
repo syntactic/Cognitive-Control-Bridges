@@ -405,6 +405,9 @@ function buildKeyTaskMap(seConfig, trial) {
  * respond to it. Returns:
  *   'order'      - dual-task only: both tasks answered, T2 first. Reversals are not
  *                  blocked by the criterion, so the hint is the only corrective.
+ *   'missing-t2' - dual-task only: T1 answered, T2 never was.
+ *   'copy-t1'    - dual-task only: T1 right, and T2 answered with T2's hand in T1's
+ *                  direction on a trial where the two answers differ.
  *   'wrong-set'  - the first press used the other hand's keys.
  *   'reversal'   - the right hand, but the opposite direction to the target, on a trial
  *                  where that press can't be the distractor (univalent or congruent).
@@ -413,8 +416,8 @@ function buildKeyTaskMap(seConfig, trial) {
  *   null         - correct, unreadable, or not a case a hint should touch.
  *
  * On a single-task trial, reads the first press after stimulus onset (training resolves on
- * the first press, so that press is the response). A dual-task trial is judged only on its
- * response order. Only fires on disjoint key maps, where hand and direction are separable
+ * the first press, so that press is the response). A dual-task trial is judged by
+ * classifyDualTaskError. Only fires on disjoint key maps, where hand and direction are separable
  * and a reversal can be seen at all: with identical maps the extractor assigns presses to
  * T1 and T2 by order, so it never reports 'T2-first'. 'reversal' and 'distractor' are
  * complementary and mutually exclusive per trial: an opposite press is read as a flipped
@@ -432,10 +435,8 @@ function classifyMappingError(trialData, seConfig) {
     const disjoint = movKeys.length && orKeys.length && !movKeys.some((k) => orKeys.includes(k));
     if (!disjoint) return null;
 
-    // A dual-task trial has two presses to classify, and a wrong key on either is already
-    // scored by the criterion. Only the order goes uncounted there.
     if (trialData.paradigm === 'dual-task') {
-        return trialData.responseOrder === 'T2-first' ? 'order' : null;
+        return classifyDualTaskError(trialData);
     }
 
     const correctMap = task === 'mov' ? movMap : orMap;
@@ -462,6 +463,32 @@ function classifyMappingError(trialData, seConfig) {
         // Incongruent: the press is the key the distractor's direction maps to in the cued
         // task's own map, so the participant tracked the wrong feature rather than the keys.
         if (first.key === correctMap[distractor]) return 'distractor';
+    }
+    return null;
+}
+
+/**
+ * The dual-task half of classifyMappingError. A wrong key on either task is already scored
+ * by the criterion, so this names only the patterns a participant can repeat for a whole
+ * stage without understanding why they fail: a reversed order, a skipped second question,
+ * and a second answer copied from the first.
+ */
+function classifyDualTaskError(trialData) {
+    if (trialData.responseOrder === 'T2-first') return 'order';
+    if (trialData.accuracy2 === 'miss') {
+        // With both missed there is nothing T2-specific to correct.
+        return trialData.accuracy1 && trialData.accuracy1 !== 'miss' ? 'missing-t2' : null;
+    }
+    // A copy: T1 right, T2 wrong, on a trial whose two answers differ. With two directions
+    // per task, a wrong T2 press on such a trial is always T2's key for T1's direction, so
+    // the accuracies alone identify it. A single slip looks the same; the streak is what
+    // separates a participant reading one feature and reporting it twice.
+    if (
+        trialData.accuracy2 === 'error' &&
+        (trialData.accuracy1 || '').startsWith('correct') &&
+        trialData.t1_target_dir !== trialData.t2_target_dir
+    ) {
+        return 'copy-t1';
     }
     return null;
 }
@@ -1096,6 +1123,32 @@ function formatBreakSummary(summary) {
     const rt =
         summary.meanRt !== null ? `, average ${Math.round(summary.meanRt)} ms per answer` : '';
     return `Since the last break: ${accuracy}${rt}.`;
+}
+
+/**
+ * Break reminder for a participant who has stopped reading the border's side. In both
+ * pilots the participants who fell to chance stopped using the side once trial feedback
+ * was withdrawn, answering with the uncued hand on 41-50% of test trials; everyone else
+ * stayed under 10% over the whole test.
+ */
+const BREAK_SIDE_CUE_REMINDER = 'Remember: the SIDE of the border tells you which HAND to use.';
+const BREAK_REMINDER_WRONG_HAND_RATE = 0.15;
+
+/**
+ * The reminder after a test block, or null. Shown only when at least
+ * BREAK_REMINDER_WRONG_HAND_RATE of the block's answered trials used the uncued hand, and
+ * only under a positional cue ('hue+position'): a whole-border cue has no side to read.
+ */
+function breakReminderFor(sessionDef, blockRows) {
+    const positional = sessionDef.some(
+        (blockDef) => blockDef.blockConfig && blockDef.blockConfig.cueMode === 'hue+position',
+    );
+    const answered = blockRows.filter((row) => row.accuracy1 && row.accuracy1 !== 'miss');
+    if (!positional || answered.length === 0) return null;
+    const wrongHand = answered.filter((row) => row.mapping_error === 'wrong-set').length;
+    return wrongHand / answered.length >= BREAK_REMINDER_WRONG_HAND_RATE
+        ? BREAK_SIDE_CUE_REMINDER
+        : null;
 }
 
 // ---- Capped, mash-proof inter-block break --------------------------------

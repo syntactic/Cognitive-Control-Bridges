@@ -724,6 +724,111 @@ assert(
     classifyMappingError(dualTrial({ responseOrder: 'T2-first' }), identicalSEConfig) === null,
     'dual-task with identical maps: order is not observable -> null',
 );
+
+// Skipped second answer. T1 = mov (a/d), T2 = or (j/l).
+assert(
+    classifyMappingError(
+        dualTrial({ responseOrder: null, accuracy1: 'correct', accuracy2: 'miss' }),
+        disjointSEConfig,
+    ) === 'missing-t2',
+    'dual-task, T1 answered and T2 missed -> missing-t2',
+);
+assert(
+    classifyMappingError(
+        dualTrial({ responseOrder: null, accuracy1: 'error', accuracy2: 'miss' }),
+        disjointSEConfig,
+    ) === 'missing-t2',
+    'a wrong T1 answer still counts as answering it -> missing-t2',
+);
+assert(
+    classifyMappingError(
+        dualTrial({ responseOrder: null, accuracy1: 'miss', accuracy2: 'miss' }),
+        disjointSEConfig,
+    ) === null,
+    'both missed: nothing T2-specific -> null',
+);
+assert(
+    classifyMappingError(
+        dualTrial({ responseOrder: null, accuracy1: 'miss', accuracy2: 'correct' }),
+        disjointSEConfig,
+    ) === null,
+    'T1 missed, T2 answered -> null',
+);
+assert(
+    classifyMappingError(
+        dualTrial({ responseOrder: null, accuracy1: 'correct', accuracy2: 'miss' }),
+        identicalSEConfig,
+    ) === null,
+    'identical maps: a missed T2 is not attributable -> null',
+);
+
+// T2 copied from T1. T1 mov target 0 (d); T2 or target 180 (j). The copy presses l
+// (or's key for direction 0, T1's direction). T2 onset 800.
+const copyTrial = (over) =>
+    dualTrial({
+        t1_target_dir: 0,
+        t2_target_dir: 180,
+        t2_stim_onset: 800,
+        accuracy1: 'correct',
+        accuracy2: 'error',
+        rawKeyPresses: presses([
+            ['d', 1200],
+            ['l', 1600],
+        ]),
+        ...over,
+    });
+assert(
+    classifyMappingError(copyTrial({}), disjointSEConfig) === 'copy-t1',
+    "T2 answered with T2's hand in T1's direction -> copy-t1",
+);
+assert(
+    classifyMappingError(
+        copyTrial({
+            responseOrder: 'T2-first',
+            rawKeyPresses: presses([
+                ['l', 900],
+                ['d', 1200],
+            ]),
+        }),
+        disjointSEConfig,
+    ) === 'order',
+    'a reversed copy is named by its order first',
+);
+assert(
+    classifyMappingError(
+        copyTrial({ t2_target_dir: 0, accuracy2: 'correct' }),
+        disjointSEConfig,
+    ) === null,
+    'answers match: a T1-direction T2 press is just correct -> null',
+);
+assert(
+    classifyMappingError(
+        copyTrial({
+            t2_target_dir: 0,
+            rawKeyPresses: presses([
+                ['d', 1200],
+                ['j', 1600],
+            ]),
+        }),
+        disjointSEConfig,
+    ) === null,
+    'answers match and T2 is wrong: not a copy -> null',
+);
+assert(
+    classifyMappingError(copyTrial({ accuracy1: 'error' }), disjointSEConfig) === null,
+    'T1 wrong: no correct first answer to copy -> null',
+);
+assert(
+    classifyMappingError(
+        copyTrial({ t1_task: 'or', t2_task: 'mov', t1_target_dir: 180, t2_target_dir: 0 }),
+        disjointSEConfig,
+    ) === 'copy-t1',
+    'copy is caught whichever task is T1',
+);
+assert(
+    classifyMappingError(copyTrial({}), identicalSEConfig) === null,
+    'identical maps: a copy is not attributable -> null',
+);
 assert(
     classifyMappingError(mkTrial({ rawKeyPresses: presses([['a', 900]]) }), identicalSEConfig) ===
         null,

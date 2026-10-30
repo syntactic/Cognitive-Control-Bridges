@@ -47,6 +47,12 @@ const CP_PRP_SOA_LEVELS = [100, 300, 600];
 
 const CP_SWITCH_RATE = 50;
 
+// Shorter response-cue interval for the two switching paradigms only (10-16 call): less
+// time for the previous task set to fade should enlarge the switch cost, which was small
+// in both pilots at 400-600 ms. The CSI stays at 200 ms, since the cue carries both task
+// and hand. The low end stays clear of the 150 ms resolve delay that floors the interval.
+const CP_SWITCHING_ITI = { type: 'uniform', value: 300, params: [200, 400] };
+
 // Participant-counterbalanced choices:
 const CP_EASY_TASK = 'mov'; // asymmetric switching: which task is the easy one
 const CP_TARGET_TASK = 'mov'; // Stroop: which dimension is the target (other = distractor)
@@ -150,6 +156,7 @@ const cpTaskSwitch = {
     ...CP_DEFAULTS,
     blockId: 'cp_taskswitch',
     blockType: 'mixed',
+    iti: CP_SWITCHING_ITI,
     paradigm: 'single-task',
     // Two tasks => disjoint response sets (left hand mov, right hand or).
     rso: 'disjoint',
@@ -180,6 +187,7 @@ const cpTaskSwitchAsym = {
     ...CP_DEFAULTS,
     blockId: 'cp_taskswitch_asym',
     blockType: 'mixed',
+    iti: CP_SWITCHING_ITI,
     paradigm: 'single-task',
     rso: 'disjoint',
     keyMaps: CP_DISJOINT_KEY_MAPS,
@@ -1464,7 +1472,9 @@ const CP_TEST_BLOCK_PREAMBLE =
 // two. Easiest is the safer floor: an S2/S3 cap failure is the pre-registered
 // exclusion rule and must mean "hasn't learned the mapping", not "finds 0.3
 // coherence hard". Full-range exposure is S6's job (it gets each test block's
-// coherence table verbatim).
+// coherence table verbatim). cp_taskswitch_asym's hard task has no easy level in
+// the test, so it ramps to CP_EASY all the same and meets CP_HARD first at S6,
+// as cp_taskswitch's hard trials do.
 //
 // Training also runs bivalent stimuli for all five paradigms, including
 // cp_prp whose test block is univalent — so its S5/S6 use CP_DISTRACTOR. A
@@ -1693,6 +1703,7 @@ function cpBuildTaskSwitchTrainingSession(condition = 'A', scheme) {
         finalStage: {
             kind: 'switching',
             csi: cpTaskSwitch.csi,
+            iti: cpTaskSwitch.iti,
             coherence: cpTaskSwitch.coherence,
             levelFactors: cpTaskSwitch.levelFactors,
             switchRate: cpTaskSwitch.switchRate,
@@ -1719,13 +1730,17 @@ function cpBuildTaskSwitchAsymTrainingSession(condition = 'A', scheme) {
         keyMaps: scheme ? scheme.keyMaps : CP_DISJOINT_KEY_MAPS,
         rso: 'disjoint',
         scheme,
-        rampTarget: targetCoherence,
+        // Not targetCoherence (see the judgment-call note above): ramping the hard task
+        // to CP_HARD from S2 cost asym most of its strikes before any switching in both
+        // pilots.
+        rampTarget: { mov: CP_EASY, or: CP_EASY },
         trainingDistractor: CP_DISTRACTOR,
         testCoherence: coherence,
         testSession: cpTestSessionFor('cp_taskswitch_asym', condition, scheme),
         finalStage: {
             kind: 'switching',
             csi: cpTaskSwitchAsym.csi,
+            iti: cpTaskSwitchAsym.iti,
             coherence,
             switchRate: cpTaskSwitchAsym.switchRate,
         },
