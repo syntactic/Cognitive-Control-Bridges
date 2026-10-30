@@ -195,6 +195,7 @@ eval(
     DEMO_KEYCAPS,
     INSTRUCTION_DEMO_ANCHOR,
     BREAK_SIDE_CUE_REMINDER,
+    FINAL_SCREEN_MS,
 };
 `,
 );
@@ -218,6 +219,7 @@ const {
     DEMO_KEYCAPS,
     INSTRUCTION_DEMO_ANCHOR,
     BREAK_SIDE_CUE_REMINDER,
+    FINAL_SCREEN_MS,
 } = globalThis.__T;
 
 // ============================================================
@@ -2939,6 +2941,32 @@ async function main() {
         hueBreaks.every((t) => !t.includes(BREAK_SIDE_CUE_REMINDER)),
         "a whole-border cue has no side, so its breaks don't claim one",
     );
+
+    section('runSession — the final score screen ends on one Enter and points to Prolific');
+
+    // One test block, so the only break-style screen is the final one. The document
+    // fires a single Enter: an ordinary break would arm on it and wait out its cap.
+    const realAddListener = global.document.addEventListener;
+    global.document.addEventListener = (type, handler) =>
+        setTimeout(() => handler({ key: 'Enter', timeStamp: 0 }), 0);
+    seResponder = RESPOND_CORRECT;
+    const finalEl = makeElement();
+    const finalStart = Date.now();
+    await Session.runSession(
+        [{ blockConfig: TRAINING_BLOCK_CONFIG, numTrials: 2, phase: 'test', instructions: 'T' }],
+        finalEl,
+        { stimulus: 'abstract' },
+    );
+    const finalElapsed = Date.now() - finalStart;
+    global.document.addEventListener = realAddListener;
+    const finalScreen = screensOf(finalEl).find((t) => t.includes("That's the last block"));
+    assert(
+        finalScreen && /completion code and a link back to Prolific/.test(finalScreen),
+        'the final screen says the next screen leads back to Prolific',
+    );
+    assert(/Press Enter to continue\./.test(finalScreen), 'and asks for a single Enter');
+    assert(finalElapsed < 5000, `one Enter ends it without waiting out the timer (${finalElapsed} ms)`);
+    assert(FINAL_SCREEN_MS === 10000, 'the final screen times out after 10 s');
 
     const sideCued = cpBuildStroopTrainingSession('A', CP_SCHEMES.fourcue_cse);
     const rowsWith = (wrong, total) =>

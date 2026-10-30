@@ -662,8 +662,9 @@ const Session = (() => {
         return new Promise((resolve) => {
             const overlay = document.createElement('div');
             overlay.className = 'instructions-overlay';
+            const capMs = final ? FINAL_SCREEN_MS : BREAK_CAP_MS;
             const idlePrompt = final
-                ? `Press ${BREAK_ADVANCE_KEY} to finish.`
+                ? `Press ${BREAK_ADVANCE_KEY} to continue.`
                 : `Press ${BREAK_ADVANCE_KEY} if you want to continue now.`;
             const armedPrompt = `Press ${BREAK_ADVANCE_KEY} again to confirm.`;
             // Built as an innerHTML string so the full screen (including summary)
@@ -688,7 +689,10 @@ const Session = (() => {
 
             const handler = (e) => {
                 const now = e && typeof e.timeStamp === 'number' ? e.timeStamp : performance.now();
-                const result = controller.press(e && e.key, now, e && e.repeat);
+                const result =
+                    final && e && e.key === BREAK_ADVANCE_KEY && !e.repeat
+                        ? 'advance'
+                        : controller.press(e && e.key, now, e && e.repeat);
                 if (result === 'armed') {
                     if (prompt) prompt.textContent = armedPrompt;
                 } else if (result === 'advance') finish();
@@ -703,10 +707,12 @@ const Session = (() => {
             };
 
             const renderCountdown = () => {
-                const remMs = BREAK_CAP_MS - (performance.now() - startedAt);
+                const remMs = capMs - (performance.now() - startedAt);
                 const remSec = Math.max(0, Math.ceil(remMs / 1000));
                 if (countdown) {
-                    countdown.textContent = `${final ? 'Finishing' : 'Break'}: ${remSec} s remaining.`;
+                    countdown.textContent = final
+                        ? `Continuing in ${remSec} s.`
+                        : `Break: ${remSec} s remaining.`;
                     // Draw the eye as the auto-advance approaches.
                     const urgent = remSec <= 10;
                     countdown.style.color = urgent ? '#ff5555' : '';
@@ -1535,7 +1541,8 @@ const Session = (() => {
                 if (testBlockScores.length > 0) {
                     await showBreak(
                         "That's the last block — thank you.\n\n" +
-                            'Here is how you did across the test blocks.',
+                            'Here is how you did across the test blocks. The next screen ' +
+                            'has your completion code and a link back to Prolific.',
                         { scores: testBlockScores, final: true },
                     );
                 }

@@ -1163,6 +1163,9 @@ function breakReminderFor(sessionDef, blockRows) {
 // is ignored, and the confirm is refused until confirmMinMs after arming, so a
 // single bounced or double-fired keydown can't arm and confirm in one press.
 const BREAK_CAP_MS = 60000; // hard ceiling on one break
+// The final score screen stands between the participant and their payment, so it is
+// short and one Enter press ends it; there is no next block to skip into by accident.
+const FINAL_SCREEN_MS = 10000;
 const BREAK_ADVANCE_KEY = 'Enter'; // the one advancing key; matches KeyboardEvent.key
 const BREAK_CONFIRM_MIN_MS = 250; // confirm ignored until this long after arming
 
